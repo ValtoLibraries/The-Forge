@@ -1467,10 +1467,7 @@ public:
 
 		cmdBindVertexBuffer(cmd, 1, &pParticleVertexBuffer, NULL);
 
-		//cmdDrawInstanced(cmd, data->mDrawCount, data->mStartPoint , 1);
-
-		for (int i = 0; i < (data->mDrawCount / 1000); ++i)  // in startdust project, they want to show how fast that vulkan can execute draw command, so each thread record a lot of commands
-			cmdDrawInstanced(cmd, 1000, data->mStartPoint + (i * 1000), 1);
+		cmdDrawInstanced(cmd, data->mDrawCount, data->mStartPoint , 1);
 
 		cmdEndGpuFrameProfile(cmd, data->pGpuProfiler);
 		endCmd(cmd);
