@@ -1,9 +1,9 @@
 /*
  * Copyright (c) 2018 Confetti Interactive Inc.
- * 
+ *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -11,9 +11,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -31,8 +31,20 @@ struct Renderer;
 
 typedef struct TextDrawDesc
 {
-	TextDrawDesc(uint font = 0, uint32_t color = 0xffffffff, float size = 15.0f, float spacing = 0.0f, float blur = 0.0f) :
-		mFontID(font), mFontColor(color), mFontSize(size), mFontSpacing(spacing), mFontBlur(blur) {}
+	TextDrawDesc
+	(
+		  uint font = 0
+		, uint32_t color = 0xffffffff
+		, float size = 15.0f
+		, float spacing = 0.0f
+		, float blur = 0.0f
+	) 
+		: mFontID(font)
+		, mFontColor(color)
+		, mFontSize(size)
+		, mFontSpacing(spacing)
+		, mFontBlur(blur) 
+	{}
 
 	uint32_t mFontID;
 	uint32_t mFontColor;
@@ -41,7 +53,7 @@ typedef struct TextDrawDesc
 	float mFontBlur;
 } TextDrawDesc;
 
-class Fontstash 
+class Fontstash
 {
 public:
 	Fontstash(Renderer* renderer, int width, int height);
@@ -68,7 +80,7 @@ public:
 
 	//! Measure text boundaries. Results will be written to out_bounds (x,y,x2,y2).
 	float measureText(float* out_bounds, const char* message, float x, float y, int fontID, unsigned int color=0xffffffff, float size=16.0f, float spacing=0.0f, float blur=0.0f);
-	float measureText(float* out_bounds, const char* message, int messageLength, float x, float y, int fontID, unsigned int color=0xffffffff, float size=16.0f, float spacing=0.0f, float blur=0.0f);
+	
 protected:
 	float m_fFontMaxSize;
 	class _Impl_FontStash* impl;

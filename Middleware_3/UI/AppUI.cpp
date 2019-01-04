@@ -1,9 +1,9 @@
 /*
  * Copyright (c) 2018 Confetti Interactive Inc.
- * 
+ *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -11,9 +11,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -53,186 +53,271 @@ namespace PlatformEvents
 	extern bool skipMouseCapture;
 }
 
-static tinystl::vector<GuiComponentImpl*> gInstances;
+static tinystl::vector<GuiComponent*> gInstances;
 static Mutex gMutex;
 
 extern void initGUIDriver(Renderer* pRenderer, GUIDriver** ppDriver);
 extern void removeGUIDriver(GUIDriver* pDriver);
 
 static bool uiInputEvent(const ButtonData* pData);
+
+static void CloneCallbacks(IWidget* pSrc, IWidget* pDst)
+{
+	// Clone the callbacks
+	pDst->pOnActive = pSrc->pOnActive;
+	pDst->pOnHover = pSrc->pOnHover;
+	pDst->pOnFocus = pSrc->pOnFocus;
+	pDst->pOnEdited = pSrc->pOnEdited;
+	pDst->pOnDeactivated = pSrc->pOnDeactivated;
+	pDst->pOnDeactivatedAfterEdit = pSrc->pOnDeactivatedAfterEdit;
+}
+
+IWidget* CollapsingHeaderWidget::Clone() const
+{
+	CollapsingHeaderWidget* pWidget = conf_placement_new<CollapsingHeaderWidget>(
+		conf_calloc(1, sizeof(*pWidget)), this->mLabel, this->mDefaultOpen, this->mCollapsed);
+
+	// Need to read the subwidgets as the destructor will remove them all
+	for (size_t i = 0; i < mGroupedWidgets.size(); ++i)
+		pWidget->AddSubWidget(*mGroupedWidgets[i]);
+
+	// Clone the callbacks
+	CloneCallbacks((IWidget*)this, pWidget);
+
+	return pWidget;
+}
+
+IWidget* LabelWidget::Clone() const
+{
+	LabelWidget* pWidget = conf_placement_new<LabelWidget>(
+		conf_calloc(1, sizeof(*pWidget)), this->mLabel);
+
+	// Clone the callbacks
+	CloneCallbacks((IWidget*)this, pWidget);
+
+	return pWidget;
+}
+
+IWidget* ButtonWidget::Clone() const
+{
+	ButtonWidget* pWidget = conf_placement_new<ButtonWidget>(
+		conf_calloc(1, sizeof(*pWidget)), this->mLabel);
+
+	// Clone the callbacks
+	CloneCallbacks((IWidget*)this, pWidget);
+
+	return pWidget;
+}
+
+IWidget* SeparatorWidget::Clone() const
+{
+	SeparatorWidget* pWidget = conf_placement_new<SeparatorWidget>(
+		conf_calloc(1, sizeof(*pWidget)));
+
+	// Clone the callbacks
+	CloneCallbacks((IWidget*)this, pWidget);
+
+	return pWidget;
+}
+
+IWidget* SliderFloatWidget::Clone() const
+{
+	SliderFloatWidget* pWidget = conf_placement_new<SliderFloatWidget>(
+		conf_calloc(1, sizeof(*pWidget)),
+		this->mLabel, this->pData, this->mMin, this->mMax, this->mStep, this->mFormat);
+
+	// Clone the callbacks
+	CloneCallbacks((IWidget*)this, pWidget);
+
+	return pWidget;
+}
+
+IWidget* SliderFloat2Widget::Clone() const
+{
+	SliderFloat2Widget* pWidget = conf_placement_new<SliderFloat2Widget>(
+		conf_calloc(1, sizeof(*pWidget)),
+		this->mLabel, this->pData, this->mMin, this->mMax, this->mStep, this->mFormat);
+
+	// Clone the callbacks
+	CloneCallbacks((IWidget*)this, pWidget);
+
+	return pWidget;
+}
+
+IWidget* SliderFloat3Widget::Clone() const
+{
+	SliderFloat3Widget* pWidget = conf_placement_new<SliderFloat3Widget>(
+		conf_calloc(1, sizeof(*pWidget)),
+		this->mLabel, this->pData, this->mMin, this->mMax, this->mStep, this->mFormat);
+
+	// Clone the callbacks
+	CloneCallbacks((IWidget*)this, pWidget);
+
+	return pWidget;
+}
+
+IWidget* SliderFloat4Widget::Clone() const
+{
+	SliderFloat4Widget* pWidget = conf_placement_new<SliderFloat4Widget>(
+		conf_calloc(1, sizeof(*pWidget)),
+		this->mLabel, this->pData, this->mMin, this->mMax, this->mStep, this->mFormat);
+
+	// Clone the callbacks
+	CloneCallbacks((IWidget*)this, pWidget);
+
+	return pWidget;
+}
+
+IWidget* SliderIntWidget::Clone() const
+{
+	SliderIntWidget* pWidget = conf_placement_new<SliderIntWidget>(
+		conf_calloc(1, sizeof(*pWidget)),
+		this->mLabel, this->pData, this->mMin, this->mMax, this->mStep, this->mFormat);
+
+	// Clone the callbacks
+	CloneCallbacks((IWidget*)this, pWidget);
+
+
+	return pWidget;
+}
+
+IWidget* SliderUintWidget::Clone() const
+{
+	SliderUintWidget* pWidget = conf_placement_new<SliderUintWidget>(
+		conf_calloc(1, sizeof(*pWidget)),
+		this->mLabel, this->pData, this->mMin, this->mMax, this->mStep, this->mFormat);
+
+	// Clone the callbacks
+	CloneCallbacks((IWidget*)this, pWidget);
+
+	return pWidget;
+}
+
+IWidget* RadioButtonWidget::Clone() const
+{
+	RadioButtonWidget* pWidget = conf_placement_new<RadioButtonWidget>(
+		conf_calloc(1, sizeof(*pWidget)),
+		this->mLabel, this->pData, this->mRadioId);
+
+	// Clone the callbacks
+	CloneCallbacks((IWidget*)this, pWidget);
+
+	return pWidget;
+}
+
+IWidget* DropdownWidget::Clone() const
+{
+	const char** ppNames = (const char**)alloca(mValues.size() * sizeof(const char*));
+	for (uint32_t i = 0; i < (uint32_t)mValues.size(); ++i)
+		ppNames[i] = mNames[i].c_str();
+	DropdownWidget* pWidget = conf_placement_new<DropdownWidget>(
+		conf_calloc(1, sizeof(*pWidget)),
+		this->mLabel, this->pData, ppNames, this->mValues.data(), (uint32_t)this->mValues.size());
+
+	// Clone the callbacks
+	CloneCallbacks((IWidget*)this, pWidget);
+
+	return pWidget;
+}
+
+IWidget* ProgressBarWidget::Clone() const
+{
+	ProgressBarWidget* pWidget = conf_placement_new<ProgressBarWidget>(
+		conf_calloc(1, sizeof(*pWidget)),
+		this->mLabel, this->pData, mMaxProgress);
+
+	// Clone the callbacks
+	CloneCallbacks((IWidget*)this, pWidget);
+
+	return pWidget;
+}
+
+IWidget* ColorSliderWidget::Clone() const
+{
+	ColorSliderWidget* pWidget = conf_placement_new<ColorSliderWidget>(
+		conf_calloc(1, sizeof(*pWidget)),
+		this->mLabel, this->pData);
+
+	// Clone the callbacks
+	CloneCallbacks((IWidget*)this, pWidget);
+
+	return pWidget;
+}
+
+IWidget* ColorPickerWidget::Clone() const
+{
+	ColorPickerWidget* pWidget = conf_placement_new<ColorPickerWidget>(
+		conf_calloc(1, sizeof(*pWidget)),
+		this->mLabel, this->pData);
+
+	// Clone the callbacks
+	CloneCallbacks((IWidget*)this, pWidget);
+
+	return pWidget;
+}
+
+IWidget* TextboxWidget::Clone() const
+{
+	TextboxWidget* pWidget = conf_placement_new<TextboxWidget>(
+		conf_calloc(1, sizeof(*pWidget)),
+		this->mLabel, this->pData, this->mLength, this->mAutoSelectAll);
+
+	// Clone the callbacks
+	CloneCallbacks((IWidget*)this, pWidget);
+
+	return pWidget;
+}
+
+IWidget* CheckboxWidget::Clone() const
+{
+	CheckboxWidget* pWidget = conf_placement_new<CheckboxWidget>(
+		conf_calloc(1, sizeof(*pWidget)),
+		this->mLabel, this->pData);
+
+	// Clone the callbacks
+	CloneCallbacks((IWidget*)this, pWidget);
+
+	return pWidget;
+}
 /************************************************************************/
 // UI Implementation
 /************************************************************************/
 struct UIAppImpl
 {
-	Renderer*									pRenderer;
-	Fontstash*									pFontStash;
-	uint32_t									mWidth;
-	uint32_t									mHeight;
+	Renderer*						pRenderer;
+	Fontstash*						pFontStash;
+	uint32_t						mWidth;
+	uint32_t						mHeight;
 
-	tinystl::vector<GuiComponent*>				mComponents;
+	tinystl::vector<GuiComponent*>	mComponents;
 
-	tinystl::vector<struct GuiComponentImpl*>	mComponentsToUpdate;
-	float										mDeltaTime;
-};
-UIAppImpl* pInst;
-
-struct GuiComponentImpl
-{
-	bool Init(class UIApp* pApp, const char* pTitle, const GuiDesc* pDesc)
-	{
-		initGUIDriver(pApp->pImpl->pRenderer, &pDriver);
-
-		pDriver->load(pApp->pImpl->pFontStash, pDesc->mDefaultTextDrawDesc.mFontSize, NULL);
-
-		mInitialWindowRect =
-		{
-			pDesc->mStartPosition.getX(),
-			pDesc->mStartPosition.getY(),
-			pDesc->mStartSize.getX(),
-			pDesc->mStartSize.getY()
-		};
-
-		SetActive(true);
-		SetTitle(pTitle);
-
-		MutexLock lock(gMutex);
-		gInstances.emplace_back(this);
-
-		if (gInstances.size() == 1)
-		{
-			InputSystem::RegisterInputEvent(uiInputEvent);
-		}
-
-		return true;
-	}
-
-	void Exit()
-	{
-		pDriver->unload();
-
-		removeGUIDriver(pDriver);
-
-		MutexLock lock(gMutex);
-		gInstances.erase(gInstances.find(this));
-	}
-
-	void Draw(Cmd* pCmd, float deltaTime)
-	{
-		if (!IsActive())
-			return;
-
-		pDriver->draw(pCmd, deltaTime,
-			mTitle,
-			mInitialWindowRect.x, mInitialWindowRect.y, mInitialWindowRect.z, mInitialWindowRect.w,
-			&mProperties[0], (uint32_t)mProperties.size());
-	}
-
-	void SetTitle(const char* title_)
-	{
-		this->mTitle = title_;
-	}
-
-	void SetActive(bool active)
-	{
-		mActive = active;
-	}
-
-	bool IsActive()
-	{
-		return mActive;
-	}
-
-	unsigned int AddControl(const UIProperty& prop)
-	{
-		// Try first to fill empty property slot
-		for (unsigned int i = 0; i < (uint32_t)mProperties.size(); i++)
-		{
-			UIProperty& prop_slot = mProperties[i];
-			if (prop_slot.pData != NULL)
-				continue;
-
-			prop_slot = prop;
-			return i;
-		}
-
-		mProperties.emplace_back(prop);
-		return (uint32_t)mProperties.size() - 1;
-	}
-
-	UIProperty& GetControl(unsigned int idx)
-	{
-		return mProperties[idx];
-	}
-
-	void ClearControls()
-	{
-		mProperties.clear();
-	}
-
-	void RemoveControl(unsigned int idx)
-	{
-		UIProperty& prop = mProperties[idx];
-		prop.pData = NULL;
-		prop.pCallback = NULL;
-	}
-
-	void SetControlFlag(unsigned int propertyId, UIProperty::FLAG flag, bool state)
-	{
-		ASSERT(propertyId < (uint32_t)mProperties.size());
-		unsigned int& flags = mProperties[propertyId].mFlags;
-		flags = state ? (flags | flag) : (flags & ~flag);
-	}
-
-	// returns: 0: no input handled, 1: input handled
-	bool OnInput(const struct ButtonData* pData)
-	{
-		// Handle the mouse click events:
-		//   We want to send ButtonData with click position to the UI system
-		//   
-		if (   pData->mUserId == KEY_CONFIRM      // left  click
-			|| pData->mUserId == KEY_RIGHT_BUMPER // right click
-			|| pData->mUserId == KEY_MOUSE_WHEEL
-		)
-		{
-			// Query the latest UI_MOVE event since the current event 
-			// which is a click event, doesn't contain the mouse position. 
-			// Here we construct the 'toSend' data to contain both the 
-			// position (from the latest Move event) and click info from the
-			// current event.
-			ButtonData latestUIMoveEventData = InputSystem::GetButtonData((uint32_t)KEY_UI_MOVE);
-			ButtonData toSend = *pData;
-			toSend.mValue[0] = latestUIMoveEventData.mValue[0];
-			toSend.mValue[1] = latestUIMoveEventData.mValue[1];
-
-			PlatformEvents::skipMouseCapture = pDriver->onInput(&toSend);
-			return PlatformEvents::skipMouseCapture;
-		}
-		
-		// just relay the rest of the events to the UI and let the UI system process the events
-		return pDriver->onInput(pData);
-	}
-
-private:
-	GUIDriver*					pDriver;
-	float4						mInitialWindowRect;
-	tinystl::string				mTitle;
-	tinystl::vector<UIProperty>	mProperties;
-	bool						mActive;
+	tinystl::vector<GuiComponent*>	mComponentsToUpdate;
 };
 
 bool UIApp::Init(Renderer* renderer)
 {
+	mShowDemoUiWindow = false;
+
 	pImpl = (struct UIAppImpl*)conf_calloc(1, sizeof(*pImpl));
-	pInst = pImpl;
 	pImpl->pRenderer = renderer;
-	// Figure out the max font size for the current configuration
-	uint32 uiMaxFrontSize = uint32(UIMaxFontSize::UI_MAX_FONT_SIZE_512);
 
-	// Add and initialize the fontstash 
-	pImpl->pFontStash = conf_placement_new<Fontstash>(conf_calloc(1, sizeof(Fontstash)), renderer, (int)uiMaxFrontSize, (int)uiMaxFrontSize);
+	pDriver = NULL;
 
-	return true;
+	// Initialize the fontstash
+	//
+	// To support more characters and different font configurations
+	// the app will need more memory for the fontstash atlas.
+	//
+#if defined(TARGET_IOS) || defined(ANDROID)
+	const int TextureAtlasDimension = 512;
+#elif defined(DURANGO)
+	const int TextureAtlasDimension = 1024;
+#else // PC / LINUX / MAC
+	const int TextureAtlasDimension = 2048;
+#endif
+	pImpl->pFontStash = conf_placement_new<Fontstash>(conf_calloc(1, sizeof(Fontstash)), renderer, TextureAtlasDimension, TextureAtlasDimension);
+
+	return pImpl->pFontStash != NULL;
 }
 
 void UIApp::Exit()
@@ -244,6 +329,13 @@ void UIApp::Exit()
 
 	pImpl->pFontStash->destroy();
 	conf_free(pImpl->pFontStash);
+	
+	if (pDriver)
+	{
+		pDriver->unload();
+		removeGUIDriver(pDriver);
+		pDriver = NULL;
+	}
 
 	pImpl->~UIAppImpl();
 	conf_free(pImpl);
@@ -269,11 +361,60 @@ uint32_t UIApp::LoadFont(const char* pFontPath, uint root)
 	return fontID;
 }
 
+float2 UIApp::MeasureText(const char* pText, const TextDrawDesc& drawDesc ) const
+{
+	float textBounds[4] = {};
+	pImpl->pFontStash->measureText(textBounds, pText, 0, 0, drawDesc.mFontID, drawDesc.mFontColor, drawDesc.mFontSize, drawDesc.mFontSpacing, drawDesc.mFontBlur);
+	return float2(textBounds[2] - textBounds[0], textBounds[3] - textBounds[1]);
+}
+
+void UIApp::DrawText(Cmd* cmd, const float2& screenCoordsInPx, const char* pText, const TextDrawDesc& drawDesc) const
+{
+	const TextDrawDesc* pDesc = &drawDesc;
+	pImpl->pFontStash->drawText(cmd, pText, screenCoordsInPx.getX(), screenCoordsInPx.getY(),
+		pDesc->mFontID, pDesc->mFontColor,
+		pDesc->mFontSize, pDesc->mFontSpacing, pDesc->mFontBlur);
+}
+
+void UIApp::DrawTextInWorldSpace(Cmd* pCmd, const char* pText, const TextDrawDesc& drawDesc, const mat4& matWorld, const mat4& matProjView)
+{
+	const TextDrawDesc* pDesc = &drawDesc;
+	pImpl->pFontStash->drawText(pCmd, pText, matProjView, matWorld,
+		pDesc->mFontID, pDesc->mFontColor,
+		pDesc->mFontSize, pDesc->mFontSpacing, pDesc->mFontBlur);
+}
+
 GuiComponent* UIApp::AddGuiComponent(const char* pTitle, const GuiDesc* pDesc)
 {
 	GuiComponent* pComponent = conf_placement_new<GuiComponent>(conf_calloc(1, sizeof(GuiComponent)));
-	pComponent->pImpl = (struct GuiComponentImpl*)conf_calloc(1, sizeof(GuiComponentImpl));
-	pComponent->pImpl->Init(this, pTitle, pDesc);
+	pComponent->mHasCloseButton = false;
+	pComponent->mFlags = GUI_COMPONENT_FLAGS_ALWAYS_AUTO_RESIZE;
+
+	if (!pDriver)
+	{
+		initGUIDriver(pImpl->pRenderer, &pDriver);
+		pDriver->load(pImpl->pFontStash, pDesc->mDefaultTextDrawDesc.mFontSize, NULL);
+	}
+
+	pComponent->mInitialWindowRect =
+	{
+		pDesc->mStartPosition.getX(),
+		pDesc->mStartPosition.getY(),
+		pDesc->mStartSize.getX(),
+		pDesc->mStartSize.getY()
+	};
+
+	pComponent->mActive = true;
+	pComponent->mTitle = pTitle;
+	pComponent->pDriver = pDriver;
+
+	MutexLock lock(gMutex);
+	gInstances.emplace_back(pComponent);
+
+	if (gInstances.size() == 1)
+	{
+		InputSystem::RegisterInputEvent(uiInputEvent);
+	}
 
 	pImpl->mComponents.emplace_back(pComponent);
 
@@ -284,42 +425,106 @@ void UIApp::RemoveGuiComponent(GuiComponent* pComponent)
 {
 	ASSERT(pComponent);
 
+	pComponent->RemoveAllWidgets();
 	pImpl->mComponents.erase(pImpl->mComponents.find(pComponent));
 
-	pComponent->pImpl->Exit();
-	pComponent->pImpl->~GuiComponentImpl();
-	conf_free(pComponent->pImpl);
+	pComponent->mWidgets.clear();
+
+	MutexLock lock(gMutex);
+	gInstances.erase(gInstances.find(pComponent));
+
 	pComponent->~GuiComponent();
 	conf_free(pComponent);
 }
 
 void UIApp::Update(float deltaTime)
 {
+	if (!pDriver)
+		return;
+
+	tinystl::vector<GuiComponent*> activeComponents(pImpl->mComponentsToUpdate.size());
+	uint32_t activeComponentCount = 0;
+	for (uint32_t i = 0; i < (uint32_t)pImpl->mComponentsToUpdate.size(); ++i)
+		if (pImpl->mComponentsToUpdate[i]->mActive)
+			activeComponents[activeComponentCount++] = pImpl->mComponentsToUpdate[i];
+	
+	mHovering = pDriver->update(deltaTime, activeComponents.data(), activeComponentCount, mShowDemoUiWindow);
+		
+	// Only on iOS as this only applies to virtual keyboard.
+	// TODO: add Durango at a later stage
+#ifdef TARGET_IOS
+	//stores whether or not we need text input for
+	//any gui component
+	//if any component requires textInput then this is true.
+	int wantsTextInput = 0;
+	
+	//check if current component requires textInput
+	//only support one type of text
+	//check for bigger that way we enable keyboard with all characters
+	//if there's one widget that requires digits only and one that requires all text
+	if(pDriver->needsTextInput() > wantsTextInput)
+		wantsTextInput = pDriver->needsTextInput();
+	
+	//if current Virtual keyboard state is not equal to
+	//text input status then toggle the appropriate behavior (hide, show)
+	if(InputSystem::IsVirtualKeyboardActive() != (wantsTextInput > 0))
+	{
+		InputSystem::ToggleVirtualTouchKeyboard(wantsTextInput);
+	}
+#endif
+
 	pImpl->mComponentsToUpdate.clear();
-	pImpl->mDeltaTime = deltaTime;
 }
 
 void UIApp::Draw(Cmd* pCmd)
 {
-	for (uint32_t i = 0; i < (uint32_t)pImpl->mComponentsToUpdate.size(); ++i)
-	{
-		pImpl->mComponentsToUpdate[i]->Draw(pCmd, pImpl->mDeltaTime);
-	}
+	if (!pDriver)
+		return;
+
+	pDriver->draw(pCmd);
 }
 
 void UIApp::Gui(GuiComponent* pGui)
 {
-	pImpl->mComponentsToUpdate.emplace_back(pGui->pImpl);
+	pImpl->mComponentsToUpdate.emplace_back(pGui);
 }
 
-uint32_t GuiComponent::AddControl(const UIProperty& control)
+IWidget* GuiComponent::AddWidget(const IWidget& widget, bool clone /* = true*/)
 {
-	return pImpl->AddControl(control);
+	mWidgets.emplace_back((clone ? widget.Clone() : (IWidget*)&widget));
+	mWidgetsClone.emplace_back(clone);
+	return mWidgets.back();
 }
 
-void GuiComponent::RemoveControl(unsigned int controlID)
+void GuiComponent::RemoveWidget(IWidget* pWidget)
 {
-	pImpl->RemoveControl(controlID);
+	decltype(mWidgets)::iterator it = mWidgets.find(pWidget);
+	if (it != mWidgets.end())
+	{
+		IWidget* pWidget = *it;
+		if (mWidgetsClone[it - mWidgets.begin()])
+		{
+			pWidget->~IWidget();
+			conf_free(pWidget);
+			mWidgetsClone.erase(mWidgetsClone.begin() + (it - mWidgets.begin()));
+		}
+		mWidgets.erase(it);
+	}
+}
+
+void GuiComponent::RemoveAllWidgets()
+{
+	for (uint32_t i = 0; i < (uint32_t)mWidgets.size(); ++i)
+	{
+		if (mWidgetsClone[i])
+		{
+			mWidgets[i]->~IWidget();
+			conf_free(mWidgets[i]);
+		}
+	}
+
+	mWidgets.clear();
+	mWidgetsClone.clear();
 }
 
 /************************************************************************/
@@ -335,7 +540,10 @@ bool VirtualJoystickUI::Init(Renderer* renderer, const char* pJoystickTexture, u
 	addResource(&loadDesc);
 
 	if (!pTexture)
+	{
+		LOGERRORF("Error loading texture file: %s", pJoystickTexture);
 		return false;
+	}
 	/************************************************************************/
 	// States
 	/************************************************************************/
@@ -347,12 +555,13 @@ bool VirtualJoystickUI::Init(Renderer* renderer, const char* pJoystickTexture, u
 	addSampler(pRenderer, &samplerDesc, &pSampler);
 
 	BlendStateDesc blendStateDesc = {};
-	blendStateDesc.mSrcFactor = BC_SRC_ALPHA;
-	blendStateDesc.mDstFactor = BC_ONE_MINUS_SRC_ALPHA;
-	blendStateDesc.mSrcAlphaFactor = BC_SRC_ALPHA;
-	blendStateDesc.mDstAlphaFactor = BC_ONE_MINUS_SRC_ALPHA;
-	blendStateDesc.mMask = ALL;
+	blendStateDesc.mSrcFactors[0] = BC_SRC_ALPHA;
+	blendStateDesc.mDstFactors[0] = BC_ONE_MINUS_SRC_ALPHA;
+	blendStateDesc.mSrcAlphaFactors[0] = BC_SRC_ALPHA;
+	blendStateDesc.mDstAlphaFactors[0] = BC_ONE_MINUS_SRC_ALPHA;
+	blendStateDesc.mMasks[0] = ALL;
 	blendStateDesc.mRenderTargetMask = BLEND_STATE_TARGET_ALL;
+	blendStateDesc.mIndependentBlend = false;
 	addBlendState(pRenderer, &blendStateDesc, &pBlendAlpha);
 
 	DepthStateDesc depthStateDesc = {};
@@ -386,20 +595,20 @@ bool VirtualJoystickUI::Init(Renderer* renderer, const char* pJoystickTexture, u
 		pTexturedVert = (char*)vk_builtin_textured_vert; texturedVertSize = sizeof(vk_builtin_textured_vert);
 		pTexturedFrag = (char*)vk_builtin_textured_frag; texturedFragSize = sizeof(vk_builtin_textured_frag);
 	}
-	
+
 	BinaryShaderDesc texturedShader = { SHADER_STAGE_VERT | SHADER_STAGE_FRAG,
 		{ (char*)pTexturedVert, texturedVertSize },{ (char*)pTexturedFrag, texturedFragSize } };
 	addShaderBinary(pRenderer, &texturedShader, &pShader);
 #endif
-	
-	
+
+
 	const char* pStaticSamplerNames[] = { "uSampler" };
 	RootSignatureDesc textureRootDesc = { &pShader, 1 };
 	textureRootDesc.mStaticSamplerCount = 1;
 	textureRootDesc.ppStaticSamplerNames = pStaticSamplerNames;
 	textureRootDesc.ppStaticSamplers = &pSampler;
 	addRootSignature(pRenderer, &textureRootDesc, &pRootSignature);
-	
+
 	/************************************************************************/
 	// Resources
 	/************************************************************************/
@@ -469,7 +678,7 @@ void VirtualJoystickUI::Unload()
 
 void VirtualJoystickUI::Draw(Cmd* pCmd, class ICameraController* pCameraController, const float4& color)
 {
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(__ANDROID__)
 	struct RootConstants
 	{
 		float4 color;
@@ -551,18 +760,52 @@ void VirtualJoystickUI::Draw(Cmd* pCmd, class ICameraController* pCameraControll
 /************************************************************************/
 // Event Handlers
 /************************************************************************/
+	// returns: 0: no input handled, 1: input handled
+bool OnInput(const struct ButtonData* pData, GUIDriver* pDriver, const float4& currentWindowRect)
+{
+	// Handle the mouse click events:
+	// We want to send ButtonData with click position to the UI system
+	//
+	if (pData->mUserId == KEY_CONFIRM	 // left  click
+		|| pData->mUserId == KEY_RIGHT_BUMPER // right click
+		|| pData->mUserId == KEY_MOUSE_WHEEL)
+	{
+		// Query the latest UI_MOVE event since the current event
+		// which is a click event, doesn't contain the mouse position.
+		// Here we construct the 'toSend' data to contain both the
+		// position (from the latest Move event) and click info from the
+		// current event.
+		ButtonData latestUIMoveEventData = InputSystem::GetButtonData((uint32_t)KEY_UI_MOVE);
+		ButtonData toSend = *pData;
+		toSend.mValue[0] = latestUIMoveEventData.mValue[0];
+		toSend.mValue[1] = latestUIMoveEventData.mValue[1];
+
+		PlatformEvents::skipMouseCapture = pDriver->onInput(&toSend, currentWindowRect);
+		return PlatformEvents::skipMouseCapture;
+	}
+
+	// just relay the rest of the events to the UI and let the UI system process the events
+	return pDriver->onInput(pData, currentWindowRect);
+}
+
 static bool uiInputEvent(const ButtonData * pData)
 {
 	for (uint32_t i = 0; i < (uint32_t)gInstances.size(); ++i)
-		if (gInstances[i]->IsActive() && gInstances[i]->OnInput(pData))
+	{
+		if (gInstances[i]->mActive && OnInput(pData, gInstances[i]->pDriver, gInstances[i]->mCurrentWindowRect))
+		{
 			return true;
+		}
+	}
 
 	// KEY_LEFT_STICK_BUTTON <-> F1 Key : See InputMapphings.h for details
 	// F1: Toggle Displaying UI
 	if (pData->mUserId == KEY_LEFT_STICK_BUTTON && pData->mIsTriggered)
 	{
 		for (uint32_t i = 0; i < (uint32_t)gInstances.size(); ++i)
-			gInstances[i]->SetActive(!gInstances[i]->IsActive());
+			gInstances[i]->mActive = (!gInstances[i]->mActive);
+
+		PlatformEvents::skipMouseCapture = false;
 	}
 
 	return false;

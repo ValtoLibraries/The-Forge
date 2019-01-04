@@ -11,6 +11,7 @@ enum ButtonType
 {
 	BT_BOOL,	///< A boolean value button, either down (true) or up (false).
 	BT_FLOAT,	///< A floating-point value button, between -1.0f and 1.0f or 0.0f and 1.0f.
+	BT_GESTURE,
 	BT_COUNT	///< The number of different button types.
 };
 
@@ -93,6 +94,8 @@ public:
 	virtual const char* GetTypeName() const = 0;
 	/// Returns if this device should be updated after other devices.
 	virtual bool IsLateUpdate() const { return false; }
+	//clears all buttons to be unset (false), if implemented
+	virtual void ClearButtons() { return; }
 	/// Returns the device state.
 	DeviceState GetState() const;
 	/// Returns if this device is available.

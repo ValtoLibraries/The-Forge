@@ -1,9 +1,9 @@
 /*
  * Copyright (c) 2018 Confetti Interactive Inc.
- * 
+ *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -11,9 +11,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -44,13 +44,13 @@
 class _Impl_FontStash
 {
 public:
-	_Impl_FontStash() 
+	_Impl_FontStash()
 	{
-		pCurrentTexture = NULL; 
+		pCurrentTexture = NULL;
 		mWidth = 0;
-		mHeight = 0; 
+		mHeight = 0;
 		pContext = NULL;
-		
+
 		mText3D  = false;
 	}
 
@@ -70,7 +70,7 @@ public:
 		params.renderCreate = fonsImplementationGenerateTexture;
 		params.renderResize = fonsImplementationResizeTexture;
 		params.renderUpdate = fonsImplementationModifyTexture;
-		params.renderDraw = fonsImplementationRenderText; 
+		params.renderDraw = fonsImplementationRenderText;
 		params.renderDelete = fonsImplementationRemoveTexture;
 		params.userPtr = this;
 
@@ -86,12 +86,13 @@ public:
 		addSampler(pRenderer, &samplerDesc, &pDefaultSampler);
 
 		BlendStateDesc blendStateDesc = {};
-		blendStateDesc.mSrcFactor = BC_SRC_ALPHA;
-		blendStateDesc.mDstFactor = BC_ONE_MINUS_SRC_ALPHA;
-		blendStateDesc.mSrcAlphaFactor = BC_SRC_ALPHA;
-		blendStateDesc.mDstAlphaFactor = BC_ONE_MINUS_SRC_ALPHA;
-		blendStateDesc.mMask = ALL;
+		blendStateDesc.mSrcFactors[0] = BC_SRC_ALPHA;
+		blendStateDesc.mDstFactors[0] = BC_ONE_MINUS_SRC_ALPHA;
+		blendStateDesc.mSrcAlphaFactors[0] = BC_SRC_ALPHA;
+		blendStateDesc.mDstAlphaFactors[0] = BC_ONE_MINUS_SRC_ALPHA;
+		blendStateDesc.mMasks[0] = ALL;
 		blendStateDesc.mRenderTargetMask = BLEND_STATE_TARGET_ALL;
+		blendStateDesc.mIndependentBlend = false;
 		addBlendState(pRenderer, &blendStateDesc, &pBlendAlpha);
 
 		DepthStateDesc depthStateDesc = {};
@@ -252,38 +253,38 @@ public:
 
 	using PipelineMap = tinystl::unordered_map<uint64_t, Pipeline*>;
 
-	Renderer*							pRenderer;
+	Renderer*						   pRenderer;
 	FONScontext*						pContext;
 
-	Image								mStagingImage;
+	Image							   mStagingImage;
 	Texture*							pCurrentTexture;
 
 	uint32_t							mWidth;
 	uint32_t							mHeight;
 
-	tinystl::vector<void*>				mFontBuffers;
-	tinystl::vector<uint32_t>			mFontBufferSizes;
+	tinystl::vector<void*>			  mFontBuffers;
+	tinystl::vector<uint32_t>		   mFontBufferSizes;
 	tinystl::vector<tinystl::string>	mFontNames;
-	tinystl::vector<Texture*>			mTextureList;
+	tinystl::vector<Texture*>		   mTextureList;
 
 	mat4								mProjView;
 	mat4								mWorldMat;
 	Cmd*								pCmd;
 
-	Shader*								pShaders[2];
-	RootSignature*						pRootSignature;
-	PipelineMap							mPipelines[2];
+	Shader*							 pShaders[2];
+	RootSignature*					  pRootSignature;
+	PipelineMap						 mPipelines[2];
 	/// Default states
-	BlendState*							pBlendAlpha;
-	DepthState*							pDepthStates[2];
+	BlendState*						 pBlendAlpha;
+	DepthState*						 pDepthStates[2];
 	RasterizerState*					pRasterizerStates[2];
 	Sampler*							pDefaultSampler;
-	UniformRingBuffer*					pUniformRingBuffer;
-	MeshRingBuffer*						pMeshRingBuffer;
+	UniformRingBuffer*				  pUniformRingBuffer;
+	MeshRingBuffer*					 pMeshRingBuffer;
 	VertexLayout						mVertexLayout = {};
 	GraphicsPipelineDesc				mPipelineDesc = {};
-	float2								mDpiScale;
-	float								mDpiScaleMin;
+	float2							  mDpiScale;
+	float							   mDpiScaleMin;
 	bool								mText3D;
 };
 
@@ -356,7 +357,7 @@ void Fontstash::drawText(Cmd* pCmd, const char* message, float x, float y, int f
 {
 	impl->mText3D = false;
 	impl->pCmd = pCmd;
-	// clamp the font size to max size. 
+	// clamp the font size to max size.
 	// Precomputed font texture puts limitation to the maximum size.
 	size = min(size, m_fFontMaxSize);
 
@@ -367,7 +368,11 @@ void Fontstash::drawText(Cmd* pCmd, const char* message, float x, float y, int f
 	fonsSetSpacing(fs, spacing * impl->mDpiScaleMin);
 	fonsSetBlur(fs, blur);
 	fonsSetAlign(fs, FONS_ALIGN_LEFT | FONS_ALIGN_TOP);
-	fonsDrawText(fs, x * impl->mDpiScale.x, y * impl->mDpiScale.y, message, NULL);
+	
+	// considering the retina scaling:
+	// the render target is already scaled up (w/ retina) and the (x,y) position given to this function
+	// is expected to be in the render target's area. Hence, we don't scale up the position again.
+	fonsDrawText(fs, x /** impl->mDpiScale.x*/, y /** impl->mDpiScale.y*/, message, NULL);
 }
 
 
@@ -375,9 +380,9 @@ void Fontstash::drawText(Cmd* pCmd, const char* message,const mat4& projView,con
 {
 	impl->mText3D = true;
 	impl->mProjView = projView;
-	impl->mWorldMat = worldMat * mat4::scale(vec3(impl->mDpiScale.x, impl->mDpiScale.y, 1.0f));
+	impl->mWorldMat = worldMat;
 	impl->pCmd = pCmd;
-	// clamp the font size to max size. 
+	// clamp the font size to max size.
 	// Precomputed font texture puts limitation to the maximum size.
 	size = min(size, m_fFontMaxSize);
 
@@ -391,16 +396,22 @@ void Fontstash::drawText(Cmd* pCmd, const char* message,const mat4& projView,con
 	fonsDrawText(fs, 0.0f, 0.0f, message,NULL);
 }
 
-float Fontstash::measureText(float* out_bounds, const char* message, float x, float y, int fontID, unsigned int color/*=0xffffffff*/, float size/*=16.0f*/, float spacing/*=3.0f*/, float blur/*=0.0f*/)
-{
-	return measureText(out_bounds, message, (int)strlen(message), x, y, fontID, color, size, spacing, blur);
-}
-
-float Fontstash::measureText(float* out_bounds, const char* message, int messageLength, float x, float y, int fontID, unsigned int color/*=0xffffffff*/, float size/*=16.0f*/, float spacing/*=0.0f*/, float blur/*=0.0f*/)
+float Fontstash::measureText(
+	  float* out_bounds
+	, const char* message
+	, float x
+	, float y
+	, int fontID
+	, unsigned int color/*=0xffffffff*/
+	, float size/*=16.0f*/
+	, float spacing/*=0.0f*/
+	, float blur/*=0.0f*/
+)
 {
 	if(out_bounds == NULL)
 		return 0;
-
+	
+	const int messageLength = (int)strlen(message);
 	FONScontext* fs=impl->pContext;
 	fonsSetSize(fs, size * impl->mDpiScaleMin);
 	fonsSetFont(fs, fontID);
@@ -408,7 +419,11 @@ float Fontstash::measureText(float* out_bounds, const char* message, int message
 	fonsSetSpacing(fs, spacing * impl->mDpiScaleMin);
 	fonsSetBlur(fs, blur);
 	fonsSetAlign(fs, FONS_ALIGN_LEFT | FONS_ALIGN_TOP);
-	return fonsTextBounds(fs, x * impl->mDpiScale.x, y * impl->mDpiScale.y, message, message+messageLength, out_bounds);
+	
+	// considering the retina scaling:
+	// the render target is already scaled up (w/ retina) and the (x,y) position given to this function
+	// is expected to be in the render target's area. Hence, we don't scale up the position again.
+	return fonsTextBounds(fs, x /** impl->mDpiScale.x*/, y /** impl->mDpiScale.y*/, message, message+messageLength, out_bounds);
 }
 
 // --  FONS renderer implementation --
@@ -426,7 +441,7 @@ int _Impl_FontStash::fonsImplementationGenerateTexture(void* userPtr, int width,
 	// R8 mode
 	//addTexture2d(ctx->renderer, width, height, SampleCount::SAMPLE_COUNT_1, ctx->img.getFormat(), ctx->img.GetMipMapCount(), NULL, false, TextureUsage::TEXTURE_USAGE_SAMPLED_IMAGE, &ctx->tex);
 	addResource(&loadDesc);
-	
+
 	// Create may be called multiple times, delete existing texture.
 	// NOTE: deleting the texture afterwards seems to fix a driver bug on Intel where it would reuse the old contents of ctx->img, causing the texture not to update.
 	if (oldTex)
@@ -450,7 +465,7 @@ void _Impl_FontStash::fonsImplementationModifyTexture(void* userPtr, int* rect, 
 	// TODO: Update the GPU texture instead of changing the CPU texture and rebuilding it on GPU.
 	ctx->mStagingImage.loadFromMemoryXY(data + rect[0] + rect[1]*ctx->mWidth, rect[0], rect[1], rect[2], rect[3], ctx->mWidth);
 
-	fonsImplementationGenerateTexture(userPtr, ctx->mWidth, ctx->mHeight);		// rebuild texture
+	fonsImplementationGenerateTexture(userPtr, ctx->mWidth, ctx->mHeight);	  // rebuild texture
 }
 
 void _Impl_FontStash::fonsImplementationRenderText(void* userPtr, const float* verts, const float* tcoords, const unsigned int* colors, int nverts)

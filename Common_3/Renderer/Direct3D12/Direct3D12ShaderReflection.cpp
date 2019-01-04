@@ -1,9 +1,9 @@
 /*
  * Copyright (c) 2018 Confetti Interactive Inc.
- * 
+ *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -11,9 +11,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -30,6 +30,8 @@
 #include "..\..\..\Xbox\CommonXBOXOne_3\OS\XBoxPrivateHeaders.h"
 #else
 #include <d3dcompiler.h>
+#include "../../../Common_3/ThirdParty/OpenSource/DirectXShaderCompiler/dxcapi.use.h"
+extern dxc::DxcDllSupport gDxcDllHelper;
 #endif
 
 #include "../../OS/Interfaces/IMemoryManager.h"
@@ -37,19 +39,18 @@
 static DescriptorType sD3D12_TO_DESCRIPTOR[] =
 {
 	DESCRIPTOR_TYPE_UNIFORM_BUFFER,  //D3D_SIT_CBUFFER
-	DESCRIPTOR_TYPE_UNDEFINED,       //D3D_SIT_TBUFFER
-	DESCRIPTOR_TYPE_TEXTURE,         //D3D_SIT_TEXTURE
-	DESCRIPTOR_TYPE_SAMPLER,         //D3D_SIT_SAMPLER
-	DESCRIPTOR_TYPE_RW_TEXTURE,      //D3D_SIT_UAV_RWTYPED
-	DESCRIPTOR_TYPE_BUFFER,          //D3D_SIT_STRUCTURED
-	DESCRIPTOR_TYPE_RW_BUFFER,       //D3D_SIT_RWSTRUCTURED
-	DESCRIPTOR_TYPE_BUFFER,          //D3D_SIT_BYTEADDRESS
-	DESCRIPTOR_TYPE_RW_BUFFER,       //D3D_SIT_UAV_RWBYTEADDRESS
-	DESCRIPTOR_TYPE_RW_BUFFER,       //D3D_SIT_UAV_APPEND_STRUCTURED
-	DESCRIPTOR_TYPE_RW_BUFFER,       //D3D_SIT_UAV_CONSUME_STRUCTURED
-	DESCRIPTOR_TYPE_RW_BUFFER,       //D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER
+	DESCRIPTOR_TYPE_UNDEFINED,	 //D3D_SIT_TBUFFER
+	DESCRIPTOR_TYPE_TEXTURE,		 //D3D_SIT_TEXTURE
+	DESCRIPTOR_TYPE_SAMPLER,		 //D3D_SIT_SAMPLER
+	DESCRIPTOR_TYPE_RW_TEXTURE,   //D3D_SIT_UAV_RWTYPED
+	DESCRIPTOR_TYPE_BUFFER,	   //D3D_SIT_STRUCTURED
+	DESCRIPTOR_TYPE_RW_BUFFER,	 //D3D_SIT_RWSTRUCTURED
+	DESCRIPTOR_TYPE_BUFFER,	   //D3D_SIT_BYTEADDRESS
+	DESCRIPTOR_TYPE_RW_BUFFER,	 //D3D_SIT_UAV_RWBYTEADDRESS
+	DESCRIPTOR_TYPE_RW_BUFFER,	 //D3D_SIT_UAV_APPEND_STRUCTURED
+	DESCRIPTOR_TYPE_RW_BUFFER,	 //D3D_SIT_UAV_CONSUME_STRUCTURED
+	DESCRIPTOR_TYPE_RW_BUFFER,	 //D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER
 };
-
 
 void d3d12_createShaderReflection(const uint8_t* shaderCode, uint32_t shaderSize, ShaderStage shaderStage, ShaderReflection* pOutReflection)
 {
@@ -70,12 +71,33 @@ void d3d12_createShaderReflection(const uint8_t* shaderCode, uint32_t shaderSize
 		return;
 	}
 
-
-
 	//Run the D3D12 shader reflection on the compiled shader
-	ID3D12ShaderReflection* d3d12reflection;
+	ID3D12ShaderReflection* d3d12reflection = NULL;
 	D3DReflect(shaderCode, shaderSize, IID_PPV_ARGS(&d3d12reflection));
+#ifndef _DURANGO
+	if (!d3d12reflection)
+	{
+		IDxcLibrary* pLibrary = NULL;
+		gDxcDllHelper.CreateInstance(CLSID_DxcLibrary, &pLibrary);
+		IDxcBlobEncoding* pBlob = NULL;
+		pLibrary->CreateBlobWithEncodingFromPinned((LPBYTE)shaderCode, (UINT32)shaderSize, 0, &pBlob);
+#define DXIL_FOURCC(ch0, ch1, ch2, ch3) (						   \
+  (uint32_t)(uint8_t)(ch0)	  | (uint32_t)(uint8_t)(ch1) << 8  | \
+  (uint32_t)(uint8_t)(ch2) << 16  | (uint32_t)(uint8_t)(ch3) << 24   \
+  )
 
+		IDxcContainerReflection* pReflection;
+		UINT32 shaderIdx;
+		gDxcDllHelper.CreateInstance(CLSID_DxcContainerReflection, &pReflection);
+		pReflection->Load(pBlob);
+		(pReflection->FindFirstPartKind(DXIL_FOURCC('D', 'X', 'I', 'L'), &shaderIdx));
+		(pReflection->GetPartReflection(shaderIdx, __uuidof(ID3D12ShaderReflection), (void**)&d3d12reflection));
+
+		pBlob->Release();
+		pLibrary->Release();
+		pReflection->Release();
+	}
+#endif
 
 	//Allocate our internal shader reflection structure on the stack
 	ShaderReflection reflection = { }; //initialize the struct to 0
@@ -83,7 +105,7 @@ void d3d12_createShaderReflection(const uint8_t* shaderCode, uint32_t shaderSize
 	//Get a description of this shader
 	D3D12_SHADER_DESC shaderDesc;
 	d3d12reflection->GetDesc(&shaderDesc);
-	
+
 
 
 	//Get the number of bound resources
@@ -101,7 +123,7 @@ void d3d12_createShaderReflection(const uint8_t* shaderCode, uint32_t shaderSize
 
 	//Get the number of input parameters
 	reflection.mVertexInputsCount = 0;
-	
+
 	if (shaderStage == SHADER_STAGE_VERT)
 	{
 		reflection.mVertexInputsCount = shaderDesc.InputParameters;
@@ -136,12 +158,12 @@ void d3d12_createShaderReflection(const uint8_t* shaderCode, uint32_t shaderSize
 
 		D3D12_SHADER_BUFFER_DESC bufferDesc;
 		buffer->GetDesc(&bufferDesc);
-		
+
 
 		//We only care about constant buffers
 		if (bufferDesc.Type != D3D_CT_CBUFFER)
 			continue;
-		
+
 
 		for (UINT v = 0; v < bufferDesc.Variables; ++v)
 		{
@@ -149,7 +171,7 @@ void d3d12_createShaderReflection(const uint8_t* shaderCode, uint32_t shaderSize
 
 			D3D12_SHADER_VARIABLE_DESC varDesc;
 			variable->GetDesc(&varDesc);
-			
+
 			//Only count used variables
 			if (varDesc.uFlags | D3D_SVF_USED)
 			{
@@ -165,7 +187,7 @@ void d3d12_createShaderReflection(const uint8_t* shaderCode, uint32_t shaderSize
 	if (reflection.mNamePoolSize)
 		reflection.pNamePool = (char*)conf_calloc(reflection.mNamePoolSize, 1);
 	char* pCurrentName = reflection.pNamePool;
-	
+
 
 
 	reflection.pVertexInputs = NULL;
@@ -226,7 +248,7 @@ void d3d12_createShaderReflection(const uint8_t* shaderCode, uint32_t shaderSize
 			{
 				reflection.pShaderResources[i].type = DESCRIPTOR_TYPE_BUFFER;
 			}
-			
+
 			//Copy over the name
 			memcpy(pCurrentName, bindDesc.Name, len);
 			pCurrentName[len] = '\0';

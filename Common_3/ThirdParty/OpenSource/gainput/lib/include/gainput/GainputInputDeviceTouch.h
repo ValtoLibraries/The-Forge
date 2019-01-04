@@ -43,7 +43,25 @@ enum TouchButton
 	TouchCount_
 };
 
-
+enum GestureType
+{
+	GestureTap = 0,
+	GesturePan,
+	GesturePinch,
+	GestureRotate,
+	GestureLongPress,
+};
+	
+struct GestureConfig
+{
+	// Configuring Pan gesture
+	uint32_t				mMinNumberOfTouches;
+	uint32_t				mMaxNumberOfTouches;
+	// Configuring Tap gesture (single tap, double tap, ...)
+	uint32_t				mNumberOfTapsRequired;
+	// Configuring Long press gesture
+	float					mMinimumPressDuration;
+};
 
 class InputDeviceTouchImpl;
 
@@ -87,6 +105,7 @@ public:
 	DeviceButtonId GetButtonByName(const char* name) const;
 
     InputState* GetNextInputState();
+	void GetVirtualKeyboardInput(char* buffer, uint32_t inBufferLength) const;
 
 	/// Returns the platform-specific implementation of this device.
 	InputDeviceTouchImpl* GetPimpl() { return impl_; }

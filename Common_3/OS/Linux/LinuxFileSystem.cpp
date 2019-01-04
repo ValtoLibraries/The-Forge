@@ -1,9 +1,9 @@
 /*
  * Copyright (c) 2018 Confetti Interactive Inc.
- * 
+ *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -11,9 +11,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -31,49 +31,69 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/sendfile.h>
 #include <unistd.h>
 #include <pwd.h>
+#include <fcntl.h> //for open and O_* enums
 #include <linux/limits.h> //PATH_MAX declaration
+#include <dirent.h>
 #define MAX_PATH PATH_MAX
 
-FileHandle _openFile(const char* filename, const char* flags)
+#define RESOURCE_DIR "Shaders/Vulkan"
+
+const char* pszRoots[FSR_Count] =
+{
+	RESOURCE_DIR "/Binary/",			// FSR_BinShaders
+	RESOURCE_DIR "/",					// FSR_SrcShaders
+	RESOURCE_DIR "/Binary/",			// FSR_BinShaders_Common
+	RESOURCE_DIR "/",					// FSR_SrcShaders_Common
+	"Textures/",						// FSR_Textures
+	"Meshes/",							// FSR_Meshes
+	"Fonts/",							// FSR_Builtin_Fonts
+	"GPUCfg/",							// FSR_GpuConfig
+	"Animation/",							// FSR_Animation
+	"",									// FSR_OtherFiles
+};
+
+
+FileHandle open_file(const char* filename, const char* flags)
 {
 	FILE* fp;
 	fp = fopen(filename, flags);
 	return fp;
 }
 
-void _closeFile(FileHandle handle)
+void close_file(FileHandle handle)
 {
 	fclose((::FILE*)handle);
 }
 
-void _flushFile(FileHandle handle)
+void flush_file(FileHandle handle)
 {
 	fflush((::FILE*)handle);
 }
 
-size_t _readFile(void *buffer, size_t byteCount, FileHandle handle)
+size_t read_file(void *buffer, size_t byteCount, FileHandle handle)
 {
 	return fread(buffer, 1, byteCount, (::FILE*)handle);
 }
 
-bool _seekFile(FileHandle handle, long offset, int origin)
+bool seek_file(FileHandle handle, long offset, int origin)
 {
 	return fseek((::FILE*)handle, offset, origin) == 0;
 }
 
-long _tellFile(FileHandle handle)
+long tell_file(FileHandle handle)
 {
 	return ftell((::FILE*)handle);
 }
 
-size_t _writeFile(const void *buffer, size_t byteCount, FileHandle handle)
+size_t write_file(const void *buffer, size_t byteCount, FileHandle handle)
 {
-	return fwrite(buffer, byteCount, 1, (::FILE*)handle);
+	return fwrite(buffer, 1, byteCount, (::FILE*)handle);
 }
 
-size_t _getFileLastModifiedTime(const char* _fileName)
+size_t get_file_last_modified_time(const char* _fileName)
 {
 	struct stat fileInfo;
 
@@ -88,36 +108,37 @@ size_t _getFileLastModifiedTime(const char* _fileName)
 	}
 }
 
-tinystl::string _getCurrentDir()
+tinystl::string get_current_dir()
 {
 	char curDir[MAX_PATH];
 	getcwd(curDir, sizeof(curDir));
 	return tinystl::string (curDir);
 }
 
-tinystl::string _getExePath()
+tinystl::string get_exe_path()
 {
 	char exeName[MAX_PATH];
 	exeName[0] = 0;
 	ssize_t count = readlink( "/proc/self/exe", exeName, MAX_PATH );
+	exeName[count] = '\0';
 	return tinystl::string(exeName);
 }
 
-tinystl::string _getAppPrefsDir(const char *org, const char *app)
+tinystl::string get_app_prefs_dir(const char *org, const char *app)
 {
 	const char* homedir;
 
-	if ((homedir = getenv("HOME")) == NULL) 
+	if ((homedir = getenv("HOME")) == NULL)
 	{
 		homedir = getpwuid(getuid())->pw_dir;
 	}
 	return tinystl::string(homedir);
 }
 
-tinystl::string _getUserDocumentsDir()
+tinystl::string get_user_documents_dir()
 {
 	const char* homedir;
-	if ((homedir = getenv("HOME")) == NULL) 
+	if ((homedir = getenv("HOME")) == NULL)
 	{
 		homedir = getpwuid(getuid())->pw_dir;
 	}
@@ -127,11 +148,81 @@ tinystl::string _getUserDocumentsDir()
 	return homeString;
 }
 
-void _setCurrentDir(const char* path)
+void set_current_dir(const char* path)
 {
 	// change working directory
 	// http://man7.org/linux/man-pages/man2/chdir.2.html
 	chdir(path);
 }
+
+void get_files_with_extensions(const char* dir, const char* ext, tinystl::vector<tinystl::string>& filesOut)
+{
+	tinystl::string path = FileSystem::GetNativePath(FileSystem::AddTrailingSlash(dir));
+	
+	DIR* directory = opendir(path.c_str());
+	if(!directory)
+		return;
+		
+	tinystl::string extension(ext);
+	struct dirent* entry;
+	do
+	{
+		entry = readdir(directory);
+		if(!entry)
+			break;
+			
+		tinystl::string file = entry->d_name;
+		if(file.find(extension, 0, false) != tinystl::string::npos)
+		{
+			file = path + file;
+			filesOut.push_back(file);
+		}
+			
+	}while(entry != NULL);
+	
+	closedir(directory);
+}
+
+void get_sub_directories(const char* dir, tinystl::vector<tinystl::string>& subDirectoriesOut)
+{
+	tinystl::string path = FileSystem::GetNativePath(FileSystem::AddTrailingSlash(dir));
+	
+	DIR* directory = opendir(path.c_str());
+	if(!directory)
+		return;
+		
+	struct dirent* entry;
+	do
+	{
+		entry = readdir(directory);
+		if(!entry)
+			break;
+			
+		if(entry->d_type & DT_DIR)
+		{
+			if(entry->d_name[0] != '.')
+			{
+				tinystl::string subDirectory = path + entry->d_name;
+				subDirectoriesOut.push_back(subDirectory);
+			}
+		}
+			
+	}while(entry != NULL);
+	
+	closedir(directory);
+}
+
+bool copy_file(const char* src, const char* dst)
+{
+	int source = open(src, O_RDONLY, 0);
+	int dest = open(dst, O_WRONLY);
+	struct stat stat_source;
+	fstat(source, &stat_source);
+	bool ret = sendfile64(dest, source, 0, stat_source.st_size) != -1;
+	close(source);
+	close(dest);
+	return ret;
+}
+
 
 #endif

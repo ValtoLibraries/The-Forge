@@ -1,9 +1,9 @@
 /*
  * Copyright (c) 2018 Confetti Interactive Inc.
- * 
+ *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -11,9 +11,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -65,8 +65,8 @@
 // Prefer Higher Performance GPU on switchable GPU systems
 extern "C"
 {
-	__declspec(dllexport) DWORD	NvOptimusEnablement = 1;
-	__declspec(dllexport) int	AmdPowerXpressRequestHighPerformance = 1;
+	__declspec(dllexport) DWORD NvOptimusEnablement = 1;
+	__declspec(dllexport) int   AmdPowerXpressRequestHighPerformance = 1;
 }
 
 //#include "Direct3D11MemoryAllocator.h"
@@ -199,17 +199,17 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		DXGI_FORMAT_UNKNOWN, // PVR_2BPPA = 57,
 		DXGI_FORMAT_UNKNOWN, // PVR_4BPP = 58,
 		DXGI_FORMAT_UNKNOWN, // PVR_4BPPA = 59,
-		DXGI_FORMAT_UNKNOWN, // INTZ = 60,	//	NVidia hack. Supported on all DX10+ HW
-		//	XBox 360 specific fron buffer formats. NOt listed in other renderers. Please, add them when extend this structure.
+		DXGI_FORMAT_UNKNOWN, // INTZ = 60,  //  NVidia hack. Supported on all DX10+ HW
+		//  XBox 360 specific fron buffer formats. NOt listed in other renderers. Please, add them when extend this structure.
 		DXGI_FORMAT_UNKNOWN, // LE_XRGB8 = 61,
 		DXGI_FORMAT_UNKNOWN, // LE_ARGB8 = 62,
 		DXGI_FORMAT_UNKNOWN, // LE_X2RGB10 = 63,
 		DXGI_FORMAT_UNKNOWN, // LE_A2RGB10 = 64,
 		// compressed mobile forms
-		DXGI_FORMAT_UNKNOWN, // ETC1 = 65,	//	RGB
-		DXGI_FORMAT_UNKNOWN, // ATC = 66,	//	RGB
-		DXGI_FORMAT_UNKNOWN, // ATCA = 67,	//	RGBA, explicit alpha
-		DXGI_FORMAT_UNKNOWN, // ATCI = 68,	//	RGBA, interpolated alpha
+		DXGI_FORMAT_UNKNOWN, // ETC1 = 65,  //  RGB
+		DXGI_FORMAT_UNKNOWN, // ATC = 66,   //  RGB
+		DXGI_FORMAT_UNKNOWN, // ATCA = 67,  //  RGBA, explicit alpha
+		DXGI_FORMAT_UNKNOWN, // ATCI = 68,  //  RGBA, interpolated alpha
 		DXGI_FORMAT_UNKNOWN, // RAWZ = 69, //depth only, Nvidia (requires recombination of data) //FIX IT: PS3 as well?
 		DXGI_FORMAT_UNKNOWN, // DF16 = 70, //depth only, Intel/AMD
 		DXGI_FORMAT_UNKNOWN, // STENCILONLY = 71, // stencil ony usage
@@ -230,16 +230,16 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 	};
 	const DXGI_FORMAT gFormatTranslator[] = {
 		DXGI_FORMAT_UNKNOWN,							// ImageFormat::NONE
-		DXGI_FORMAT_R8_UNORM,							// ImageFormat::R8
-		DXGI_FORMAT_R8G8_UNORM,							// ImageFormat::RG8
+		DXGI_FORMAT_R8_UNORM,						   // ImageFormat::R8
+		DXGI_FORMAT_R8G8_UNORM,						 // ImageFormat::RG8
 		DXGI_FORMAT_UNKNOWN,							// ImageFormat::RGB8 not directly supported
-		DXGI_FORMAT_R8G8B8A8_UNORM,						// ImageFormat::RGBA8
-		DXGI_FORMAT_R16_UNORM,							// ImageFormat::R16
-		DXGI_FORMAT_R16G16_UNORM,						// ImageFormat::RG16
+		DXGI_FORMAT_R8G8B8A8_UNORM,					 // ImageFormat::RGBA8
+		DXGI_FORMAT_R16_UNORM,						  // ImageFormat::R16
+		DXGI_FORMAT_R16G16_UNORM,					   // ImageFormat::RG16
 		DXGI_FORMAT_UNKNOWN,							// ImageFormat::RGB16 not directly supported
-		DXGI_FORMAT_R16G16B16A16_UNORM,					// ImageFormat::RGBA16
-		DXGI_FORMAT_R8_SNORM,							// ImageFormat::R8S
-		DXGI_FORMAT_R8G8_SNORM,							// ImageFormat::RG8S
+		DXGI_FORMAT_R16G16B16A16_UNORM,				 // ImageFormat::RGBA16
+		DXGI_FORMAT_R8_SNORM,						   // ImageFormat::R8S
+		DXGI_FORMAT_R8G8_SNORM,						 // ImageFormat::RG8S
 		DXGI_FORMAT_UNKNOWN,							// ImageFormat::RGB8S not directly supported
 		DXGI_FORMAT_R8G8B8A8_SNORM,
 		DXGI_FORMAT_R16_SNORM,
@@ -290,17 +290,17 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		DXGI_FORMAT_UNKNOWN, // PVR_2BPPA = 57,
 		DXGI_FORMAT_UNKNOWN, // PVR_4BPP = 58,
 		DXGI_FORMAT_UNKNOWN, // PVR_4BPPA = 59,
-		DXGI_FORMAT_UNKNOWN, // INTZ = 60,	//	NVidia hack. Supported on all DX10+ HW
-		//	XBox 360 specific fron buffer formats. NOt listed in other renderers. Please, add them when extend this structure.
+		DXGI_FORMAT_UNKNOWN, // INTZ = 60,  //  NVidia hack. Supported on all DX10+ HW
+		//  XBox 360 specific fron buffer formats. NOt listed in other renderers. Please, add them when extend this structure.
 		DXGI_FORMAT_UNKNOWN, // LE_XRGB8 = 61,
 		DXGI_FORMAT_UNKNOWN, // LE_ARGB8 = 62,
 		DXGI_FORMAT_UNKNOWN, // LE_X2RGB10 = 63,
 		DXGI_FORMAT_UNKNOWN, // LE_A2RGB10 = 64,
 		// compressed mobile forms
-		DXGI_FORMAT_UNKNOWN, // ETC1 = 65,	//	RGB
-		DXGI_FORMAT_UNKNOWN, // ATC = 66,	//	RGB
-		DXGI_FORMAT_UNKNOWN, // ATCA = 67,	//	RGBA, explicit alpha
-		DXGI_FORMAT_UNKNOWN, // ATCI = 68,	//	RGBA, interpolated alpha
+		DXGI_FORMAT_UNKNOWN, // ETC1 = 65,  //  RGB
+		DXGI_FORMAT_UNKNOWN, // ATC = 66,   //  RGB
+		DXGI_FORMAT_UNKNOWN, // ATCA = 67,  //  RGBA, explicit alpha
+		DXGI_FORMAT_UNKNOWN, // ATCI = 68,  //  RGBA, interpolated alpha
 		DXGI_FORMAT_UNKNOWN, // RAWZ = 69, //depth only, Nvidia (requires recombination of data) //FIX IT: PS3 as well?
 		DXGI_FORMAT_UNKNOWN, // DF16 = 70, //depth only, Intel/AMD
 		DXGI_FORMAT_UNKNOWN, // STENCILONLY = 71, // stencil ony usage
@@ -325,7 +325,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 	typedef tinystl::unordered_map< Cmd*, tinystl::vector<CachedCmd> > CachedCmds;
 	tinystl::unordered_map< Cmd*, tinystl::vector<CachedCmd> > gCachedCmds;
 
-	
+
 	// =================================================================================================
 	// IMPLEMENTATION
 	// =================================================================================================
@@ -339,39 +339,39 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 #pragma comment(lib, "d3dcompiler.lib")
 
 #define SAFE_FREE(p_var)	\
-    if (p_var) {			\
-       conf_free(p_var);	\
-    }
+	if (p_var) {			\
+	   conf_free(p_var);	\
+	}
 
-#if defined(__cplusplus)  
-#define DECLARE_ZERO(type, var)		\
-            type var = {};
+#if defined(__cplusplus)
+#define DECLARE_ZERO(type, var)	 \
+			type var = {};
 #else
-#define DECLARE_ZERO(type, var)		\
-            type var = {0};                        
+#define DECLARE_ZERO(type, var)	 \
+			type var = {0};
 #endif
 
-#define SAFE_RELEASE(p_var)			\
-    if (p_var) {					\
-       p_var->Release();			\
-       p_var = NULL;				\
-    }
+#define SAFE_RELEASE(p_var)		 \
+	if (p_var) {					\
+	   p_var->Release();			\
+	   p_var = NULL;				\
+	}
 
 	// Internal utility functions (may become external one day)
-	//uint64_t						util_dx_determine_storage_counter_offset(uint64_t buffer_size);
-	DXGI_FORMAT						util_to_dx_image_format_typeless(ImageFormat::Enum format);
-	DXGI_FORMAT						util_to_dx_uav_format(DXGI_FORMAT defaultFormat);
-	DXGI_FORMAT						util_to_dx_dsv_format(DXGI_FORMAT defaultFormat);
-	DXGI_FORMAT						util_to_dx_srv_format(DXGI_FORMAT defaultFormat);
-	DXGI_FORMAT						util_to_dx_stencil_format(DXGI_FORMAT defaultFormat);
-	DXGI_FORMAT						util_to_dx_image_format(ImageFormat::Enum format, bool srgb);
-	//DXGI_FORMAT						util_to_dx_swapchain_format(ImageFormat::Enum format);
-	//D3D12_SHADER_VISIBILITY			util_to_dx_shader_visibility(ShaderStage stages);
-	//D3D12_DESCRIPTOR_RANGE_TYPE		util_to_dx_descriptor_range(DescriptorType type);
-	//D3D12_RESOURCE_STATES			util_to_dx_resource_state(ResourceState state);
+	//uint64_t					  util_dx_determine_storage_counter_offset(uint64_t buffer_size);
+	DXGI_FORMAT					 util_to_dx_image_format_typeless(ImageFormat::Enum format);
+	DXGI_FORMAT					 util_to_dx_uav_format(DXGI_FORMAT defaultFormat);
+	DXGI_FORMAT					 util_to_dx_dsv_format(DXGI_FORMAT defaultFormat);
+	DXGI_FORMAT					 util_to_dx_srv_format(DXGI_FORMAT defaultFormat);
+	DXGI_FORMAT					 util_to_dx_stencil_format(DXGI_FORMAT defaultFormat);
+	DXGI_FORMAT					 util_to_dx_image_format(ImageFormat::Enum format, bool srgb);
+	//DXGI_FORMAT					   util_to_dx_swapchain_format(ImageFormat::Enum format);
+	//D3D12_SHADER_VISIBILITY		   util_to_dx_shader_visibility(ShaderStage stages);
+	//D3D12_DESCRIPTOR_RANGE_TYPE	   util_to_dx_descriptor_range(DescriptorType type);
+	//D3D12_RESOURCE_STATES		 util_to_dx_resource_state(ResourceState state);
 	D3D11_FILTER					util_to_dx_filter(FilterType minFilter, FilterType magFilter, MipMapMode mipMapMode, bool aniso, bool comparisonFilterEnabled);
-	D3D11_TEXTURE_ADDRESS_MODE		util_to_dx_texture_address_mode(AddressMode addressMode);
-	//D3D12_PRIMITIVE_TOPOLOGY_TYPE	util_to_dx_primitive_topology_type(PrimitiveTopology topology);
+	D3D11_TEXTURE_ADDRESS_MODE	  util_to_dx_texture_address_mode(AddressMode addressMode);
+	//D3D12_PRIMITIVE_TOPOLOGY_TYPE util_to_dx_primitive_topology_type(PrimitiveTopology topology);
 
 	D3D11_FILTER util_to_dx_filter(FilterType minFilter, FilterType magFilter, MipMapMode mipMapMode, bool aniso, bool comparisonFilterEnabled)
 	{
@@ -379,8 +379,8 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 			return comparisonFilterEnabled ? D3D11_FILTER_COMPARISON_ANISOTROPIC : D3D11_FILTER_ANISOTROPIC;
 
 		// control bit : minFilter  magFilter   mipMapMode
-		//     point   :     00         00          00
-		//     linear  :     01         01          01
+		//   point   :   00	  00	   00
+		//   linear  :   01	  01	   01
 		// ex : trilinear == 010101
 		int filter = (minFilter << 4) | (magFilter << 2) | mipMapMode;
 		int baseFilter = comparisonFilterEnabled ? D3D11_FILTER_COMPARISON_MIN_MAG_MIP_POINT : D3D11_FILTER_MIN_MAG_MIP_POINT;
@@ -610,15 +610,15 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 	/************************************************************************/
 	// Gloabals
 	/************************************************************************/
-	static const uint32_t		gDescriptorTableDWORDS = 1;
-	static const uint32_t		gRootDescriptorDWORDS = 2;
+	static const uint32_t	   gDescriptorTableDWORDS = 1;
+	static const uint32_t	   gRootDescriptorDWORDS = 2;
 
-	static volatile uint64_t	gBufferIds	= 0;
-	static volatile uint64_t	gTextureIds	= 0;
-	static volatile uint64_t	gSamplerIds	= 0;
+	static volatile uint64_t	gBufferIds  = 0;
+	static volatile uint64_t	gTextureIds = 0;
+	static volatile uint64_t	gSamplerIds = 0;
 
-	static uint32_t				gMaxRootConstantsPerRootParam = 4U;
-	
+	static uint32_t			 gMaxRootConstantsPerRootParam = 4U;
+
 	/************************************************************************/
 	// Logging functions
 	/************************************************************************/
@@ -643,7 +643,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 			break;
 		}
 	}
-		
+
 	typedef enum GpuVendor
 	{
 		GPU_VENDOR_NVIDIA,
@@ -652,7 +652,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		GPU_VENDOR_UNKNOWN,
 		GPU_VENDOR_COUNT,
 	} GpuVendor;
-	
+
 #define VENDOR_ID_NVIDIA 0x10DE
 #define VENDOR_ID_AMD 0x1002
 #define VENDOR_ID_AMD_1 0x1022
@@ -891,7 +891,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 	API_INTERFACE void CALLTYPE unmapBuffer(Renderer* pRenderer, Buffer* pBuffer);
 	API_INTERFACE void CALLTYPE cmdUpdateBuffer(Cmd* pCmd, uint64_t srcOffset, uint64_t dstOffset, uint64_t size, Buffer* pSrcBuffer, Buffer* pBuffer);
 	API_INTERFACE void CALLTYPE cmdUpdateSubresources(Cmd* pCmd, uint32_t startSubresource, uint32_t numSubresources, SubresourceDataDesc* pSubresources, Buffer* pIntermediate, uint64_t intermediateOffset, Texture* pTexture);
-	API_INTERFACE void CALLTYPE compileShader(Renderer* pRenderer, ShaderStage stage, const char* fileName, uint32_t codeSize, const char* code, uint32_t macroCount, ShaderMacro* pMacros, void*(*allocator)(size_t a), uint32_t* pByteCodeSize, char** ppByteCode);
+	API_INTERFACE void CALLTYPE compileShader(Renderer* pRenderer, ShaderTarget target, ShaderStage stage, const char* fileName, uint32_t codeSize, const char* code, uint32_t macroCount, ShaderMacro* pMacros, void*(*allocator)(size_t a), uint32_t* pByteCodeSize, char** ppByteCode);
 	API_INTERFACE const RendererShaderDefinesDesc CALLTYPE get_renderer_shaderdefines(Renderer* pRenderer);
 
 	void cmdUpdateBuffer(Cmd* pCmd, uint64_t srcOffset, uint64_t dstOffset, uint64_t size, Buffer* pSrcBuffer, Buffer* pBuffer)
@@ -965,7 +965,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 	// Internal init functions
 	/************************************************************************/
 	static void AddDevice(Renderer* pRenderer)
-	{		
+	{
 		const uint32_t NUM_SUPPORTED_FEATURE_LEVELS = 2;
 		D3D_FEATURE_LEVEL feature_levels[NUM_SUPPORTED_FEATURE_LEVELS] =
 		{
@@ -974,7 +974,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		};
 
 		HRESULT hr = 0;
-			
+
 		IDXGIAdapter1 *dxgiAdapter = NULL;
 
 		if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void **)&pRenderer->pDXGIFactory)))
@@ -989,6 +989,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		{
 			IDXGIAdapter1* pGpu = NULL;
 			D3D_FEATURE_LEVEL mMaxSupportedFeatureLevel = (D3D_FEATURE_LEVEL)0;
+			D3D11_FEATURE_DATA_D3D11_OPTIONS2 mFeatureDataOptions2 = {};
 			SIZE_T mDedicatedVideoMemory = 0;
 			char mVendorId[MAX_GPU_VENDOR_STRING_LENGTH];
 			char mDeviceId[MAX_GPU_VENDOR_STRING_LENGTH];
@@ -1006,8 +1007,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 			adapter->GetDesc1(&desc);
 
 			if (!(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE))
-			{				
-			
+			{
 				// Make sure the adapter can support a D3D11 device
 				D3D_FEATURE_LEVEL featLevelOut;
 				if (SUCCEEDED(D3D11CreateDevice(adapter, D3D_DRIVER_TYPE_UNKNOWN, (HMODULE)0, 0, feature_levels, 2, D3D11_SDK_VERSION, NULL, &featLevelOut, NULL)))
@@ -1015,8 +1015,16 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 					hr = adapter->QueryInterface(IID_ARGS(&gpuDesc[pRenderer->mNumOfGPUs].pGpu));
 					if (SUCCEEDED(hr))
 					{
+						D3D11CreateDevice(adapter, D3D_DRIVER_TYPE_UNKNOWN,
+							(HMODULE)0, 0, feature_levels, 2,
+							D3D11_SDK_VERSION, &pRenderer->pDxDevice, &featLevelOut, NULL);
+
+						D3D11_FEATURE_DATA_D3D11_OPTIONS2 featureData2 = {};
+						pRenderer->pDxDevice->CheckFeatureSupport(D3D11_FEATURE_D3D11_OPTIONS2, &featureData2, sizeof(featureData2));
+
 						gpuDesc[pRenderer->mNumOfGPUs].mMaxSupportedFeatureLevel = featLevelOut;
 						gpuDesc[pRenderer->mNumOfGPUs].mDedicatedVideoMemory = desc.DedicatedVideoMemory;
+						gpuDesc[pRenderer->mNumOfGPUs].mFeatureDataOptions2 = featureData2;
 
 						//save vendor and model Id as string
 						//char hexChar[10];
@@ -1034,6 +1042,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 						//char sName[MAX_PATH];
 						wcstombs(gpuDesc[pRenderer->mNumOfGPUs].mName, desc.Description, MAX_PATH);
 						++pRenderer->mNumOfGPUs;
+						SAFE_RELEASE(pRenderer->pDxDevice);
 						break;
 					}
 				}
@@ -1042,7 +1051,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 			adapter->Release();
 		}
 		ASSERT(pRenderer->mNumOfGPUs > 0);
-		
+
 		// Sort GPUs by poth Preset and highest feature level gpu at front
 		//Prioritize Preset first
 		qsort(gpuDesc, pRenderer->mNumOfGPUs, sizeof(GpuDesc), [](const void* lhs, const void* rhs) {
@@ -1082,8 +1091,9 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 			//get preset
 			pRenderer->mGpuSettings[i].mGpuVendorPreset.mPresetLevel = gpuDesc[i].mPreset;
 
-			// Determine root signature size for this gpu driver			
-			pRenderer->mGpuSettings[i].mMaxRootSignatureDWORDS = 0U; // no such thing			
+			// Determine root signature size for this gpu driver
+			pRenderer->mGpuSettings[i].mMaxRootSignatureDWORDS = 0U; // no such thing
+			pRenderer->mGpuSettings[i].mROVsSupported = gpuDesc[i].mFeatureDataOptions2.ROVsSupported ? true : false;
 		}
 
 		uint32_t gpuIndex = 0;
@@ -1091,7 +1101,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		//Read active GPU if AUTOMATED_TESTING and ACTIVE_TESTING_GPU are defined
 		GPUVendorPreset activeTestingPreset;
 		bool activeTestingGpu = getActiveGpuConfig(activeTestingPreset);
-		if (activeTestingGpu) 
+		if (activeTestingGpu)
 		{
 			for (uint32_t i = 0; i < pRenderer->mNumOfGPUs; i++) {
 				if (pRenderer->mGpuSettings[i].mGpuVendorPreset.mVendorId == activeTestingPreset.mVendorId
@@ -1104,7 +1114,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 					break;
 				}
 			}
-		}		
+		}
 #endif
 
 		// Get the latest and greatest feature level gpu
@@ -1135,7 +1145,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 			2,
 			D3D11_SDK_VERSION,
 			&pRenderer->pDxDevice,
-			&featLevelOut,			// max feature level
+			&featLevelOut,		  // max feature level
 			&pRenderer->pDxContext);
 		ASSERT(SUCCEEDED(hr));
 		if (FAILED(hr))
@@ -1163,16 +1173,17 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		SAFE_RELEASE(pRenderer->pDxDevice);
 #endif
 	}
-	
+
 	static void create_default_resources(Renderer* pRenderer)
 	{
 		BlendStateDesc blendStateDesc = {};
-		blendStateDesc.mDstAlphaFactor = BC_ZERO;
-		blendStateDesc.mDstFactor = BC_ZERO;
-		blendStateDesc.mSrcAlphaFactor = BC_ONE;
-		blendStateDesc.mSrcFactor = BC_ONE;
-		blendStateDesc.mMask = ALL;
+		blendStateDesc.mDstAlphaFactors[0] = BC_ZERO;
+		blendStateDesc.mDstFactors[0] = BC_ZERO;
+		blendStateDesc.mSrcAlphaFactors[0] = BC_ONE;
+		blendStateDesc.mSrcFactors[0] = BC_ONE;
+		blendStateDesc.mMasks[0] = ALL;
 		blendStateDesc.mRenderTargetMask = BLEND_STATE_TARGET_ALL;
+		blendStateDesc.mIndependentBlend = false;
 		addBlendState(pRenderer, &blendStateDesc, &pRenderer->pDefaultBlendState);
 
 		DepthStateDesc depthStateDesc = {};
@@ -1252,7 +1263,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		SAFE_FREE(pRenderer->pName);
 
 		 destroy_default_resources(pRenderer);
-				
+
 		RemoveDevice(pRenderer);
 
 		// Free all the renderer components
@@ -1273,7 +1284,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		//create a Fence and ASSERT that it is valid
 		Fence* pFence = (Fence*)conf_calloc(1, sizeof(*pFence));
 		ASSERT(pFence);
-				
+
 		//set given pointer to new fence
 		*ppFence = pFence;
 	}
@@ -1284,13 +1295,13 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		ASSERT(pRenderer);
 		//ASSERT that given fence to remove is valid
 		ASSERT(pFence);
-		
+
 		//delete memory
 		SAFE_FREE(pFence);
 	}
 
 	void addSemaphore(Renderer* pRenderer, Semaphore** ppSemaphore)
-	{		
+	{
 		// NOTE: We will still use it to be able to generate
 		// a dependency graph to serialize parallel GPU workload.
 
@@ -1300,7 +1311,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		//create a semaphore and ASSERT that it is valid
 		Semaphore* pSemaphore = (Semaphore*)conf_calloc(1, sizeof(*pSemaphore));
 		ASSERT(pSemaphore);
-				
+
 		//save newly created semaphore in given pointer
 		*ppSemaphore = pSemaphore;
 	}
@@ -1310,7 +1321,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		//ASSERT that renderer and given semaphore are valid
 		ASSERT(pRenderer);
 		ASSERT(pSemaphore);
-				
+
 		//safe delete that check for valid pointer
 		SAFE_FREE(pSemaphore);
 	}
@@ -1327,7 +1338,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		// Note these don't really mean much w/ DX11 but we can use it for debugging
 		// what the client is intending to do.
 		pQueue->mQueueDesc = *pQDesc;
-		
+
 		tinystl::string queueType = "DUMMY QUEUE FOR DX11 BACKEND";
 		pQueue->pRenderer = pRenderer;
 
@@ -1490,7 +1501,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 
 		ASSERT(pCmd->pRenderer->pDxDevice);
 		ASSERT(pCmdPool->mCmdPoolDesc.mCmdPoolType < CmdPoolType::MAX_CMD_TYPE);
-		
+
 		if (pCmdPool->mCmdPoolDesc.mCmdPoolType == CMD_POOL_DIRECT)
 		{
 			pCmd->pBoundColorFormats = (uint32_t*)conf_calloc(MAX_RENDER_TARGET_ATTACHMENTS, sizeof(uint32_t));
@@ -1506,7 +1517,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		//verify that given command and pool are valid
 		ASSERT(pCmdPool);
 		ASSERT(pCmd);
-				
+
 		if (pCmd->pBoundColorFormats)
 			SAFE_FREE(pCmd->pBoundColorFormats);
 
@@ -1522,7 +1533,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		SAFE_FREE(pCmd->pDescriptorStructPool);
 		SAFE_FREE(pCmd->pDescriptorNamePool);
 		SAFE_FREE(pCmd->pDescriptorResourcesPool);
-		
+
 		//delete command
 		SAFE_FREE(pCmd);
 	}
@@ -1726,7 +1737,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		desc.BorderColor[3] = 0.0f;
 		desc.MinLOD = 0.0f;
 		desc.MaxLOD = ((pDesc->mMipMapMode == MIPMAP_MODE_LINEAR) ? D3D11_FLOAT32_MAX : 0.0f);
-							
+
 		if (FAILED(pRenderer->pDxDevice->CreateSamplerState(&desc, &pSampler->pSamplerState)))
 			LOGERROR("Failed to create sampler state.");
 
@@ -1741,15 +1752,21 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		ASSERT(pSampler);
 
 		SAFE_RELEASE(pSampler->pSamplerState);
-				
+
 		SAFE_FREE(pSampler);
 	}
 
 	/************************************************************************/
 	// Shader Functions
 	/************************************************************************/
-	void compileShader(Renderer* pRenderer, ShaderStage stage, const char* fileName, uint32_t codeSize, const char* code, uint32_t macroCount, ShaderMacro* pMacros, void*(*allocator)(size_t a), uint32_t* pByteCodeSize, char** ppByteCode)
+	void compileShader(Renderer* pRenderer, ShaderTarget shaderTarget, ShaderStage stage, const char* fileName, uint32_t codeSize, const char* code, uint32_t macroCount, ShaderMacro* pMacros, void*(*allocator)(size_t a), uint32_t* pByteCodeSize, char** ppByteCode)
 	{
+		if (shaderTarget > pRenderer->mSettings.mShaderTarget)
+		{
+			ErrorMsg("Requested shader target (%u) is higher than the shader target that the renderer supports (%u). Shader wont be compiled",
+				(uint32_t)shaderTarget, (uint32_t)pRenderer->mSettings.mShaderTarget);
+			return;
+		}
 #if defined(_DEBUG)
 		// Enable better shader debugging with the graphics debugging tools.
 		UINT compile_flags = D3DCOMPILE_SKIP_OPTIMIZATION;
@@ -1761,11 +1778,10 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 
 		int major;
 		int minor;
-		switch (pRenderer->mSettings.mShaderTarget) {
+		switch (shaderTarget)
+		{
 		default:
 		case shader_target_5_0: { major = 5; minor = 0; } break;
-		case shader_target_5_1: { major = 5; minor = 1; } break;
-		case shader_target_6_0: { major = 6; minor = 0; } break;
 		}
 
 		tinystl::string target;
@@ -1804,7 +1820,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		macros[macroCount + 1] = { NULL, NULL };
 
 		//if (fnHookShaderCompileFlags != NULL)
-		//	fnHookShaderCompileFlags(compile_flags);
+		//  fnHookShaderCompileFlags(compile_flags);
 
 		tinystl::string entryPoint = "main";
 		ID3DBlob* compiled_code = NULL;
@@ -2242,7 +2258,10 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 				pTexture->pDxResource = pTex1D;
 			}
 
-			pTexture->mTextureSize = pDesc->mArraySize * Image::GetMipMappedSize(pDesc->mWidth, pDesc->mHeight, pDesc->mDepth, 0, pDesc->mMipLevels, pDesc->mFormat);
+			Image img;
+			img.RedefineDimensions(pTexture->mDesc.mFormat, pTexture->mDesc.mWidth, pTexture->mDesc.mHeight, pTexture->mDesc.mDepth, pTexture->mDesc.mMipLevels);
+			pTexture->mTextureSize = pDesc->mArraySize * img.GetMipMappedSize(0, pTexture->mDesc.mMipLevels);
+
 			pTexture->mCurrentState = pDesc->mStartState;
 		}
 		else
@@ -2870,35 +2889,55 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 	{
 		UNREF_PARAM(pRenderer);
 
-		ASSERT(pDesc->mSrcFactor < BlendConstant::MAX_BLEND_CONSTANTS);
-		ASSERT(pDesc->mDstFactor < BlendConstant::MAX_BLEND_CONSTANTS);
-		ASSERT(pDesc->mSrcAlphaFactor < BlendConstant::MAX_BLEND_CONSTANTS);
-		ASSERT(pDesc->mDstAlphaFactor < BlendConstant::MAX_BLEND_CONSTANTS);
-		ASSERT(pDesc->mBlendMode < BlendMode::MAX_BLEND_MODES);
-		ASSERT(pDesc->mBlendAlphaMode < BlendMode::MAX_BLEND_MODES);
+		int blendDescIndex = 0;
+#ifdef _DEBUG
 
-		BOOL blendEnable = (gBlendConstantTranslator[pDesc->mSrcFactor] != D3D11_BLEND_ONE || gBlendConstantTranslator[pDesc->mDstFactor] != D3D11_BLEND_ZERO ||
-			gBlendConstantTranslator[pDesc->mSrcAlphaFactor] != D3D11_BLEND_ONE || gBlendConstantTranslator[pDesc->mDstAlphaFactor] != D3D11_BLEND_ZERO);
+		for (int i = 0; i < MAX_RENDER_TARGET_ATTACHMENTS; ++i)
+		{
+			if (pDesc->mRenderTargetMask & (1 << i))
+			{
+				ASSERT(pDesc->mSrcFactors[blendDescIndex] < BlendConstant::MAX_BLEND_CONSTANTS);
+				ASSERT(pDesc->mDstFactors[blendDescIndex] < BlendConstant::MAX_BLEND_CONSTANTS);
+				ASSERT(pDesc->mSrcAlphaFactors[blendDescIndex] < BlendConstant::MAX_BLEND_CONSTANTS);
+				ASSERT(pDesc->mDstAlphaFactors[blendDescIndex] < BlendConstant::MAX_BLEND_CONSTANTS);
+				ASSERT(pDesc->mBlendModes[blendDescIndex] < BlendMode::MAX_BLEND_MODES);
+				ASSERT(pDesc->mBlendAlphaModes[blendDescIndex] < BlendMode::MAX_BLEND_MODES);
+			}
+
+			if (pDesc->mIndependentBlend)
+				++blendDescIndex;
+		}
+
+		blendDescIndex = 0;
+#endif
 
 		BlendState* pBlendState = (BlendState*)conf_calloc(1, sizeof(*pBlendState));
-				
-		D3D11_BLEND_DESC desc;
+
+		D3D11_BLEND_DESC desc = {};
 
 		desc.AlphaToCoverageEnable = (BOOL)pDesc->mAlphaToCoverage;
 		desc.IndependentBlendEnable = TRUE;
 		for (int i = 0; i < MAX_RENDER_TARGET_ATTACHMENTS; i++)
 		{
-			desc.RenderTarget[i].RenderTargetWriteMask = (UINT8)pDesc->mMask;
 			if (pDesc->mRenderTargetMask & (1 << i))
 			{
+				BOOL blendEnable = (gBlendConstantTranslator[pDesc->mSrcFactors[blendDescIndex]] != D3D11_BLEND_ONE ||
+					gBlendConstantTranslator[pDesc->mDstFactors[blendDescIndex]] != D3D11_BLEND_ZERO ||
+					gBlendConstantTranslator[pDesc->mSrcAlphaFactors[blendDescIndex]] != D3D11_BLEND_ONE ||
+					gBlendConstantTranslator[pDesc->mDstAlphaFactors[blendDescIndex]] != D3D11_BLEND_ZERO);
+
 				desc.RenderTarget[i].BlendEnable = blendEnable;
-				desc.RenderTarget[i].BlendOp = gBlendOpTranslator[pDesc->mBlendMode];
-				desc.RenderTarget[i].SrcBlend = gBlendConstantTranslator[pDesc->mSrcFactor];
-				desc.RenderTarget[i].DestBlend = gBlendConstantTranslator[pDesc->mDstFactor];
-				desc.RenderTarget[i].BlendOpAlpha = gBlendOpTranslator[pDesc->mBlendAlphaMode];
-				desc.RenderTarget[i].SrcBlendAlpha = gBlendConstantTranslator[pDesc->mSrcAlphaFactor];
-				desc.RenderTarget[i].DestBlendAlpha = gBlendConstantTranslator[pDesc->mDstAlphaFactor];
+				desc.RenderTarget[i].RenderTargetWriteMask = (UINT8)pDesc->mMasks[blendDescIndex];
+				desc.RenderTarget[i].BlendOp = gBlendOpTranslator[pDesc->mBlendModes[blendDescIndex]];
+				desc.RenderTarget[i].SrcBlend = gBlendConstantTranslator[pDesc->mSrcFactors[blendDescIndex]];
+				desc.RenderTarget[i].DestBlend = gBlendConstantTranslator[pDesc->mDstFactors[blendDescIndex]];
+				desc.RenderTarget[i].BlendOpAlpha = gBlendOpTranslator[pDesc->mBlendAlphaModes[blendDescIndex]];
+				desc.RenderTarget[i].SrcBlendAlpha = gBlendConstantTranslator[pDesc->mSrcAlphaFactors[blendDescIndex]];
+				desc.RenderTarget[i].DestBlendAlpha = gBlendConstantTranslator[pDesc->mDstAlphaFactors[blendDescIndex]];
 			}
+
+			if (pDesc->mIndependentBlend)
+				++blendDescIndex;
 		}
 
 		if (FAILED(pRenderer->pDxDevice->CreateBlendState(&desc, &pBlendState->pBlendState)))
@@ -2963,13 +3002,14 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 
 		ASSERT(pDesc->mFillMode < FillMode::MAX_FILL_MODES);
 		ASSERT(pDesc->mCullMode < CullMode::MAX_CULL_MODES);
+		ASSERT(pDesc->mFrontFace == FRONT_FACE_CCW || pDesc->mFrontFace == FRONT_FACE_CW);
 
 		RasterizerState* pRasterizerState = (RasterizerState*)conf_calloc(1, sizeof(*pRasterizerState));
 
 		D3D11_RASTERIZER_DESC desc;
 		desc.FillMode = gFillModeTranslator[pDesc->mFillMode];
 		desc.CullMode = gCullModeTranslator[pDesc->mCullMode];
-		desc.FrontCounterClockwise = TRUE;
+		desc.FrontCounterClockwise = pDesc->mFrontFace == FRONT_FACE_CCW;
 		desc.DepthBias = pDesc->mDepthBias;
 		desc.DepthBiasClamp = 0.0f;
 		desc.SlopeScaledDepthBias = pDesc->mSlopeScaledDepthBias;
@@ -3076,7 +3116,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 	void cmdSetViewport(Cmd* pCmd, float x, float y, float width, float height, float minDepth, float maxDepth)
 	{
 		ASSERT(pCmd);
-			
+
 		// Ensure beingCmd was actually called
 		CachedCmds::iterator cachedCmdsIter = gCachedCmds.find(pCmd);
 		ASSERT(cachedCmdsIter != gCachedCmds.end());
@@ -3094,7 +3134,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		cmd.mSetViewportCmd.width = width;
 		cmd.mSetViewportCmd.height = height;
 		cmd.mSetViewportCmd.minDepth = minDepth;
-		cmd.mSetViewportCmd.maxDepth = maxDepth;		
+		cmd.mSetViewportCmd.maxDepth = maxDepth;
 		cachedCmdsIter->second.push_back(cmd);
 	}
 
@@ -3260,12 +3300,12 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		cmd.pCmd = pCmd;
 		cmd.sType = CMD_TYPE_cmdBindIndexBuffer;
 		cmd.mBindIndexBufferCmd.pBuffer = pBuffer;
-		cmd.mBindIndexBufferCmd.offset = (uint32_t)offset;		
+		cmd.mBindIndexBufferCmd.offset = (uint32_t)offset;
 		cachedCmdsIter->second.push_back(cmd);
 	}
 
 	void cmdBindVertexBuffer(Cmd* pCmd, uint32_t bufferCount, Buffer** ppBuffers, uint64_t* pOffsets)
-	{	
+	{
 		ASSERT(pCmd);
 		ASSERT(0 != bufferCount);
 		ASSERT(ppBuffers);
@@ -3298,7 +3338,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 	void cmdDraw(Cmd* pCmd, uint32_t vertexCount, uint32_t firstVertex)
 	{
 		ASSERT(pCmd);
-		
+
 		// Ensure beingCmd was actually called
 		CachedCmds::iterator cachedCmdsIter = gCachedCmds.find(pCmd);
 		ASSERT(cachedCmdsIter != gCachedCmds.end());
@@ -3315,7 +3355,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 		cmd.mDrawCmd.firstVertex = firstVertex;
 		cachedCmdsIter->second.push_back(cmd);
 	}
-	
+
 	void cmdDrawInstanced(Cmd* pCmd, uint32_t vertexCount, uint32_t firstVertex, uint32_t instanceCount, uint32_t firstInstance)
 	{
 		ASSERT(pCmd);
@@ -3412,7 +3452,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 	void cmdResourceBarrier(Cmd* pCmd, uint32_t numBufferBarriers, BufferBarrier* pBufferBarriers, uint32_t numTextureBarriers, TextureBarrier* pTextureBarriers, bool batch)
 	{
 		ASSERT(pCmd);
-	
+
 		// Ensure beingCmd was actually called
 		CachedCmds::iterator cachedCmdsIter = gCachedCmds.find(pCmd);
 		ASSERT(cachedCmdsIter != gCachedCmds.end());
@@ -3549,13 +3589,13 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 	}
 
 	void queueSubmit(
-		Queue*      pQueue,
-		uint32_t       cmdCount,
-		Cmd**       ppCmds,
+		Queue*	pQueue,
+		uint32_t	   cmdCount,
+		Cmd**	  ppCmds,
 		Fence* pFence,
-		uint32_t       waitSemaphoreCount,
+		uint32_t	   waitSemaphoreCount,
 		Semaphore** ppWaitSemaphores,
-		uint32_t       signalSemaphoreCount,
+		uint32_t	   signalSemaphoreCount,
 		Semaphore** ppSignalSemaphores
 	)
 	{
@@ -3935,7 +3975,7 @@ extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t sha
 	}
 
 	void toggleVSync(Renderer* pRenderer, SwapChain** ppSwapChain)
-	{		
+	{
 		// Initial vsync value is passed in with the desc when client creates a swapchain.
 		ASSERT(*ppSwapChain);
 		(*ppSwapChain)->mDesc.mEnableVsync = !(*ppSwapChain)->mDesc.mEnableVsync;

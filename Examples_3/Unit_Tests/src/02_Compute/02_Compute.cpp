@@ -1,9 +1,9 @@
 /*
  * Copyright (c) 2018 Confetti Interactive Inc.
- * 
+ *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -11,9 +11,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -54,11 +54,15 @@
 
 #include "../../../../Common_3/OS/Interfaces/IMemoryManager.h"
 
-
 // Julia4D Parameters
 #define SIZE_X 412
 #define SIZE_Y 256
 #define SIZE_Z 1024
+
+#if defined(TARGET_IOS) || defined(__ANDROID__)
+#define MOBILE_PLATFORM
+#endif
+
 
 const float gTimeScale = 0.2f;
 
@@ -92,87 +96,55 @@ LogManager gLogManager;
 Timer gAccumTimer;
 HiresTimer gTimer;
 
-#if defined(DIRECT3D12) || defined(DIRECT3D11)
-#define RESOURCE_DIR "PCDX12"
-#elif defined(VULKAN)
-	#if defined(_WIN32)
-	#define RESOURCE_DIR "PCVulkan"
-	#elif defined(__linux__)
-	#define RESOURCE_DIR "LINUXVulkan"
-	#endif
-#elif defined(METAL)
-#define RESOURCE_DIR "OSXMetal"
-#elif defined(_DURANGO)
-#define RESOURCE_DIR "PCDX12"
-#else
-#error PLATFORM NOT SUPPORTED
-#endif
-
-#ifdef _DURANGO
-// Durango load assets from 'Layout\Image\Loose'
-const char* pszRoots[] =
+const char* pszBases[] =
 {
-	"Shaders/Binary/",									// FSR_BinShaders
-	"Shaders/",											// FSR_SrcShaders
-	"Shaders/Binary/",									// FSR_BinShaders_Common
-	"Shaders/",											// FSR_SrcShaders_Common
-	"Textures/",										// FSR_Textures
-	"Meshes/",											// FSR_Meshes
-	"Fonts/",											// FSR_Builtin_Fonts
-	"",													// FSR_OtherFiles
+	"../../../src/02_Compute/",			// FSR_BinShaders
+	"../../../src/02_Compute/",			// FSR_SrcShaders
+	"",									// FSR_BinShaders_Common
+	"",									// FSR_SrcShaders_Common
+	"../../../UnitTestResources/",		// FSR_Textures
+	"../../../UnitTestResources/",		// FSR_Meshes
+	"../../../UnitTestResources/",		// FSR_Builtin_Fonts
+	"../../../src/02_Compute/",			// FSR_GpuConfig
+	"",									// FSR_OtherFiles
 };
-#else
-//Example for using roots or will cause linker error with the extern root in FileSystem.cpp
-const char* pszRoots[] =
-{
-	"../../../src/02_Compute/" RESOURCE_DIR "/Binary/",	// FSR_BinShaders
-	"../../../src/02_Compute/" RESOURCE_DIR "/",		// FSR_SrcShaders
-	"",													// FSR_BinShaders_Common
-	"",													// FSR_SrcShaders_Common
-	"../../../UnitTestResources/Textures/",				// FSR_Textures
-	"../../../UnitTestResources/Meshes/",				// FSR_Meshes
-	"../../../UnitTestResources/Fonts/",				// FSR_Builtin_Fonts
-	"../../../src/02_Compute/GPUCfg/",					// FSR_GpuConfig
-	"",													// FSR_OtherFiles
-};
-#endif
 
-const uint32_t		gImageCount = 3;
+const uint32_t	  gImageCount = 3;
 
-Renderer*			pRenderer = NULL;
-Buffer*				pUniformBuffer[gImageCount] = { NULL };
+Renderer*		   pRenderer = NULL;
+Buffer*			 pUniformBuffer[gImageCount] = { NULL };
 
-Queue*				pGraphicsQueue = NULL;
+Queue*			  pGraphicsQueue = NULL;
 CmdPool*			pCmdPool = NULL;
-Cmd**				ppCmds = NULL;
+Cmd**			   ppCmds = NULL;
 Sampler*			pSampler = NULL;
 RasterizerState*	pRast = NULL;
 
-Fence*				pRenderCompleteFences[gImageCount] = { NULL };
-Semaphore*			pImageAcquiredSemaphore = NULL;
-Semaphore*			pRenderCompleteSemaphores[gImageCount] = { NULL };
+Fence*			  pRenderCompleteFences[gImageCount] = { NULL };
+Semaphore*		  pImageAcquiredSemaphore = NULL;
+Semaphore*		  pRenderCompleteSemaphores[gImageCount] = { NULL };
 
-SwapChain*			pSwapChain = NULL;
+SwapChain*		  pSwapChain = NULL;
 
-Shader*				pShader = NULL;
-Pipeline*			pPipeline = NULL;
-RootSignature*		pRootSignature = NULL;
+Shader*			 pShader = NULL;
+Pipeline*		   pPipeline = NULL;
+RootSignature*	  pRootSignature = NULL;
 
-Shader*				pComputeShader = NULL;
-Pipeline*			pComputePipeline = NULL;
-RootSignature*		pComputeRootSignature = NULL;
+Shader*			 pComputeShader = NULL;
+Pipeline*		   pComputePipeline = NULL;
+RootSignature*	  pComputeRootSignature = NULL;
 Texture*			pTextureComputeOutput = NULL;
 
-#ifdef TARGET_IOS
-VirtualJoystickUI	gVirtualJoystick;
+#if defined(MOBILE_PLATFORM)
+VirtualJoystickUI   gVirtualJoystick;
 #endif
 
 uint32_t			gFrameIndex = 0;
 UniformBlock		gUniformData;
 
-UIApp				gAppUI;
+UIApp			   gAppUI;
 GpuProfiler*		pGpuProfiler = NULL;
-ICameraController*	pCameraController = NULL;
+ICameraController*  pCameraController = NULL;
 
 struct ObjectProperty
 {
@@ -209,12 +181,12 @@ public:
 		addSemaphore(pRenderer, &pImageAcquiredSemaphore);
 
 		initResourceLoaderInterface(pRenderer, DEFAULT_MEMORY_BUDGET);
-		initDebugRendererInterface(pRenderer, "TitilliumText/TitilliumText-Bold.ttf", FSR_Builtin_Fonts);
+		initDebugRendererInterface(pRenderer, "TitilliumText/TitilliumText-Bold.otf", FSR_Builtin_Fonts);
 
 		addGpuProfiler(pRenderer, pGraphicsQueue, &pGpuProfiler);
 
-#ifdef TARGET_IOS
-		if (!gVirtualJoystick.Init(pRenderer, "circlepad.png", FSR_Absolute))
+#if defined(MOBILE_PLATFORM)
+		if (!gVirtualJoystick.Init(pRenderer, "circlepad.png", FSR_Textures))
 			return false;
 #endif
 
@@ -275,7 +247,7 @@ public:
 		if (!gAppUI.Init(pRenderer))
 			return false;
 
-		gAppUI.LoadFont("TitilliumText/TitilliumText-Bold.ttf", FSR_Builtin_Fonts);
+		gAppUI.LoadFont("TitilliumText/TitilliumText-Bold.otf", FSR_Builtin_Fonts);
 
 		CameraMotionParameters cmp{ 100.0f, 150.0f, 300.0f };
 		vec3 camPos{ 48.0f, 48.0f, 20.0f };
@@ -283,7 +255,7 @@ public:
 
 		pCameraController = createFpsCameraController(camPos, lookAt);
 		requestMouseCapture(true);
-		
+
 		pCameraController->setMotionParameters(cmp);
 		InputSystem::RegisterInputEvent(cameraInputEvent);
 
@@ -296,9 +268,10 @@ public:
 
 		destroyCameraController(pCameraController);
 
+		// Destroy debug renderer interface
 		removeDebugRendererInterface();
 
-#ifdef TARGET_IOS
+#if defined(MOBILE_PLATFORM)
 		gVirtualJoystick.Exit();
 #endif
 
@@ -341,7 +314,7 @@ public:
 		if (!gAppUI.Load(pSwapChain->ppSwapchainRenderTargets))
 			return false;
 
-#ifdef TARGET_IOS
+#if defined(MOBILE_PLATFORM)
 		if (!gVirtualJoystick.Load(pSwapChain->ppSwapchainRenderTargets[0], 0))
 			return false;
 #endif
@@ -368,7 +341,7 @@ public:
 	{
 		waitForFences(pGraphicsQueue, 1, &pRenderCompleteFences[gFrameIndex % gImageCount], true);
 
-#ifdef TARGET_IOS
+#if defined(MOBILE_PLATFORM)
 		gVirtualJoystick.Unload();
 #endif
 
@@ -429,10 +402,19 @@ public:
 		Semaphore* pRenderCompleteSemaphore = pRenderCompleteSemaphores[gFrameIndex];
 		Fence* pRenderCompleteFence = pRenderCompleteFences[gFrameIndex];
 
+		// Stall if CPU is running "Swap Chain Buffer Count" frames ahead of GPU
+		FenceStatus fenceStatus;
+		getFenceStatus(pRenderer, pRenderCompleteFence, &fenceStatus);
+		if (fenceStatus == FENCE_STATUS_INCOMPLETE)
+			waitForFences(pGraphicsQueue, 1, &pRenderCompleteFence, false);
+
 		// simply record the screen cleaning command
 		LoadActionsDesc loadActions = {};
 		loadActions.mLoadActionsColor[0] = LOAD_ACTION_CLEAR;
-		loadActions.mClearColorValues[0] = { 0.0f, 0.0f, 0.0f, 0.0f };
+		loadActions.mClearColorValues[0].r = 0.0f;
+		loadActions.mClearColorValues[0].g = 0.0f;
+		loadActions.mClearColorValues[0].b = 0.0f;
+		loadActions.mClearColorValues[0].a = 0.0f;
 
 		Cmd* cmd = ppCmds[gFrameIndex];
 		beginCmd(cmd);
@@ -456,7 +438,9 @@ public:
 		params[1].ppTextures = &pTextureComputeOutput;
 		cmdBindDescriptors(cmd, pComputeRootSignature, 2, params);
 
-		cmdDispatch(cmd, pTextureComputeOutput->mDesc.mWidth / pThreadGroupSize[0], pTextureComputeOutput->mDesc.mHeight / pThreadGroupSize[1], pThreadGroupSize[2]);
+		uint32_t groupCountX = (pTextureComputeOutput->mDesc.mWidth + pThreadGroupSize[0] - 1) / pThreadGroupSize[0];
+		uint32_t groupCountY = (pTextureComputeOutput->mDesc.mHeight + pThreadGroupSize[1] - 1) / pThreadGroupSize[1];
+		cmdDispatch(cmd, groupCountX, groupCountY, pThreadGroupSize[2]);
 
 		cmdEndGpuTimestampQuery(cmd, pGpuProfiler);
 
@@ -482,13 +466,13 @@ public:
 
 		gTimer.GetUSec(true);
 
-#ifdef TARGET_IOS
+#if defined(MOBILE_PLATFORM)
 		gVirtualJoystick.Draw(cmd, pCameraController, { 1.0f, 1.0f, 1.0f, 1.0f });
 #endif
 
 		drawDebugText(cmd, 8, 15, tinystl::string::format("CPU %f ms", gTimer.GetUSecAverage() / 1000.0f), &gFrameTimeDraw);
 
-#ifndef METAL // Metal doesn't support GPU profilers
+#if !defined(METAL) && !defined(__ANDROID__) // Metal doesn't support GPU profilers
 		drawDebugText(cmd, 8, 40, tinystl::string::format("GPU %f ms", (float)pGpuProfiler->mCumulativeTime * 1000.0f), &gFrameTimeDraw);
 		drawDebugGpuProfile(cmd, 8, 65, pGpuProfiler, NULL);
 #endif
@@ -506,14 +490,6 @@ public:
 
 		queueSubmit(pGraphicsQueue, 1, &cmd, pRenderCompleteFence, 1, &pImageAcquiredSemaphore, 1, &pRenderCompleteSemaphore);
 		queuePresent(pGraphicsQueue, pSwapChain, gFrameIndex, 1, &pRenderCompleteSemaphore);
-
-		HiresTimer timer;
-		// Stall if CPU is running "Swap Chain Buffer Count - 1" frames ahead of GPU
-		Fence* pNextFence = pRenderCompleteFences[(gFrameIndex + 1) % gImageCount];
-		FenceStatus fenceStatus;
-		getFenceStatus(pRenderer, pNextFence, &fenceStatus);
-		if (fenceStatus == FENCE_STATUS_INCOMPLETE)
-			waitForFences(pGraphicsQueue, 1, &pNextFence, false);
 	}
 
 	tinystl::string GetName()
@@ -630,7 +606,7 @@ public:
 		}
 	}
 
-	
+
 	static bool cameraInputEvent(const ButtonData* data)
 	{
 		pCameraController->onInputEvent(data);

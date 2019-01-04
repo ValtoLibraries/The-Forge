@@ -58,19 +58,9 @@ namespace
 	bool isCaptured = false;
 }
 
-struct KeyState
-{
-	bool current;   // What is the current key state?
-	bool previous;  // What is the previous key state?
-	bool down;      // Was the key down this frame?
-	bool released;  // Was the key released this frame?
-};
-
-static bool			gWindowClassInitialized = false;
+static bool		 gWindowClassInitialized = false;
 static WNDCLASSW	gWindowClass;
-static bool			gAppRunning = false;
-
-static KeyState		gKeys[MAX_KEYS] = { { false, false, false, false } };
+static bool		 gAppRunning = false;
 
 static tinystl::vector <MonitorDesc> gMonitors;
 static tinystl::unordered_map<void*, WindowsDesc*> gHWNDMap;
@@ -83,59 +73,10 @@ namespace PlatformEvents
 	extern bool skipMouseCapture;
 
 	extern void onWindowResize(const WindowResizeEventData* pData);
-	extern void onKeyboardChar(const KeyboardCharEventData* pData);
-	extern void onKeyboardButton(const KeyboardButtonEventData* pData);
-	extern void onMouseMove(const MouseMoveEventData* pData);
-	extern void onRawMouseMove(const RawMouseMoveEventData* pData);
-	extern void onMouseButton(const MouseButtonEventData* pData);
-	extern void onMouseWheel(const MouseWheelEventData* pData);
-}
-
-// Update the state of the keys based on state previous frame
-void updateKeys(void)
-{
-	// Calculate each of the key states here
-	for (KeyState& element : gKeys)
-	{
-		element.down = element.current == true;
-		element.released = ((element.previous == true) && (element.current == false));
-		// Record this state
-		element.previous = element.current;
-	}
-}
-
-// Update the given key
-static void updateKeyArray(int uMsg, unsigned int wParam)
-{
-	KeyboardButtonEventData eventData;
-	eventData.key = wParam;
-	switch (uMsg)
-	{
-	case WM_SYSKEYDOWN:
-	case WM_KEYDOWN:
-		if ((0 <= wParam) && (wParam <= MAX_KEYS))
-			gKeys[wParam].current = true;
-
-		eventData.pressed = true;
-		break;
-
-	case WM_SYSKEYUP:
-	case WM_KEYUP:
-		if ((0 <= wParam) && (wParam <= MAX_KEYS))
-			gKeys[wParam].current = false;
-
-		eventData.pressed = false;
-		break;
-
-	default:
-		break;
-	}
-
-	PlatformEvents::onKeyboardButton(&eventData);
 }
 
 static LPPOINT lastCursorPoint = &POINT();
-static bool captureMouse(bool shouldCapture)
+static bool captureMouse(bool shouldCapture, bool shouldHide)
 {
 	if (shouldCapture != isCaptured)
 	{
@@ -151,23 +92,24 @@ static bool captureMouse(bool shouldCapture)
 			GetClientRect((HWND)currentWind->handle, &clientRect);
 			//convert screen rect to client coordinates.
 			POINT ptClientUL = { clientRect.left, clientRect.top };
-			// Add one to the right and bottom sides, because the 
-			// coordinates retrieved by GetClientRect do not 
-			// include the far left and lowermost pixels. 
+			// Add one to the right and bottom sides, because the
+			// coordinates retrieved by GetClientRect do not
+			// include the far left and lowermost pixels.
 			POINT ptClientLR = { clientRect.right + 1, clientRect.bottom + 1 };
 			ClientToScreen((HWND)currentWind->handle, &ptClientUL);
 			ClientToScreen((HWND)currentWind->handle, &ptClientLR);
 
-			// Copy the client coordinates of the client area 
-			// to the rcClient structure. Confine the mouse cursor 
-			// to the client area by passing the rcClient structure 
-			// to the ClipCursor function. 
+			// Copy the client coordinates of the client area
+			// to the rcClient structure. Confine the mouse cursor
+			// to the client area by passing the rcClient structure
+			// to the ClipCursor function.
 			SetRect(&clientRect, ptClientUL.x, ptClientUL.y,
 				ptClientLR.x, ptClientLR.y);
 			ClipCursor(&clientRect);
 
+			if (shouldHide)
+				ShowCursor(FALSE);
 
-			ShowCursor(FALSE);
 			isCaptured = true;
 		}
 		else
@@ -175,7 +117,9 @@ static bool captureMouse(bool shouldCapture)
 			ShowCursor(TRUE);
 			ReleaseCapture();
 			isCaptured = false;
-			SetCursorPos(lastCursorPoint->x, lastCursorPoint->y);
+
+			if (shouldHide)
+				SetCursorPos(lastCursorPoint->x, lastCursorPoint->y);
 		}
 	}
 #ifndef NO_GAINPUT
@@ -199,7 +143,7 @@ LRESULT CALLBACK WinProc(HWND _hwnd, UINT _id, WPARAM wParam, LPARAM lParam)
 	case WM_ACTIVATE:
 		if (LOWORD(wParam) == WA_INACTIVE)
 		{
-			captureMouse(false);
+			captureMouse(false, InputSystem::GetHideMouseCursorWhileCaptured());
 		}
 		break;
 
@@ -536,7 +480,6 @@ void handleMessages()
 	}
 
 #ifndef NO_GAINPUT
-	//updateKeys();
 	if (InputSystem::IsButtonTriggered(UserInputKeys::KEY_CANCEL))
 	{
 		if (!isCaptured)
@@ -545,7 +488,7 @@ void handleMessages()
 		}
 		else
 		{
-			captureMouse(false);
+			captureMouse(false, InputSystem::GetHideMouseCursorWhileCaptured());
 			ClipCursor(NULL);
 		}
 	}
@@ -558,11 +501,12 @@ void handleMessages()
 			if (gHWNDMap.size() == 0)
 				return;
 
-			captureMouse(true);
+			captureMouse(true, InputSystem::GetHideMouseCursorWhileCaptured());
 		}
 	}
 
-	if (InputSystem::IsButtonTriggered(UserInputKeys::KEY_MENU))
+	if (InputSystem::IsButtonTriggered(UserInputKeys::KEY_MENU) &&
+		(InputSystem::IsButtonPressed(UserInputKeys::KEY_LEFT_ALT) || InputSystem::IsButtonPressed(UserInputKeys::KEY_RIGHT_ALT)))
 	{
 		if (gHWNDMap.size() == 0)
 			return;

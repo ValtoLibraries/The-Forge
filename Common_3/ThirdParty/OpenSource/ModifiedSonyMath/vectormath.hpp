@@ -32,7 +32,7 @@
 // Sony's library includes:
 #define VECTORMATH_FORCE_SCALAR_MODE 0
 
-#if defined(_DURANGO) || defined(TARGET_IOS)
+#if defined(TARGET_IOS) || defined(__ANDROID__)
 // SSE mat4 implementation doesn't work well (produces incorrect results)
 #ifdef VECTORMATH_FORCE_SCALAR_MODE
 #undef VECTORMATH_FORCE_SCALAR_MODE
@@ -53,8 +53,18 @@
     #define VECTORMATH_MODE_SSE    0
 #endif // Vectormath mode selection
 
+//========================================= #ConfettiMathExtensionsBegin ================================================
+//========================================= #ConfettiAnimationMathExtensionsBegin =======================================
+
+#include "soa/soa.hpp"
+using namespace Vectormath::Soa;
+
+//========================================= #ConfettiAnimationMathExtensionsEnd =======================================
+//========================================= #ConfettiMathExtensionsEnd ================================================
+
 #include "vec2d.hpp"  // - Extended 2D vector and point classes; not aligned and always in scalar floats mode.
 #include "common.hpp" // - Miscellaneous helper functions.
+
 using namespace Vectormath;
 
 #endif // VECTORMATH_HPP

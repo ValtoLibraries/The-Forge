@@ -34,17 +34,6 @@ public:
 	 * \see GetTime
 	 */
 	InputManager(bool useSystemTime = true, Allocator& allocator = GetDefaultAllocator());
-	
-	/**
-	 * Further initialization is typically necessary.
-	 * \param appleView reference to the MTKView being used by app
-	 * \param useSystemTime Specifies if the GetTime() function uses system time or the time
-	 * supplied to Update(uint64_t).
-	 * \param allocator The memory allocator to be used for all allocations.
-	 * \see SetDisplaySize
-	 * \see GetTime
-	 */
-	InputManager(void* appleView, bool useSystemTime = true, Allocator& allocator = GetDefaultAllocator());
 
 	/// Destructs the manager.
 	~InputManager();
@@ -98,6 +87,12 @@ public:
 	 * \see GetTime
 	 */
 	void Update();
+
+
+	/**
+	 * This is used to to clear all input states from all registered devices
+	 */
+	void ClearAllStates(gainput::DeviceId deviceId = gainput::InvalidDeviceId);
 
 	/// Updates the input state and the manager's time, call this every frame.
 	/**
@@ -226,8 +221,6 @@ public:
 	void SetDebugRenderer(DebugRenderer* debugRenderer);
 	/// Returns the previously set debug renderer.
 	DebugRenderer* GetDebugRenderer() const { return debugRenderer_; }
-
-	void * uiView_;
 private:
 	Allocator& allocator_;
 

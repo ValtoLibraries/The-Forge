@@ -1,9 +1,9 @@
 /*
  * Copyright (c) 2018 Confetti Interactive Inc.
- * 
+ *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -11,9 +11,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -66,7 +66,7 @@ struct PlanetInfoStruct
 	float mRotationSpeed; // Rotation speed around self
 	mat4 mTranslationMat;
 	mat4 mScaleMat;
-	mat4 mSharedMat;    // Matrix to pass down to children
+	mat4 mSharedMat;	// Matrix to pass down to children
 };
 
 struct UniformBlock
@@ -80,65 +80,66 @@ struct UniformBlock
 	vec3 mLightColor;
 };
 
-const uint32_t		gImageCount = 3;
-const uint32_t		gViewCount = 2;
+const uint32_t	  gImageCount = 3;
+const uint32_t	  gViewCount = 2;
 bool				gToggleVSync = false;
 // Simulate heavy gpu workload by rendering high resolution spheres
-const int			gSphereResolution = 1024; // Increase for higher resolution spheres
-const float			gSphereDiameter = 0.5f;
-const uint			gNumPlanets = 11;       // Sun, Mercury -> Neptune, Pluto, Moon
-const uint			gTimeOffset = 600000;   // For visually better starting locations
-const float			gRotSelfScale = 0.0004f;
-const float			gRotOrbitYScale = 0.001f;
-const float			gRotOrbitZScale = 0.00001f;
+const int		   gSphereResolution = 1024; // Increase for higher resolution spheres
+const float		 gSphereDiameter = 0.5f;
+const uint		  gNumPlanets = 11;	  // Sun, Mercury -> Neptune, Pluto, Moon
+const uint		  gTimeOffset = 600000;   // For visually better starting locations
+const float		 gRotSelfScale = 0.0004f;
+const float		 gRotOrbitYScale = 0.001f;
+const float		 gRotOrbitZScale = 0.00001f;
 
-Renderer*			pRenderer = NULL;
+Renderer*		   pRenderer = NULL;
 
-Queue*				pGraphicsQueue[gViewCount] = { NULL };
+Queue*			  pGraphicsQueue[gViewCount] = { NULL };
 CmdPool*			pCmdPool[gViewCount] = { NULL };
-Cmd**				ppCmds[gViewCount] = { NULL };
-Fence*				pRenderCompleteFences[gViewCount][gImageCount] = { NULL };
-Semaphore*			pRenderCompleteSemaphores[gViewCount][gImageCount] = { NULL };
-Buffer*				pSphereVertexBuffer[gViewCount] = { NULL };
-Buffer*				pSkyBoxVertexBuffer[gViewCount] = { NULL };
+Cmd**			   ppCmds[gViewCount] = { NULL };
+Fence*			  pRenderCompleteFences[gViewCount][gImageCount] = { NULL };
+Semaphore*		  pRenderCompleteSemaphores[gViewCount][gImageCount] = { NULL };
+Buffer*			 pSphereVertexBuffer[gViewCount] = { NULL };
+Buffer*			 pSkyBoxVertexBuffer[gViewCount] = { NULL };
 Texture*			pSkyBoxTextures[gViewCount][6];
 GpuProfiler*		pGpuProfilers[gViewCount] = { NULL };
-RenderTarget*		pRenderTargets[gViewCount][gImageCount] = { NULL };
-RenderTarget*		pDepthBuffers[gViewCount] = { NULL };
+RenderTarget*	   pRenderTargets[gViewCount][gImageCount] = { NULL };
+RenderTarget*	   pDepthBuffers[gViewCount] = { NULL };
 
-Semaphore*			pImageAcquiredSemaphore = NULL;
-SwapChain*			pSwapChain = NULL;
+Semaphore*		  pImageAcquiredSemaphore = NULL;
+SwapChain*		  pSwapChain = NULL;
 
-Shader*				pSphereShader = NULL;
-Pipeline*			pSpherePipeline = NULL;
+Shader*			 pSphereShader = NULL;
+Pipeline*		   pSpherePipeline = NULL;
 
-Shader*				pSkyBoxDrawShader = NULL;
-Pipeline*			pSkyBoxDrawPipeline = NULL;
-RootSignature*		pRootSignature = NULL;
+Shader*			 pSkyBoxDrawShader = NULL;
+Pipeline*		   pSkyBoxDrawPipeline = NULL;
+RootSignature*	  pRootSignature = NULL;
 Sampler*			pSamplerSkyBox = NULL;
 
-DepthState*			pDepth = NULL;
+DepthState*		 pDepth = NULL;
 RasterizerState*	pSkyboxRast = NULL;
 
-Buffer*				pProjViewUniformBuffer[gImageCount] = { NULL };
-Buffer*				pSkyboxUniformBuffer[gImageCount] = { NULL };
+Buffer*			 pProjViewUniformBuffer[gImageCount] = { NULL };
+Buffer*			 pSkyboxUniformBuffer[gImageCount] = { NULL };
 
 uint32_t			gFrameIndex = 0;
 
-int					gNumberOfSpherePoints;
+int				 gNumberOfSpherePoints;
 UniformBlock		gUniformData;
+UniformBlock		gUniformDataSky;
 PlanetInfoStruct	gPlanetInfoData[gNumPlanets];
 
-ICameraController*	pCameraController = NULL;
+ICameraController*  pCameraController = NULL;
 
 /// UI
-UIApp				gAppUI;
-GuiComponent*		pGui;
+UIApp			   gAppUI;
+GuiComponent*	   pGui;
 
-FileSystem			gFileSystem;
-LogManager			gLogManager;
+FileSystem		  gFileSystem;
+LogManager		  gLogManager;
 
-const char*			pSkyBoxImageFileNames[] =
+const char*		 pSkyBoxImageFileNames[] =
 {
 	"Skybox_right1.png",
 	"Skybox_left2.png",
@@ -148,63 +149,27 @@ const char*			pSkyBoxImageFileNames[] =
 	"Skybox_back6.png"
 };
 
-#if defined(DIRECT3D12)
-#define RESOURCE_DIR "PCDX12"
-#elif defined(VULKAN)
-// #NOTE : Multi GPU in Vulkan requires NVIDIA Beta Driver 389.20
-	#if defined(_WIN32)
-	#define RESOURCE_DIR "PCVulkan"
-	#elif defined(LINUX)
-	#define RESOURCE_DIR "LINUXVulkan"
-	#endif
-#elif defined(METAL)
-#error Multi GPU not implemented for Metal Runtime
-//#define RESOURCE_DIR "OSXMetal"
-#elif defined(_DURANGO)
-#error Multi GPU not supported
-//#define RESOURCE_DIR "PCDX12"
-#else
-#error PLATFORM NOT SUPPORTED
-#endif
-
-#ifdef _DURANGO
-// Durango load assets from 'Layout\Image\Loose'
-const char* pszRoots[] =
+const char* pszBases[] =
 {
-	"Shaders/Binary/",	// FSR_BinShaders
-	"Shaders/",		// FSR_SrcShaders
-	"Shaders/Binary/",			// FSR_BinShaders_Common
-	"Shaders/",					// FSR_SrcShaders_Common
-	"Textures/",						// FSR_Textures
-	"Meshes/",						// FSR_Meshes
-	"Fonts/",						// FSR_Builtin_Fonts
-	"",					// FSR_GpuConfig
-	"",															// FSR_OtherFiles
+	"../../../src/11_MultiGPU/",                       // FSR_BinShaders
+	"../../../src/11_MultiGPU/",                       // FSR_SrcShaders
+	"../../../../../Middleware_3/PaniniProjection/",   // FSR_BinShaders_Common
+	"../../../../../Middleware_3/PaniniProjection/",   // FSR_SrcShaders_Common
+	"../../../UnitTestResources/",                     // FSR_Textures
+	"../../../UnitTestResources/",                     // FSR_Meshes
+	"../../../UnitTestResources/",                     // FSR_Builtin_Fonts
+	"../../../src/11_MultiGPU/",                       // FSR_GpuConfig
+	"",                                                // FSR_OtherFiles
 };
-#else
-//Example for using roots or will cause linker error with the extern root in FileSystem.cpp
-const char* pszRoots[] =
-{
-	"../../../src/11_MultiGPU/" RESOURCE_DIR "/Binary/",								// FSR_BinShaders
-	"../../../src/11_MultiGPU/" RESOURCE_DIR "/",										// FSR_SrcShaders
-	"../../../../../Middleware_3/PaniniProjection/Shaders/" RESOURCE_DIR "/Binary/",	// FSR_BinShaders_Common
-	"../../../../../Middleware_3/PaniniProjection/Shaders/" RESOURCE_DIR "/",			// FSR_SrcShaders_Common
-	"../../../UnitTestResources/Textures/",												// FSR_Textures
-	"../../../UnitTestResources/Meshes/",												// FSR_Meshes
-	"../../../UnitTestResources/Fonts/",												// FSR_Builtin_Fonts
-	"../../../src/11_MultiGPU/GPUCfg/",													// FSR_GpuConfig
-	"",																					// FSR_OtherFiles
-};
-#endif
 
 TextDrawDesc		gFrameTimeDraw = TextDrawDesc(0, 0xff00ffff, 18);
-ClearValue				gClearColor = { 0.0f, 0.0f, 0.0f, 0.0f };
-ClearValue				gClearDepth = { 1.0f, 0 };
-Panini					gPanini = {};
+ClearValue			  gClearColor = { 0.0f, 0.0f, 0.0f, 0.0f };
+ClearValue			  gClearDepth = { 1.0f, 0 };
+Panini				  gPanini = {};
 PaniniParameters		gPaniniParams = {};
 bool					gMultiGPU = true;
 bool					gMultiGPURestart = false;
-float*					pSpherePoints;
+float*				  pSpherePoints;
 
 class MultiGPU : public IApp
 {
@@ -219,6 +184,9 @@ public:
 		if (!pRenderer)
 			return false;
 
+
+		initResourceLoaderInterface(pRenderer, DEFAULT_MEMORY_BUDGET);
+		initDebugRendererInterface(pRenderer, "TitilliumText/TitilliumText-Bold.otf", FSR_Builtin_Fonts);
 
 		if (pRenderer->mSettings.mGpuMode == GPU_MODE_SINGLE && gMultiGPU)
 		{
@@ -252,9 +220,6 @@ public:
 		}
 
 		addSemaphore(pRenderer, &pImageAcquiredSemaphore);
-
-		initResourceLoaderInterface(pRenderer, DEFAULT_MEMORY_BUDGET);
-		initDebugRendererInterface(pRenderer, "TitilliumText/TitilliumText-Bold.ttf", FSR_Builtin_Fonts);
 
 		ShaderLoadDesc skyShader = {};
 		skyShader.mStages[0] = { "skybox.vert", NULL, 0, FSR_SrcShaders };
@@ -518,22 +483,19 @@ public:
 		if (!gAppUI.Init(pRenderer))
 			return false;
 
-		gAppUI.LoadFont("TitilliumText/TitilliumText-Bold.ttf", FSR_Builtin_Fonts);
+		gAppUI.LoadFont("TitilliumText/TitilliumText-Bold.otf", FSR_Builtin_Fonts);
 		GuiDesc guiDesc = {};
-		guiDesc.mStartPosition = { 0.0f, -100.0f };
-		guiDesc.mStartSize = { guiDesc.mStartSize.getX() * 0.5f, guiDesc.mStartSize.getY() * 0.4f };
 		pGui = gAppUI.AddGuiComponent(GetName(), &guiDesc);
 
 #if !defined(TARGET_IOS) && !defined(_DURANGO)
-		UIProperty vsyncProp = UIProperty("Toggle VSync", gToggleVSync);
-		pGui->AddControl(vsyncProp);
+		pGui->AddWidget(CheckboxWidget("Toggle VSync", &gToggleVSync));
 #endif
 
-		pGui->AddControl(UIProperty("Enable Multi GPU", gMultiGPU));
-		pGui->AddControl(UIProperty("Camera Horizontal FoV", gPaniniParams.FoVH, 30.0f, 179.0f, 1.0f));
-		pGui->AddControl(UIProperty("Panini D Parameter", gPaniniParams.D, 0.0f, 1.0f, 0.001f));
-		pGui->AddControl(UIProperty("Panini S Parameter", gPaniniParams.S, 0.0f, 1.0f, 0.001f));
-		pGui->AddControl(UIProperty("Screen Scale", gPaniniParams.scale, 1.0f, 10.0f, 0.01f));
+		pGui->AddWidget(CheckboxWidget("Enable Multi GPU", &gMultiGPU));
+		pGui->AddWidget(SliderFloatWidget("Camera Horizontal FoV", &gPaniniParams.FoVH, 30.0f, 179.0f, 1.0f));
+		pGui->AddWidget(SliderFloatWidget("Panini D Parameter", &gPaniniParams.D, 0.0f, 1.0f, 0.001f));
+		pGui->AddWidget(SliderFloatWidget("Panini S Parameter", &gPaniniParams.S, 0.0f, 1.0f, 0.001f));
+		pGui->AddWidget(SliderFloatWidget("Screen Scale", &gPaniniParams.scale, 1.0f, 10.0f, 0.01f));
 
 		CameraMotionParameters cmp{ 160.0f, 600.0f, 600.0f };
 		vec3 camPos{ 48.0f, 48.0f, 20.0f };
@@ -731,7 +693,7 @@ public:
 		static float currentTime = 0.0f;
 		currentTime += deltaTime * 1000.0f;
 
-		// update camera with time 
+		// update camera with time
 		mat4 viewMat = pCameraController->getViewMatrix();
 		const float aspectInverse = (float)mSettings.mHeight / ((float)mSettings.mWidth * 0.5f);
 		const float horizontal_fov = gPaniniParams.FoVH * PI / 180.0f;
@@ -764,14 +726,9 @@ public:
 			gUniformData.mColor[i] = gPlanetInfoData[i].mColor;
 		}
 
-		BufferUpdateDesc viewProjCbv = { pProjViewUniformBuffer[gFrameIndex], &gUniformData };
-		updateResource(&viewProjCbv);
-
+		gUniformDataSky = gUniformData;
 		viewMat.setTranslation(vec3(0));
-		gUniformData.mProjectView = projMat * viewMat;
-
-		BufferUpdateDesc skyboxViewProjCbv = { pSkyboxUniformBuffer[gFrameIndex], &gUniformData };
-		updateResource(&skyboxViewProjCbv);
+		gUniformDataSky.mProjectView = projMat * viewMat;
 		/************************************************************************/
 		/************************************************************************/
 
@@ -804,6 +761,13 @@ public:
 		static HiresTimer gTimer;
 
 		acquireNextImage(pRenderer, pSwapChain, pImageAcquiredSemaphore, NULL, &gFrameIndex);
+
+		// Update uniform buffers
+		BufferUpdateDesc viewProjCbv = { pProjViewUniformBuffer[gFrameIndex], &gUniformData };
+		updateResource(&viewProjCbv);
+
+		BufferUpdateDesc skyboxViewProjCbv = { pSkyboxUniformBuffer[gFrameIndex], &gUniformDataSky };
+		updateResource(&skyboxViewProjCbv);
 
 		for (int i = gViewCount - 1; i >= 0; --i)
 		{

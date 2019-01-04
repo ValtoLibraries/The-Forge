@@ -20,25 +20,23 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\src\02_Compute\PCVulkan\compute.comp">
+    <None Include="..\src\02_Compute\Shaders\Vulkan\display.frag">
       <Filter>Shaders\PCVulkan</Filter>
-    </CustomBuild>
+    </None>
+    <None Include="..\src\02_Compute\Shaders\Vulkan\display.vert">
+      <Filter>Shaders\PCVulkan</Filter>
+    </None>
+    <None Include="..\src\02_Compute\Shaders\PCDX12\compute.comp">
+      <Filter>Shaders\PCDX12</Filter>
+    </None>
+    <None Include="..\src\02_Compute\Shaders\PCDX12\display.frag">
+      <Filter>Shaders\PCDX12</Filter>
+    </None>
+    <None Include="..\src\02_Compute\Shaders\PCDX12\display.vert">
+      <Filter>Shaders\PCDX12</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\src\02_Compute\PCDX12\compute.comp">
-      <Filter>Shaders\PCDX12</Filter>
-    </None>
-    <None Include="..\src\02_Compute\PCDX12\display.frag">
-      <Filter>Shaders\PCDX12</Filter>
-    </None>
-    <None Include="..\src\02_Compute\PCDX12\display.vert">
-      <Filter>Shaders\PCDX12</Filter>
-    </None>
-    <None Include="..\src\02_Compute\PCVulkan\display.frag">
-      <Filter>Shaders\PCVulkan</Filter>
-    </None>
-    <None Include="..\src\02_Compute\PCVulkan\display.vert">
-      <Filter>Shaders\PCVulkan</Filter>
-    </None>
+    <CustomBuild Include="..\src\02_Compute\Shaders\Vulkan\compute.comp" />
   </ItemGroup>
 </Project>

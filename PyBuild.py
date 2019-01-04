@@ -33,14 +33,13 @@ import traceback
 import signal #used for handling ctrl+c keyboard interrupt
 import xml.etree.ElementTree as ET  #used for parsing XML ubuntu project file
 
-
 successfulBuilds = [] #holds all successfull builds
 failedBuilds = [] #holds all failed builds
 
 successfulTests = [] #holds all successfull tests
 failedTests = [] #holds all failed tests
 
-maxIdleTime = 20  #10 seconds of max idle time with cpu usage null
+maxIdleTime = 45  #10 seconds of max idle time with cpu usage null
 
 def PrintResults():
 	if len(successfulBuilds) > 0:
@@ -131,96 +130,39 @@ def RemoveTestingPreProcessor():
 			f.truncate()
 
 def ExecuteTimedCommand(cmdList,outStream=subprocess.PIPE):
-	try:
-		import psutil  #TODO: MAKE SURE THIS PACKAGE IS INSTALLED
-		
+	try:		
 		print("Executing command: " + ' '.join(cmdList))
-		#print("Current Working Directory: " +  os.getcwd())
 
 		#open subprocess without piping output
 		# otherwise process blocks until we call communicate or wait
-		proc = subprocess.Popen(cmdList)
+		proc = subprocess.Popen(cmdList, stdout=None, stderr=None)		
 		
 		#get start time of process
 		startTime = time.time()
 		currentTime = 0
 		
-		#gets the psutil process which is used for cpu percentage
-		psUtilProc = None
-		try:
-			#try to get psutil process, it can fail if process is done
-			#time.sleep(0.1)
-			psUtilProc = psutil.Process(proc.pid)
-		except psutil.NoSuchProcess:
-			#print("No such process")
-			#print("Current Process: " + str(proc.pid))
-			pass
-		except psutil.ZombieProcess:
-			#print("Zombie process")
-			#print("Current Process: " + str(proc.pid))
-			pass
-		except psutil.AccessDenied:
-			#print("Access Denied") #mac may cause issues here
-			pass
-
-		readCount = 0
-		memoryPercent = 0
-		while proc.poll() is None:
-			#monitor cpu usage in case application hangs
-			cpuUsage = 0
-			memoryUsage = 0
-			diskReadCount = 0
-			#try catch because cpu_percent will throw exception if process has exited
-			try:
-				cpuUsage = psUtilProc.cpu_percent(interval=0.1)
-				memoryUsage = psUtilProc.memory_percent()
-				#apparently mac process does not have disk_io_counters
-				if platform.system() == "Windows":
-					diskReadCount = psUtilProc.io_counters().read_count
-			except psutil.NoSuchProcess:
-				#print("No such process")
-				pass
-				#break
-			except psutil.AccessDenied:
-				#print("Access Denied")
-				pass
-			except psutil.ZombieProcess:
-				#print("Zombie process")
-				pass
-				#break
-			
-			#print('--------------------------------------------')
-			#print('Cpu Usage:' + str(cpuUsage))
-			#print('Disk Read Count:' + str(readCount))
-			#print('Memory Usage:' + str(memoryUsage))
-			#print('--------------------------------------------')
-			
-			#if cpu usage less than 1% then increment counter
-			if cpuUsage < 1.0 and readCount <= diskReadCount and memoryUsage <= memoryPercent:
-				currentTime = time.time() - startTime
-			else:
-				#process is active so we need to reset time that is used to detect
-				#crashing process
-				startTime = time.time()
-			
-			#update number of times read is called
-			readCount = diskReadCount
-			memoryPercent = memoryUsage
-
-			#current 'idle' time has reached our max duration
-			#then kill process
-			if currentTime > maxIdleTime:
+		"""Wait for a process to finish, or raise exception after timeout"""
+		end = startTime + maxIdleTime
+		interval = max(maxIdleTime / 1000.0, 0.005)
+		
+		#loop until time expires or process exits alone
+		while True:
+			result = proc.poll()
+			if result is not None:
+				break
+			if time.time() >= end:
 				print "Killed Application. Something went wrong with the app, it was idle for too long."
 				proc.kill()
-		
-		#used to get return code
-		rc = proc.wait()
+				proc.wait()
+				break
+			time.sleep(interval)
+			
+		rc = proc.returncode
 		if rc != 0:			
-			#print("Process returned error")
+			print("Process was killed or has crashed.")
 			return rc
 
 	except Exception as ex:
-		#traceback.print_exc()
 		print("-------------------------------------")
 		print("Failed executing command: " + ' '.join(cmdList))
 		print(ex)
@@ -230,15 +172,29 @@ def ExecuteTimedCommand(cmdList,outStream=subprocess.PIPE):
 	print("Success")
 	return 0 #success error code
 
+def ExecuteCommandWOutput(cmdList):
+	try:
+		print("")
+		print("Executing command: " + ' '.join(cmdList))
+		print("") 
+		ls_lines = subprocess.check_output(cmdList).splitlines()
+		return ls_lines
+	except Exception as ex:
+		print("-------------------------------------")
+		print("Failed executing command: " + ' '.join(cmdList))
+		print(ex)
+		print("-------------------------------------")
+		return ""  #error return code
+	
+	return "" #success error code
+
 def ExecuteCommand(cmdList,outStream):
 	try:
+		print("")
 		print("Executing command: " + ' '.join(cmdList))
-		proc = subprocess.Popen(cmdList, outStream)
-		if outStream:
-			ls_output = proc.communicate()[0]
-			print(ls_output)
-		else:
-			proc.wait()
+		print("") 
+		proc = subprocess.Popen(cmdList, stdout=outStream)
+		proc.wait()
 
 		if proc.returncode != 0:
 			return proc.returncode
@@ -252,7 +208,7 @@ def ExecuteCommand(cmdList,outStream):
 	return 0 #success error code
 
 def ExecuteBuild(cmdList, fileName, configuration, platform):
-	returnCode = ExecuteCommand(cmdList, subprocess.PIPE)
+	returnCode = ExecuteCommand(cmdList, sys.stdout)
 	
 	if returnCode != 0:
 		print("FAILED BUILDING ", fileName, configuration)
@@ -264,7 +220,7 @@ def ExecuteBuild(cmdList, fileName, configuration, platform):
 
 def ExecuteTest(cmdList, fileName, regularCommand, gpuLine = ""):
 	if regularCommand:
-		returnCode = ExecuteCommand(cmdList, subprocess.PIPE)
+		returnCode = ExecuteCommand(cmdList, None)
 	else:
 		returnCode = ExecuteTimedCommand(cmdList,None)
 	
@@ -277,7 +233,22 @@ def ExecuteTest(cmdList, fileName, regularCommand, gpuLine = ""):
 		
 	return returnCode
 
-def GetFilesPathByExtension(rootToSearch, extension, wantDirectory):
+#Get list of folders in given root with the given name
+#xan specific depth to look only under a limited amount of child dirs
+#default depth value is -1 --> no limit on depth
+def FindFolderPathByName(rootToSearch, name, depth = -1):
+	folderPathList = []
+	finalPath = rootToSearch
+	# traverse root directory, and list directories as dirs and files as files
+	for root, dirs, files in os.walk(finalPath):
+		for dirName in fnmatch.filter(dirs, name):
+			folderPathList.append(os.path.join(os.path.join(root,dirName)) + os.path.sep)
+		if depth == 0:
+			break
+		depth = depth - 1
+	return folderPathList
+
+def GetFilesPathByExtension(rootToSearch, extension, wantDirectory, maxDepth=-1):
 	filesPathList = []
 	finalPath = rootToSearch
 	# traverse root directory, and list directories as dirs and files as files
@@ -298,6 +269,10 @@ def GetFilesPathByExtension(rootToSearch, extension, wantDirectory):
 		else:
 			for filename in fnmatch.filter(files, "*."+extension):
 				filesPathList.append(os.path.join(root,filename))
+
+		if maxDepth == 0:
+			break
+		maxDepth = maxDepth - 1
 
 	return filesPathList
 
@@ -421,7 +396,7 @@ def TestXcodeProjects(iosTesting, macOSTesting, iosDeviceId):
 		if "_iOS" in filename:
 			#if specific ios id was passed then run for that device
 			#otherwise run on first device available
-			print iosDeviceId
+			#print iosDeviceId
 			if iosDeviceId == "-1" or iosDeviceId == "": 
 				command = ["ios-deploy","--uninstall","-b",filename + ".app","-I"]
 			else:
@@ -443,44 +418,154 @@ def TestXcodeProjects(iosTesting, macOSTesting, iosDeviceId):
 	else:
 		return 0
 
-def BuildXcodeProjects(skipIosBuild, skipIosCodeSigning):
+def GetXcodeSchemes(targetPath, getMacOS, getIOS):
+	command = ["xcodebuild", "-list"]
+	if ".xcworkspace" in targetPath:
+		command.append("-workspace")
+		command.append(targetPath)
+	elif ".xcodeproj" in targetPath:
+		command.append("-project")
+		command.append(targetPath)
+
+	schemesList = ExecuteCommandWOutput(command)
+	parsedSchemes = []
+	filteredSchemes = []
+	#try to detect any error and return null if detected
+	#also detect any informational line (such as List of Schemes:)
+	#As fas as I've seen the information lines all have : at the end
+	schemesStartFound = False
+	for line in schemesList:
+		if "error" in line:
+			print("Error retrieving the schemes from: " + targetPath)
+			print(line)
+			return []
+		if "Schemes:" in line:
+			schemesStartFound = True
+			continue
+		
+		buildAllFound = False
+		if schemesStartFound:
+			line = line.strip()
+			if line.isspace() or not line:
+				break
+			if ":" in line:
+				break
+			if "BuildAll" in line:
+				buildAllFound = True
+			#add scheme
+			parsedSchemes.append(line)
+
+	buildBothOS = getMacOS and getIOS
+	for scheme in parsedSchemes:
+		
+		#current scheme is build all but we not building both platforms
+		#filter it out
+		if "BuildAll" in scheme and not buildBothOS:
+			continue
+		#building both platforms and we found a build all scheme
+		#filter all the other schemes out
+		if not "BuildAll" in scheme and buildBothOS and buildAllFound:
+			continue
+		#filter macos scheme if necessary
+		if not getMacOS and "iOS" not in scheme:
+			continue
+		#filter ios scheme if necessary
+		if not getIOS and "iOS" in scheme:
+			continue
+		
+		filteredSchemes.append(scheme)
+
+	return filteredSchemes
+
+#Helper to create xcodebuild command for given scheme, workspace(full path from current working directory) and configuration(Debug, Release)
+#can filter out schemes based on what to skip and will return "" in those cases
+def CreateXcodeBuildCommand(skipMacos, skipIos, skipIosCodeSigning,path,scheme,configuration, isWorkspace):
+	if isWorkspace and "BuildAll" in scheme:
+		#build all projects in workspace using special BuildAll scheme. enables more parallel builds
+		command = ["xcodebuild","-quiet","-workspace",path,"-configuration",configuration,"build","-scheme","BuildAll", "-parallelizeTargets"]
+	elif isWorkspace and scheme != "":
+	 	command = ["xcodebuild","-quiet","-workspace",path,"-configuration",configuration,"build","-parallelizeTargets", "-scheme",scheme]
+	elif not isWorkspace:
+		#if filtering platforms then we build using schemes
+		if scheme != "" and (skipMacos or skipIos):
+			command = ["xcodebuild","-quiet","-project",path,"-configuration",configuration,"build", "-parallelizeTargets", "-scheme", scheme]
+		else:
+			#otherwise build all targets of projects in parallel
+			command = ["xcodebuild","-quiet","-project",path,"-configuration",configuration,"build", "-parallelizeTargets", "-alltargets"]
+	else:
+		return ""
+
+	if skipIosCodeSigning:
+		command.extend([
+		"CODE_SIGN_IDENTITY=\"\"",
+		"CODE_SIGNING_REQUIRED=\"NO\"",
+		"CODE_SIGN_ENTITLEMENTS=\"\"",
+		"CODE_SIGNING_ALLOWED=\"NO\""])
+	return command
+		
+def ListDirs(path):
+    return [dir for dir in os.listdir(path) if os.path.isdir(os.path.join(path,dir))]
+
+
+
+def BuildXcodeProjects(skipMacos, skipIos, skipIosCodeSigning):
 	errorOccured = False
-	
-	projsToBuild = GetFilesPathByExtension("./Examples_3/","xcodeproj", True)
-	for projectPath in projsToBuild:
+	buildConfigurations = ["Debug", "Release"]
+
+	#since our projects for macos are all under a macos Xcode folder we can search for
+	#that specific folder name to gather source folders containing project/workspace for xcode
+	#macSourceFolders = FindFolderPathByName("Examples_3/","macOS Xcode", -1)
+	xcodeProjects = ["/Examples_3/Visibility_Buffer/macOS Xcode/Visibility_Buffer.xcodeproj", 
+				"/Examples_3/Unit_Tests/macOS Xcode/Unit_Tests.xcworkspace",
+				"/Examples_3/Unit_Tests_Animation/macOS Xcode/Unit_Tests_Animation.xcworkspace"]
+
+	for proj in xcodeProjects:
 		#get working directory (excluding the xcodeproj in path)
-		rootPath = os.sep.join(projectPath.split(os.sep)[0:-1])
+		rootPath = os.getcwd() + os.sep.join(proj.split(os.sep)[0:-1])
 		#save current work dir
 		currDir = os.getcwd()
-		#change dir to xcodeproj location
+		#change dir to xcworkspace location
 		os.chdir(rootPath)
-		configurations = ["Debug", "Release"]
-		for conf in configurations:					
-			#create command for xcodebuild
-			filename = projectPath.split(os.sep)[-1].split(os.extsep)[0]
-			command = ["xcodebuild","clean","-quiet","-scheme", filename,"-configuration",conf,"build"]
-			sucess = ExecuteBuild(command, filename,conf, "macOS")
-			if sucess != 0:
-				errorOccured = True
+		#create command for xcodebuild
+		filenameWExt = proj.split(os.sep)[-1]
+		filename = filenameWExt.split(os.extsep)[0]
+		extension = filenameWExt.split(os.extsep)[1]
 
-			#assuming every xcodeproj has an iOS equivalent. 
-			#TODO: Search to verify file exists
-			if filename != "Visibility_Buffer" and skipIosBuild == False:
-				filename = filename + "_iOS" 
-				command = ["xcodebuild","clean","-quiet","-scheme", filename,"-configuration",conf,"build"]
-				if skipIosCodeSigning:
-					command.extend([
-					"CODE_SIGN_IDENTITY=\"\"",
-					"CODE_SIGNING_REQUIRED=\"NO\"",
-					"CODE_SIGN_ENTITLEMENTS=\"\"",
-					"CODE_SIGNING_ALLOWED=\"NO\""])
-				sucess = ExecuteBuild(command, filename,conf, "iOS")
+		#get and filter xcode schemes
+		schemesList = GetXcodeSchemes(filenameWExt,not skipMacos, not skipIos)
+		#if building both iOS and macOS then build them in parallel
+		#by building whole project instead of schemes
+		if "xcodeproj" in extension and not (skipMacos or skipIos):
+			#no need for any schemes we will build whole project
+			schemesList = [filename]
+		else:
+			for scheme in schemesList:
+				if "BuildAll" in scheme:
+					#remove all other schemes
+					schemesList = ["BuildAll"]
+					break
+		for conf in buildConfigurations:
+			#will build all targets for vien project
+			#canot remove ios / macos for now
+			for scheme in schemesList:
+				command = CreateXcodeBuildCommand(skipMacos, skipIos, skipIosCodeSigning, filenameWExt,scheme,conf, "xcworkspace" in extension)
+				platformName = "macOS/iOS"
+				if "iOS" in scheme:
+					platformName = "iOS"
+				elif "BuildAll" not in scheme:
+					platformName = "macOS"
+
+				#just switch otu filename and scheme in case we are building BuildAll
+				#display the project name intead.
+				if "BuildAll" in scheme:
+					sucess = ExecuteBuild(command, filename, conf, platformName)
+				else:
+					sucess = ExecuteBuild(command, filename + "/" + scheme, conf, platformName)
+
 				if sucess != 0:
 					errorOccured = True
-			
-		#set working dir to initial
 		os.chdir(currDir)
-	
+
 	if errorOccured == True:
 		return -1
 	return 0
@@ -512,20 +597,17 @@ def BuildLinuxProjects():
 			ubuntuProjects = []
 			for child in xmlRoot:
 				if child.tag == "Project":
-					if child.attrib["Name"] != "OSBase" and child.attrib["Name"] != "OS" and child.attrib["Name"] != "Renderer" and  child.attrib["Name"] != "SpirVTools" and child.attrib["Name"] != "PaniniProjection" and child.attrib["Name"] != "gainput":
+					if child.attrib["Name"] != "OSBase" and child.attrib["Name"] != "OS" and child.attrib["Name"] != "Renderer" and  child.attrib["Name"] != "SpirVTools" and child.attrib["Name"] != "PaniniProjection" and child.attrib["Name"] != "gainput" and child.attrib["Name"] != "ozz_base" and child.attrib["Name"] != "ozz_animation" and child.attrib["Name"] != "Assimp" and child.attrib["Name"] != "zlib":
 						ubuntuProjects.append(child.attrib["Name"])
 			
 			for proj in ubuntuProjects:
 				command = ["codelite-make","-w",filename,"-p", proj,"-c",conf]
 				#sucess = ExecuteBuild(command, filename+"/"+proj,conf, "Ubuntu")
-				sucess = ExecuteCommand(command, subprocess.PIPE)
+				sucess = ExecuteCommand(command, sys.stdout)
 				
 				if sucess != 0:
 					errorOccured = True
 				
-				command = ["make", "clean"]
-				sucess = ExecuteCommand(command, subprocess.PIPE)
-
 				command = ["make", "-s"]
 				sucess = ExecuteBuild(command, filename+"/"+proj,conf, "Ubuntu")
 				
@@ -554,7 +636,7 @@ def TestLinuxProjects():
 		currDir = os.getcwd()
 		#change dir to workspace location
 		os.chdir(rootPath)
-		configurations = ["Debug", "Release"]
+		configurations = ["Release"]
 		for conf in configurations:					
 			#create command for xcodebuild
 			filename = projectPath.split(os.sep)[-1].split(os.extsep)[0]
@@ -567,7 +649,7 @@ def TestLinuxProjects():
 			ubuntuProjects = []
 			for child in xmlRoot:
 				if child.tag == "Project":
-					if child.attrib["Name"] != "OSBase" and child.attrib["Name"] != "OS" and child.attrib["Name"] != "Renderer" and  child.attrib["Name"] != "SpirVTools" and child.attrib["Name"] != "PaniniProjection" and child.attrib["Name"] != "gainput":
+					if child.attrib["Name"] != "OSBase" and child.attrib["Name"] != "OS" and child.attrib["Name"] != "Renderer" and  child.attrib["Name"] != "SpirVTools" and child.attrib["Name"] != "PaniniProjection" and child.attrib["Name"] != "gainput" and child.attrib["Name"] != "ozz_base" and child.attrib["Name"] != "ozz_animation" and child.attrib["Name"] != "Assimp" and child.attrib["Name"] != "zlib":
 						ubuntuProjects.append(child.attrib["Name"])
 			
 			for proj in ubuntuProjects:
@@ -643,35 +725,79 @@ def TestWindowsProjects(useActiveGpuConfig):
 		return -1
 	return 0	
 
-def BuildWindowsProjects(xboxDefined):
+#this needs the JAVA_HOME environment variable set up correctly
+def BuildAndroidProjects():
+	errorOccured = False
+	
+	projsToBuild = GetFilesPathByExtension("./Examples_3/","iml", False)
+	for projectPath in projsToBuild:
+		#get working directory (excluding the workspace in path)
+		rootPath = os.sep.join(projectPath.split(os.sep)[0:-1])
+		#save current work dir
+		currDir = os.getcwd()
+		#get name 
+		projname = projectPath.split(os.sep)[-1].split(os.extsep)[0]
+		if projname == "app":
+			continue;
+		#change dir to workspace location
+		os.chdir(rootPath)
+		print "chdir to the root directory"
+		print rootPath
+		
+		confs = ["assembleDebug", "assembleRelease"]
+		for conf in confs:					
+			command = ["gradlew.bat", conf]
+			sucess = ExecuteBuild(command, projname,conf, "android")
+			#sucess = os.system(command + " " + buildcmd)
+			#sucess = ExecuteCommand(command, sys.stdout)
+			if sucess != 0:
+				print "Building Android projects FAILED " + rootPath
+				errorOccured = True
+
+		#set working dir to initial
+		os.chdir(currDir)
+	
+	if errorOccured == True:
+		print "Building Android projects FAILED"
+		return -1
+	return 0
+	
+def BuildWindowsProjects(xboxDefined, xboxOnly, skipDebug):
 	errorOccured = False
 	msBuildPath = FindMSBuild17()
 
 	pcConfigurations = ["DebugDx", "ReleaseDx", "DebugVk", "ReleaseVk", "DebugDx11", "ReleaseDx11"]
 	pcPlatform = "x64"
 	
+	if skipDebug:
+		pcConfigurations.remove("DebugDx")
+		pcConfigurations.remove("DebugVk")
+		pcConfigurations.remove("DebugDx11")
+
 	xboxConfigurations = ["Debug","Release"]
 	xboxPlatform = "Durango"
-	
+
 	if msBuildPath == "":
 		print("Could not find MSBuild 17, Is Visual Studio 17 installed ?")
 		sys.exit(-1)
+
+	projects = GetFilesPathByExtension("./Jenkins/","buildproj",False)
 	
-	projects = GetFilesPathByExtension("./Examples_3","sln",False)
-	xboxProjects = []
-	if xboxDefined:
-		xboxProjects = GetFilesPathByExtension("./Xbox/Examples_3","sln",False)
-	
+	#if MSBuild tasks were not found then parse all projects
+	if len(projects) == 0:
+		projects = GetFilesPathByExtension("./Examples_3/","sln",False)
+
 	fileList = []
 
-	for proj in projects:
-		#we don't want to build Xbox one solutions when building PC
-			if "PC Visual Studio 2017" in proj:
+	if not xboxOnly:
+		for proj in projects:
+			#we don't want to build Xbox one solutions when building PC
+			if "Xbox" not in proj and "XBOXOne" not in proj:
 				fileList.append(proj)
 
 	if xboxDefined:
-		for proj in xboxProjects:
-			if "XBOXOne" in proj:
+		for proj in projects:
+			if "Xbox" in proj or "XBOXOne" in proj:
 				fileList.append(proj)
 		
 				
@@ -691,25 +817,37 @@ def BuildWindowsProjects(xboxDefined):
 		os.chdir(rootPath)
 		
 		configurations = pcConfigurations
-		platform = pcPlatform
 		
+		#strip extension
 		filename = proj.split(os.sep)[-1]
+		
 		#hard code the configurations for Aura for now as it's not implemented for Vulkan runtime
 		if filename == "Aura.sln" or filename == 'Unit_Tests_Raytracing.sln':
-			configurations = ["DebugDx", "ReleaseDx"]
-		elif filename == "VisibilityBuffer.sln":
-			configurations = ["DebugDx", "ReleaseDx", "DebugVk", "ReleaseVk"]
+			if "DebugVk" in configurations : configurations.remove("DebugVk")
+			if "ReleaseVk" in configurations : configurations.remove("ReleaseVk")
+			if "DebugDx11" in configurations : configurations.remove("DebugDx11")
+			if "ReleaseDx11" in configurations : configurations.remove("ReleaseDx11")
+		elif filename == "VisibilityBuffer.sln" or filename == 'Unit_Tests_Animation.sln':
+			if "DebugDx11" in configurations : configurations.remove("DebugDx11")
+			if "ReleaseDx11" in configurations : configurations.remove("ReleaseDx11")
 			
-		if "XBOXOne" in proj:
-			configurations = xboxConfigurations
+		
+		if "Xbox" in proj or "XBOXOne" in proj:
 			platform = xboxPlatform
+		else:
+			platform = pcPlatform
 				
-		for conf in configurations:
-			command = [msBuildPath ,filename,"/p:Configuration="+conf,"/p:Platform=" + platform,"/m","/nr:false","/clp:ErrorsOnly;Summary","/verbosity:minimal","/t:Rebuild"]
-			retCode = ExecuteBuild(command, filename,conf, platform)
-			
-			if retCode != 0:
-				errorOccured = True
+		#for conf in configurations:
+		if ".sln" in filename:
+			for conf in configurations:
+				command = [msBuildPath ,filename,"/p:Configuration="+conf,"/p:Platform=" + platform,"/m","/p:BuildInParallel=true","/nr:false","/clp:ErrorsOnly;Summary","/verbosity:minimal","/t:Build"]
+				retCode = ExecuteBuild(command, filename,conf, platform)
+		else:
+			command = [msBuildPath ,filename,"/p:Platform=" + platform,"/m", "/p:BuildInParallel=true","/nr:false","/clp:ErrorsOnly;WarningsOnly;Summary","/verbosity:minimal","/t:Build"]
+			retCode = ExecuteBuild(command, filename,"All Configurations", platform)
+		
+		if retCode != 0:
+			errorOccured = True
 				
 		os.chdir(currDir)
 
@@ -737,20 +875,26 @@ setDefines = False
 
 def MainLogic():
 	global setDefines
+	global maxIdleTime
 	#TODO: Maybe use simpler library for args
 	parser = argparse.ArgumentParser(description='Process the Forge builds')
+	parser.add_argument('--clean', action="store_true", help='If enabled, will delete all unversioned and untracked files/folder excluding the Art folder.')
 	parser.add_argument('--prebuild', action="store_true", help='If enabled, will run PRE_BUILD if assets do not exist.')
 	parser.add_argument('--forceprebuild', action="store_true", help='If enabled, will call PRE_BUILD even if assets exist.')
 	parser.add_argument('--xbox', action="store_true", help='Enable xbox building')
+	parser.add_argument('--xboxonly', action="store_true", help='Enable xbox building')
 	parser.add_argument("--skipiosbuild", action="store_true", default=False, help='Disable iOS building')
-	parser.add_argument("--skipioscodesigning", action="store_true", default=False, help='Disable iOS code signing')
+	parser.add_argument("--skipmacosbuild", action="store_true", default=False, help='Disable Macos building')
+	parser.add_argument("--skipioscodesigning", action="store_true", default=False, help='Disable iOS code signing during build stage')
 	parser.add_argument('--testing', action="store_true", help='Test the apps on current platform')
 	parser.add_argument('--ios', action="store_true", help='Needs --testing. Enable iOS testing')
 	parser.add_argument("--iosid", type=str, default="-1", help='Use a specific ios device. Id taken from ios-deploy --detect.')
 	parser.add_argument('--macos', action="store_true", help='Needs --testing. Enable macOS testing')
+	parser.add_argument('--android', action="store_true", help='Enable android building')
 	parser.add_argument('--defines', action="store_true", help='Enables pre processor defines for automated testing.')
 	parser.add_argument('--gpuselection', action="store_true", help='Enables pre processor defines for using active gpu determined from activeTestingGpu.cfg.')
-
+	parser.add_argument('--timeout',type=int, default="45", help='Specify timeout, in seconds, before app is killed when testing. Default value is 45 seconds.')
+	parser.add_argument('--skipwindowsdebugbuild', action="store_true", help='If enabled, will skip Debug builds on Windows.')
 	#TODO: remove the test in parse_args
 	arguments = parser.parse_args()
 	
@@ -758,6 +902,7 @@ def MainLogic():
 	#we need defines macros
 	if arguments.gpuselection:
 		arguments.defines = True
+		
 
 	#add cleanup handler in case app gets interrupted
 	#keyboard interrupt
@@ -765,12 +910,18 @@ def MainLogic():
 	signal.signal(signal.SIGINT, CleanupHandler)
 
 	#change path to scripts location
+	print sys.path[0]
 	os.chdir(sys.path[0])
 	returnCode = 0
 	
-	if arguments.xbox is not True or "XboxOneXDKLatest" not in os.environ:
+	if (arguments.xbox is not True and arguments.xboxonly is not True) or "XboxOneXDKLatest" not in os.environ:
 		arguments.xbox = False
+		arguments.xboxonly = False
 	
+	#if we doing xbox only make sure the --xbox argument is enabled.
+	if arguments.xboxonly:
+		arguments.xbox = True
+
 	setDefines = arguments.defines
 	if setDefines == True:
 		print("Adding defines for automated testing")
@@ -783,13 +934,13 @@ def MainLogic():
 	if arguments.prebuild ==  True or arguments.forceprebuild == True:
 		if os.path.isdir("./Art") == False or arguments.forceprebuild == True:
 			if platform.system() == "Windows":
-				ExecuteCommand(["PRE_BUILD.bat"], subprocess.PIPE)
+				ExecuteCommand(["PRE_BUILD.bat"], sys.stdout)
 			else:
-				ExecuteCommand(["sh","PRE_BUILD.command"], subprocess.PIPE)
+				ExecuteCommand(["sh","PRE_BUILD.command"], sys.stdout)
 	
 	systemOS = platform.system()
-	print systemOS
 	if arguments.testing:
+		maxIdleTime = max(arguments.timeout,1)
 		#Build for Mac OS (Darwin system)
 		if systemOS == "Darwin":
 			returnCode = TestXcodeProjects(arguments.ios, arguments.macos, arguments.iosid)
@@ -798,11 +949,19 @@ def MainLogic():
 		elif systemOS.lower() == "linux" or systemOS.lower() == "linux2":
 			returnCode = TestLinuxProjects()
 	else:
+		#Clean before Building removing everything but the art folder
+		if arguments.clean == True:
+			print("Cleaning the repo")
+			ExecuteCommand(["git", "clean" , "--exclude=Art","--exclude=/**/OpenSource/*", "-fdx"],sys.stdout)
+			ExecuteCommand(["git", "submodule", "foreach", "--recursive","git", "clean" , "-fdfx"],sys.stdout)
 		#Build for Mac OS (Darwin system)
 		if systemOS== "Darwin":
-			returnCode = BuildXcodeProjects(arguments.skipiosbuild, arguments.skipioscodesigning)
+			returnCode = BuildXcodeProjects(arguments.skipmacosbuild,arguments.skipiosbuild, arguments.skipioscodesigning)
 		elif systemOS == "Windows":
-			returnCode = BuildWindowsProjects(arguments.xbox)
+			if arguments.android:
+				returnCode = BuildAndroidProjects()
+			else:
+				returnCode = BuildWindowsProjects(arguments.xbox, arguments.xboxonly, arguments.skipwindowsdebugbuild)
 		elif systemOS.lower() == "linux" or systemOS.lower() == "linux2":
 			returnCode = BuildLinuxProjects()
 

@@ -1,9 +1,9 @@
 /*
  * Copyright (c) 2018 Confetti Interactive Inc.
- * 
+ *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -11,9 +11,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -26,12 +26,16 @@
 #include "ResourceLoader.h"
 #include "../OS/Interfaces/ILogManager.h"
 #include "../OS/Interfaces/IMemoryManager.h"
+#include "../OS/Interfaces/IThread.h"
 
-//this is needed for unix as PATH_MAX is defined intead of MAX_PATH
+//this is needed for unix as PATH_MAX is defined instead of MAX_PATH
 #ifndef _WIN32
 //linux needs limits.h for PATH_MAX
 #ifdef __linux__
-#include<limits.h> 
+#include<limits.h>
+#endif
+#if defined(__ANDROID__)
+#include <shaderc/shaderc.h>
 #endif
 #define MAX_PATH PATH_MAX
 #endif
@@ -83,10 +87,10 @@ typedef struct ResourceLoader
 
 	tinystl::vector<Buffer*> mTempStagingBuffers;
 #if defined(DIRECT3D11)
-	tinystl::vector<void*>	mTempStagingData;
+	tinystl::vector<void*>  mTempStagingData;
 #endif
-    
-    bool mOpen = false;
+
+	bool mOpen = false;
 } ResourceLoader;
 
 typedef struct ResourceThread
@@ -234,7 +238,7 @@ static MappedMemoryRange consumeResourceLoaderMemory(uint64_t memoryRequirement,
 	return { pDstData, pLoader->pStagingBuffer, currentOffset, memoryRequirement };
 }
 
-/// 
+///
 static MappedMemoryRange consumeResourceUpdateMemory(uint64_t memoryRequirement, uint32_t alignment, ResourceLoader* pLoader)
 {
 	if (alignment != 0 && pLoader->mCurrentPos % alignment != 0)
@@ -449,7 +453,7 @@ static void cmdLoadTextureFile(Cmd* pCmd, TextureLoadDesc* pTextureFileDesc, Res
 		desc.mFlags = TEXTURE_CREATION_FLAG_NONE;
 		desc.mWidth = img.GetWidth();
 		desc.mHeight = img.GetHeight();
-		desc.mDepth = min(1U, img.GetDepth());
+		desc.mDepth = max(1U, img.GetDepth());
 		desc.mArraySize = img.GetArrayCount();
 		desc.mMipLevels = img.GetMipMapCount();
 		desc.mSampleCount = SAMPLE_COUNT_1;
@@ -509,7 +513,7 @@ static void cmdLoadTextureImage(Cmd* pCmd, TextureLoadDesc* pTextureImage, Resou
 	desc.mFlags = TEXTURE_CREATION_FLAG_NONE;
 	desc.mWidth = img.GetWidth();
 	desc.mHeight = img.GetHeight();
-	desc.mDepth = min(1U, img.GetDepth());
+	desc.mDepth = max(1U, img.GetDepth());
 	desc.mArraySize = img.GetArrayCount();
 	desc.mMipLevels = img.GetMipMapCount();
 	desc.mSampleCount = SAMPLE_COUNT_1;
@@ -590,13 +594,13 @@ static void cmdLoadResource(Cmd* pCmd, ResourceLoadDesc* pResourceLoadDesc, Reso
 static void cmdUpdateResource(Cmd* pCmd, BufferUpdateDesc* pBufferUpdate, ResourceLoader* pLoader)
 {
 	Buffer* pBuffer = pBufferUpdate->pBuffer;
-    const uint64_t bufferSize = (pBufferUpdate->mSize > 0) ? pBufferUpdate->mSize : pBuffer->mDesc.mSize;
+	const uint64_t bufferSize = (pBufferUpdate->mSize > 0) ? pBufferUpdate->mSize : pBuffer->mDesc.mSize;
 	const uint64_t alignment = pBuffer->mDesc.mDescriptors & DESCRIPTOR_TYPE_UNIFORM_BUFFER ? pLoader->pRenderer->pActiveGpuSettings->mUniformBufferAlignment : 1;
 	const uint64_t offset = round_up_64(pBufferUpdate->mDstOffset, alignment);
 
 	void* pSrcBufferAddress = NULL;
-    if (pBufferUpdate->pData)
-        pSrcBufferAddress = (uint8_t*)(pBufferUpdate->pData) + pBufferUpdate->mSrcOffset;
+	if (pBufferUpdate->pData)
+		pSrcBufferAddress = (uint8_t*)(pBufferUpdate->pData) + pBufferUpdate->mSrcOffset;
 
 	// If buffer is mapped on CPU memory, just do a memcpy
 	if (pBuffer->mDesc.mMemoryUsage == RESOURCE_MEMORY_USAGE_CPU_ONLY || pBuffer->mDesc.mMemoryUsage == RESOURCE_MEMORY_USAGE_CPU_TO_GPU)
@@ -638,13 +642,13 @@ static void cmdUpdateResource(Cmd* pCmd, BufferUpdateDesc* pBufferUpdate, Resour
 		MappedMemoryRange range = consumeResourceUpdateMemory(bufferSize, RESOURCE_BUFFER_ALIGNMENT, pLoader);
 		ASSERT(range.pData);
 
-        if (pSrcBufferAddress)
-            memcpy(range.pData, pSrcBufferAddress, range.mSize);
+		if (pSrcBufferAddress)
+			memcpy(range.pData, pSrcBufferAddress, range.mSize);
 		else
 			memset(range.pData, 0, range.mSize);
 
-		cmdUpdateBuffer(pCmd, range.mOffset, pBuffer->mPositionInHeap + offset, 
-            bufferSize, range.pBuffer, pBuffer);
+		cmdUpdateBuffer(pCmd, range.mOffset, pBuffer->mPositionInHeap + offset,
+			bufferSize, range.pBuffer, pBuffer);
 #if defined(DIRECT3D11)
 		unmapBuffer(pLoader->pRenderer, pLoader->pStagingBuffer);
 #endif
@@ -731,6 +735,8 @@ static void loadThread(void* pThreadData)
 void initResourceLoaderInterface(Renderer* pRenderer, uint64_t memoryBudget, bool useThreads)
 {
 	uint32_t numCores = Thread::GetNumCPUCores();
+
+	gFinishLoading = false;
 
 	gUseThreads = useThreads && numCores > 1;
 	// Threaded loading will wreak havoc w/ DX11 so disable it
@@ -893,33 +899,33 @@ void updateResource(BufferUpdateDesc* pBufferUpdate, bool batch /* = false*/)
 {
 	if (pBufferUpdate->pBuffer->mDesc.mMemoryUsage == RESOURCE_MEMORY_USAGE_GPU_ONLY || pBufferUpdate->pBuffer->mDesc.mMemoryUsage == RESOURCE_MEMORY_USAGE_GPU_TO_CPU)
 	{
-        if (!batch)
-        {
-            // TODO : Make updating resources thread safe. This lock is a temporary solution
-            MutexLock lock(gResourceQueueMutex);
+		if (!batch)
+		{
+			// TODO : Make updating resources thread safe. This lock is a temporary solution
+			MutexLock lock(gResourceQueueMutex);
 
 			Cmd* pCmd = pMainResourceLoader->pCopyCmd[0];
 
-            beginCmd(pCmd);
-            cmdUpdateResource(pCmd, pBufferUpdate, pMainResourceLoader);
-            endCmd(pCmd);
+			beginCmd(pCmd);
+			cmdUpdateResource(pCmd, pBufferUpdate, pMainResourceLoader);
+			endCmd(pCmd);
 
-            queueSubmit(pCopyQueue[0], 1, &pCmd, pWaitFence[0], 0, 0, 0, 0);
-            waitForFences(pCopyQueue[0], 1, &pWaitFence[0], false);
+			queueSubmit(pCopyQueue[0], 1, &pCmd, pWaitFence[0], 0, 0, 0, 0);
+			waitForFences(pCopyQueue[0], 1, &pWaitFence[0], false);
 			cleanupResourceLoader(pMainResourceLoader);
-        }
-        else
-        {
+		}
+		else
+		{
 			Cmd* pCmd = pMainResourceLoader->pBatchCopyCmd[0];
 
-            if (!pMainResourceLoader->mOpen)
-            {
-                beginCmd(pCmd);
-                pMainResourceLoader->mOpen = true;
-            }
-            
-            cmdUpdateResource(pCmd, pBufferUpdate, pMainResourceLoader);
-        }
+			if (!pMainResourceLoader->mOpen)
+			{
+				beginCmd(pCmd);
+				pMainResourceLoader->mOpen = true;
+			}
+
+			cmdUpdateResource(pCmd, pBufferUpdate, pMainResourceLoader);
+		}
 	}
 	else
 	{
@@ -978,16 +984,16 @@ void updateResources(uint32_t resourceCount, ResourceUpdateDesc* pResources)
 
 void flushResourceUpdates()
 {
-    if (pMainResourceLoader->mOpen)
-    {
-        endCmd(pMainResourceLoader->pBatchCopyCmd[0]);
-        
-        queueSubmit(pCopyQueue[0], 1, &pMainResourceLoader->pBatchCopyCmd[0], pWaitFence[0], 0, 0, 0, 0);
-        waitForFences(pCopyQueue[0], 1, &pWaitFence[0], false);
+	if (pMainResourceLoader->mOpen)
+	{
+		endCmd(pMainResourceLoader->pBatchCopyCmd[0]);
+
+		queueSubmit(pCopyQueue[0], 1, &pMainResourceLoader->pBatchCopyCmd[0], pWaitFence[0], 0, 0, 0, 0);
+		waitForFences(pCopyQueue[0], 1, &pWaitFence[0], false);
 
 		cleanupResourceLoader(pMainResourceLoader);
-        pMainResourceLoader->mOpen = false;
-    }
+		pMainResourceLoader->mOpen = false;
+	}
 }
 
 void removeResource(Texture* pTexture)
@@ -1004,15 +1010,15 @@ void finishResourceLoading()
 {
 	if ((uint32_t)gResourceThreads.size())
 	{
-        while (!gResourceQueue.empty ())
-            Thread::Sleep (0);
-        
-        gFinishLoading = true;
-        
-        // Wait till all resources are loaded
-        while (!pThreadPool->IsCompleted(0))
-            Thread::Sleep(0);
-        
+		while (!gResourceQueue.empty ())
+			Thread::Sleep (0);
+
+		gFinishLoading = true;
+
+		// Wait till all resources are loaded
+		while (!pThreadPool->IsCompleted(0))
+			Thread::Sleep(0);
+
 		Cmd* pCmds[MAX_LOAD_THREADS + 1];
 		for (uint32_t i = 0; i < (uint32_t)gResourceThreads.size(); ++i)
 		{
@@ -1029,9 +1035,9 @@ void finishResourceLoading()
 			removeResourceLoader(gResourceThreads[i]->pLoader);
 
 		pThreadPool->~ThreadPool();
-        conf_free(pThreadPool);
+		conf_free(pThreadPool);
 
-        for (unsigned i = 0; i < (uint32_t)gResourceThreads.size(); ++i)
+		for (unsigned i = 0; i < (uint32_t)gResourceThreads.size(); ++i)
 		{
 			conf_free(gResourceThreads[i]->pItem);
 			conf_free(gResourceThreads[i]);
@@ -1043,11 +1049,62 @@ void finishResourceLoading()
 /************************************************************************/
 // Shader loading
 /************************************************************************/
+#if defined(__ANDROID__)
+// Translate Vulkan Shader Type to shaderc shader type
+shaderc_shader_kind getShadercShaderType(ShaderStage type) {
+	switch (type) {
+	case ShaderStage::SHADER_STAGE_VERT:
+		return shaderc_glsl_vertex_shader;
+	case ShaderStage::SHADER_STAGE_FRAG:
+		return shaderc_glsl_fragment_shader;
+	case ShaderStage::SHADER_STAGE_TESC:
+		return shaderc_glsl_tess_control_shader;
+	case ShaderStage::SHADER_STAGE_TESE:
+		return shaderc_glsl_tess_evaluation_shader;
+	case ShaderStage::SHADER_STAGE_GEOM:
+		return shaderc_glsl_geometry_shader;
+	case ShaderStage::SHADER_STAGE_COMP:
+		return shaderc_glsl_compute_shader;
+	default:
+		ASSERT(0);
+		abort();
+	}
+	return static_cast<shaderc_shader_kind>(-1);
+}
+#endif
+
 #if defined(VULKAN)
+#if defined(__ANDROID__)
+// Android:
+// Use shaderc to compile glsl to spirV
+//@todo add support to macros!!
+void vk_compileShader(Renderer* pRenderer, ShaderStage stage, uint32_t codeSize, const char* code, const tinystl::string& outFile, uint32_t macroCount, ShaderMacro* pMacros, tinystl::vector<char>* pByteCode)
+{
+	// compile into spir-V shader
+	shaderc_compiler_t compiler = shaderc_compiler_initialize();
+	shaderc_compilation_result_t spvShader = shaderc_compile_into_spv(
+		compiler, code, codeSize, getShadercShaderType(stage),
+		"shaderc_error", "main", nullptr);
+	if (shaderc_result_get_compilation_status(spvShader) !=
+		shaderc_compilation_status_success) {
+		LOGERRORF("Shader compiling failed!");
+		abort();
+	}
+
+	// Resize the byteCode block based on the compiled shader size
+	pByteCode->resize(shaderc_result_get_length(spvShader));
+	memcpy(pByteCode->data(), shaderc_result_get_bytes(spvShader), pByteCode->size());
+
+	// Release resources
+	shaderc_result_release(spvShader);
+	shaderc_compiler_release(compiler);
+}
+#else
+// PC:
 // Vulkan has no builtin functions to compile source to spirv
 // So we call the glslangValidator tool located inside VulkanSDK on user machine to compile the glsl code to spirv
 // This code is not added to Vulkan.cpp since it calls no Vulkan specific functions
-void vk_compileShader(Renderer* pRenderer, const tinystl::string& fileName, const tinystl::string& outFile, uint32_t macroCount, ShaderMacro* pMacros, tinystl::vector<char>* pByteCode)
+void vk_compileShader(Renderer* pRenderer, ShaderTarget target, const tinystl::string& fileName, const tinystl::string& outFile, uint32_t macroCount, ShaderMacro* pMacros, tinystl::vector<char>* pByteCode)
 {
 	if (!FileSystem::DirExists(FileSystem::GetPath(outFile)))
 		FileSystem::CreateDir(FileSystem::GetPath(outFile));
@@ -1068,7 +1125,18 @@ void vk_compileShader(Renderer* pRenderer, const tinystl::string& fileName, cons
 		commandLine += tinystl::string::format("-V \"%s\" -o \"%s\"", fileName.c_str(), outFile.c_str());
 	}
 
+	if (target >= shader_target_6_0)
+		commandLine += " --target-env vulkan1.1 ";
 	//commandLine += " \"-D" + tinystl::string("VULKAN") + "=" + "1" + "\"";
+
+	// Add platform macro
+#ifdef _WINDOWS
+	commandLine += " \"-D WINDOWS\"";
+#elif defined(__ANDROID__)
+	commandLine += " \"-D ANDROID\"";
+#elif defined(__linux__)
+	commandLine += " \"-D LINUX\"";
+#endif
 
 	// Add user defined macros to the command line
 	for (uint32_t i = 0; i < macroCount; ++i)
@@ -1078,7 +1146,10 @@ void vk_compileShader(Renderer* pRenderer, const tinystl::string& fileName, cons
 	args.push_back(commandLine);
 
 	tinystl::string glslangValidator = getenv("VULKAN_SDK");
-	glslangValidator += "/bin/glslangValidator";
+	if (glslangValidator.size())
+		glslangValidator += "/bin/glslangValidator";
+	else
+		glslangValidator = "/usr/bin/glslangValidator";
 	if (FileSystem::SystemRun(glslangValidator, args, outFile + "_compile.log") == 0)
 	{
 		File file = {};
@@ -1095,7 +1166,7 @@ void vk_compileShader(Renderer* pRenderer, const tinystl::string& fileName, cons
 		// If for some reason the error file could not be created just log error msg
 		if (!errorFile.IsOpen())
 		{
-			ErrorMsg("Failed to compile shader %s", fileName);
+			ErrorMsg("Failed to compile shader %s", fileName.c_str());
 		}
 		else
 		{
@@ -1106,74 +1177,75 @@ void vk_compileShader(Renderer* pRenderer, const tinystl::string& fileName, cons
 		}
 	}
 }
+#endif
 #elif defined(METAL)
 // On Metal, on the other hand, we can compile from code into a MTLLibrary, but cannot save this
 // object's bytecode to disk. We instead use the xcbuild bash tool to compile the shaders.
 void mtl_compileShader(Renderer* pRenderer, const tinystl::string& fileName, const tinystl::string& outFile, uint32_t macroCount, ShaderMacro* pMacros, tinystl::vector<char>* pByteCode)
 {
-    if (!FileSystem::DirExists(FileSystem::GetPath(outFile)))
-        FileSystem::CreateDir(FileSystem::GetPath(outFile));
-    
-    tinystl::string xcrun = "/usr/bin/xcrun";
-    tinystl::string intermediateFile = outFile + ".air";
-    tinystl::vector<tinystl::string> args;
-    tinystl::string tmpArg = "";
-    
-    // Compile the source into a temporary .air file.
-    args.push_back("-sdk");
-    args.push_back("macosx");
-    args.push_back("metal");
-    args.push_back("-c");
-    tmpArg = tinystl::string::format("""%s""", fileName.c_str());
-    args.push_back(tmpArg);
-    args.push_back("-o");
-    args.push_back(intermediateFile.c_str());
-    
-    //enable the 2 below for shader debugging on xcode 10.0
-    //args.push_back("-MO");
-    //args.push_back("-gline-tables-only");
-    args.push_back("-D");
-    args.push_back("MTL_SHADER=1"); // Add MTL_SHADER macro to differentiate structs in headers shared by app/shader code.
-    // Add user defined macros to the command line
-    for (uint32_t i = 0; i < macroCount; ++i)
-    {
-        args.push_back("-D");
-        args.push_back(pMacros[i].definition + "=" + pMacros[i].value);
-    }
-    if(FileSystem::SystemRun(xcrun, args, "") == 0)
-    {
-        // Create a .metallib file from the .air file.
-        args.clear();
-        tmpArg = "";
-        args.push_back("-sdk");
-        args.push_back("macosx");
-        args.push_back("metallib");
-        args.push_back(intermediateFile.c_str());
-        args.push_back("-o");
-        tmpArg = tinystl::string::format("""%s""", outFile.c_str());
-        args.push_back(tmpArg);
-        if(FileSystem::SystemRun(xcrun, args, "") == 0)
-        {
-            // Remove the temp .air file.
-            args.clear();
-            args.push_back(intermediateFile.c_str());
-            FileSystem::SystemRun("rm", args, "");
-            
-            // Store the compiled bytecode.
-            File file = {};
-            file.Open(outFile, FileMode::FM_ReadBinary, FSRoot::FSR_Absolute);
-            ASSERT(file.IsOpen());
-            pByteCode->resize(file.GetSize());
-            memcpy(pByteCode->data(), file.ReadText().c_str(), pByteCode->size());
-            file.Close();
-        }
-        else ErrorMsg("Failed to assemble shader's %s .metallib file", fileName.c_str());
-    }
-    else ErrorMsg("Failed to compile shader %s", fileName.c_str());
+	if (!FileSystem::DirExists(FileSystem::GetPath(outFile)))
+		FileSystem::CreateDir(FileSystem::GetPath(outFile));
+
+	tinystl::string xcrun = "/usr/bin/xcrun";
+	tinystl::string intermediateFile = outFile + ".air";
+	tinystl::vector<tinystl::string> args;
+	tinystl::string tmpArg = "";
+
+	// Compile the source into a temporary .air file.
+	args.push_back("-sdk");
+	args.push_back("macosx");
+	args.push_back("metal");
+	args.push_back("-c");
+	tmpArg = tinystl::string::format("""%s""", fileName.c_str());
+	args.push_back(tmpArg);
+	args.push_back("-o");
+	args.push_back(intermediateFile.c_str());
+
+	//enable the 2 below for shader debugging on xcode 10.0
+	//args.push_back("-MO");
+	//args.push_back("-gline-tables-only");
+	args.push_back("-D");
+	args.push_back("MTL_SHADER=1"); // Add MTL_SHADER macro to differentiate structs in headers shared by app/shader code.
+	// Add user defined macros to the command line
+	for (uint32_t i = 0; i < macroCount; ++i)
+	{
+		args.push_back("-D");
+		args.push_back(pMacros[i].definition + "=" + pMacros[i].value);
+	}
+	if(FileSystem::SystemRun(xcrun, args, "") == 0)
+	{
+		// Create a .metallib file from the .air file.
+		args.clear();
+		tmpArg = "";
+		args.push_back("-sdk");
+		args.push_back("macosx");
+		args.push_back("metallib");
+		args.push_back(intermediateFile.c_str());
+		args.push_back("-o");
+		tmpArg = tinystl::string::format("""%s""", outFile.c_str());
+		args.push_back(tmpArg);
+		if(FileSystem::SystemRun(xcrun, args, "") == 0)
+		{
+			// Remove the temp .air file.
+			args.clear();
+			args.push_back(intermediateFile.c_str());
+			FileSystem::SystemRun("rm", args, "");
+
+			// Store the compiled bytecode.
+			File file = {};
+			file.Open(outFile, FileMode::FM_ReadBinary, FSRoot::FSR_Absolute);
+			ASSERT(file.IsOpen());
+			pByteCode->resize(file.GetSize());
+			memcpy(pByteCode->data(), file.ReadText().c_str(), pByteCode->size());
+			file.Close();
+		}
+		else ErrorMsg("Failed to assemble shader's %s .metallib file", fileName.c_str());
+	}
+	else ErrorMsg("Failed to compile shader %s", fileName.c_str());
 }
 #endif
 #if (defined(DIRECT3D12) || defined(DIRECT3D11)) && !defined(ENABLE_RENDERER_RUNTIME_SWITCH)
-extern void compileShader(Renderer* pRenderer, ShaderStage stage, const char* fileName, uint32_t codeSize, const char* code, uint32_t macroCount, ShaderMacro* pMacros, void*(*allocator)(size_t a), uint32_t* pByteCodeSize, char** ppByteCode);
+extern void compileShader(Renderer* pRenderer, ShaderTarget target, ShaderStage stage, const char* fileName, uint32_t codeSize, const char* code, uint32_t macroCount, ShaderMacro* pMacros, void*(*allocator)(size_t a), uint32_t* pByteCodeSize, char** ppByteCode);
 #endif
 
 // Function to generate the timestamp of this shader source file considering all include file timestamp
@@ -1187,36 +1259,87 @@ static bool process_source_file(File* original, File* file, uint32_t& outTimeSta
 		if (fileTimeStamp > outTimeStamp)
 			outTimeStamp = fileTimeStamp;
 	}
-
+	
+	const tinystl::string pIncludeDirective = "#include";
 	while (!file->IsEof())
 	{
 		tinystl::string line = file->ReadLine();
+		uint32_t filePos = line.find(pIncludeDirective, 0);
+		const uint commentPosCpp = line.find("//", 0);
+		const uint commentPosC = line.find("/*", 0);
+		
+		// if we have an "#include \"" in our current line
+		const bool bLineHasIncludeDirective = filePos != tinystl::string::npos;
+		const bool bLineIsCommentedOut = (commentPosCpp != tinystl::string::npos && commentPosCpp < filePos)
+										|| (commentPosC != tinystl::string::npos && commentPosC < filePos);
 
-		if (line.find("#include \"", 0) != tinystl::string::npos)
+		if(bLineHasIncludeDirective && !bLineIsCommentedOut)
 		{
-			tinystl::string includeFileName = FileSystem::GetPath(file->GetName()) + line.substring(9).replaced("\"", "").trimmed();
+			// get the include file name
+			uint32_t currentPos = filePos + (uint32_t)strlen(pIncludeDirective);
+			tinystl::string fileName;
+			while (line.at(currentPos++) == ' ');	// skip empty spaces
+			if (currentPos >= (uint32_t)line.size()) continue;
+			if (line.at(currentPos - 1) != '\"')	 continue;
+			else
+			{
+				// read char by char until we have the include file name
+				while(line.at(currentPos) != '\"')
+				{
+					fileName.push_back(line.at(currentPos));
+					++currentPos;
+				}
+			}
+			
+			// get the include file path
+			tinystl::string includeFileName = FileSystem::GetPath(file->GetName()) + fileName;
+			if (FileSystem::GetFileName(includeFileName).at(0) == '<') // disregard bracketsauthop
+				continue;
+			
+			// open the include file
 			File includeFile = {};
 			includeFile.Open(includeFileName, FM_ReadBinary, FSR_Absolute);
 			if (!includeFile.IsOpen())
+			{
+				LOGERRORF("Cannot open #include file: %s", includeFileName.c_str());
 				return false;
-
+			}
+			
 			// Add the include file into the current code recursively
 			if (!process_source_file(original, &includeFile, outTimeStamp, outCode))
 			{
 				includeFile.Close();
 				return false;
 			}
-
+			
 			includeFile.Close();
 		}
-
-		if (file == original)
+		
+		
+#ifdef TARGET_IOS
+		// iOS doesn't have support for resolving user header includes in shader code
+		// when compiling with shader source using Metal runtime.
+		// https://developer.apple.com/library/archive/documentation/3DDrawing/Conceptual/MTLBestPracticesGuide/FunctionsandLibraries.html
+		//
+		// Here we write out the contents of the header include into the original source
+		// where its included from -- we're expanding the headers as the pre-processor 
+		// would do.
+		//
+		//const bool bAreWeProcessingAnIncludedHeader = file != original;
+		if (!bLineHasIncludeDirective)
 		{
-			outCode += line;
-			outCode += "\n";
+			outCode += line + "\n";
 		}
+#else
+		// Simply write out the current line if we are not in a header file
+		const bool bAreWeProcessingTheShaderSource = file == original;
+		if (bAreWeProcessingTheShaderSource)
+		{
+			outCode += line + "\n";
+		}
+#endif
 	}
-
+	
 	return true;
 }
 
@@ -1262,18 +1385,18 @@ bool save_byte_code(const tinystl::string& binaryShaderName, const tinystl::vect
 	return true;
 }
 
-bool load_shader_stage_byte_code(Renderer* pRenderer, ShaderStage stage, const char* fileName, FSRoot root, uint32_t macroCount, ShaderMacro* pMacros, uint32_t rendererMacroCount, ShaderMacro* pRendererMacros, tinystl::vector<char>& byteCode)
+bool load_shader_stage_byte_code(Renderer* pRenderer, ShaderTarget target, ShaderStage stage, const char* fileName, FSRoot root, uint32_t macroCount, ShaderMacro* pMacros, uint32_t rendererMacroCount, ShaderMacro* pRendererMacros, tinystl::vector<char>& byteCode)
 {
 	File shaderSource = {};
 	tinystl::string code;
 	uint32_t timeStamp = 0;
-    
+
 #ifndef METAL
-    const char* shaderName = fileName;
+	const char* shaderName = fileName;
 #else
-    // Metal shader files need to have the .metal extension.
-    tinystl::string metalShaderName = tinystl::string(fileName) + ".metal";
-    const char* shaderName = metalShaderName.c_str();
+	// Metal shader files need to have the .metal extension.
+	tinystl::string metalShaderName = tinystl::string(fileName) + ".metal";
+	const char* shaderName = metalShaderName.c_str();
 #endif
 
 	shaderSource.Open(shaderName, FM_ReadBinary, root);
@@ -1310,11 +1433,7 @@ bool load_shader_stage_byte_code(Renderer* pRenderer, ShaderStage stage, const c
 		rendererApi = "PCDX12";
 		break;
 	case RENDERER_API_VULKAN:
-#if defined(_WIN32)
-		rendererApi = "PCVulkan";
-#elif defined(__linux__)
-		rendererApi = "LINUXVulkan";
-#endif
+		rendererApi = "Vulkan";
 		break;
 	case RENDERER_API_METAL:
 		rendererApi = "OSXMetal";
@@ -1329,9 +1448,13 @@ bool load_shader_stage_byte_code(Renderer* pRenderer, ShaderStage stage, const c
 	tinystl::string lowerStr = appName.to_lower();
 	appName = lowerStr!=pRenderer->pName ? lowerStr : lowerStr+"_";
 #endif
-	
-	tinystl::string binaryShaderName = FileSystem::GetProgramDir() + "/" + appName + tinystl::string("/") + rendererApi + tinystl::string("/CompiledShadersBinary/") +
-		FileSystem::GetFileName(fileName) + tinystl::string::format("_%zu", tinystl::hash(shaderDefines)) + extension + ".bin";
+
+	tinystl::string binaryShaderName = FileSystem::GetProgramDir() + "/" + appName + tinystl::string("/Shaders/") + rendererApi + tinystl::string("/CompiledShadersBinary/") +
+		FileSystem::GetFileName(fileName) +
+		tinystl::string::format("_%zu", tinystl::hash(shaderDefines)) +
+		extension +
+		tinystl::string::format("%u", (uint32_t)target) +
+		".bin";
 #endif
 
 	// Shader source is newer than binary
@@ -1340,7 +1463,11 @@ bool load_shader_stage_byte_code(Renderer* pRenderer, ShaderStage stage, const c
 		if (pRenderer->mSettings.mApi == RENDERER_API_METAL || pRenderer->mSettings.mApi == RENDERER_API_VULKAN)
 		{
 #if defined(VULKAN)
-			vk_compileShader(pRenderer, shaderSource.GetName(), binaryShaderName, macroCount, pMacros, &byteCode);
+#if defined(__ANDROID__)
+			vk_compileShader(pRenderer, stage, (uint32_t)code.size(), code.c_str(), binaryShaderName, macroCount, pMacros, &byteCode);
+#else
+			vk_compileShader(pRenderer, target, shaderSource.GetName(), binaryShaderName, macroCount, pMacros, &byteCode);
+#endif
 #elif defined(METAL)
 			mtl_compileShader(pRenderer, shaderSource.GetName(), binaryShaderName, macroCount, pMacros, &byteCode);
 #endif
@@ -1350,7 +1477,7 @@ bool load_shader_stage_byte_code(Renderer* pRenderer, ShaderStage stage, const c
 #if defined(DIRECT3D12) || defined(DIRECT3D11)
 			char* pByteCode = NULL;
 			uint32_t byteCodeSize = 0;
-			compileShader(pRenderer, stage, shaderSource.GetName(), (uint32_t)code.size(), code.c_str(), macroCount, pMacros, conf_malloc, &byteCodeSize, &pByteCode);
+			compileShader(pRenderer, target, stage, shaderSource.GetName(), (uint32_t)code.size(), code.c_str(), macroCount, pMacros, conf_malloc, &byteCodeSize, &pByteCode);
 			byteCode.resize(byteCodeSize);
 			memcpy(byteCode.data(), pByteCode, byteCodeSize);
 			conf_free(pByteCode);
@@ -1364,58 +1491,58 @@ bool load_shader_stage_byte_code(Renderer* pRenderer, ShaderStage stage, const c
 		if (!byteCode.size())
 		{
 			ErrorMsg("Error while generating bytecode for shader %s", fileName);
-            shaderSource.Close();
+			shaderSource.Close();
 			return false;
 		}
 	}
 
-    shaderSource.Close();
+	shaderSource.Close();
 	return true;
 }
 #ifdef TARGET_IOS
 bool find_shader_stage(const tinystl::string& fileName, ShaderDesc* pDesc, ShaderStageDesc** pOutStage, ShaderStage* pStage)
 {
-    tinystl::string ext = FileSystem::GetExtension(fileName);
-    if (ext == ".vert")
-    {
-        *pOutStage = &pDesc->mVert;
-        *pStage = SHADER_STAGE_VERT;
-    }
-    else if (ext == ".frag")
-    {
-        *pOutStage = &pDesc->mFrag;
-        *pStage = SHADER_STAGE_FRAG;
-    }
+	tinystl::string ext = FileSystem::GetExtension(fileName);
+	if (ext == ".vert")
+	{
+		*pOutStage = &pDesc->mVert;
+		*pStage = SHADER_STAGE_VERT;
+	}
+	else if (ext == ".frag")
+	{
+		*pOutStage = &pDesc->mFrag;
+		*pStage = SHADER_STAGE_FRAG;
+	}
 #ifndef METAL
 #if !defined(METAL)
-    else if (ext == ".tesc")
-    {
-        *pOutStage = &pDesc->mHull;
-        *pStage = SHADER_STAGE_HULL;
-    }
-    else if (ext == ".tese")
-    {
-        *pOutStage = &pDesc->mDomain;
-        *pStage = SHADER_STAGE_DOMN;
-    }
-    else if (ext == ".geom")
-    {
-        *pOutStage = &pDesc->mGeom;
-        *pStage = SHADER_STAGE_GEOM;
-    }
+	else if (ext == ".tesc")
+	{
+		*pOutStage = &pDesc->mHull;
+		*pStage = SHADER_STAGE_HULL;
+	}
+	else if (ext == ".tese")
+	{
+		*pOutStage = &pDesc->mDomain;
+		*pStage = SHADER_STAGE_DOMN;
+	}
+	else if (ext == ".geom")
+	{
+		*pOutStage = &pDesc->mGeom;
+		*pStage = SHADER_STAGE_GEOM;
+	}
 #endif
 #endif
-    else if (ext == ".comp")
-    {
-        *pOutStage = &pDesc->mComp;
-        *pStage = SHADER_STAGE_COMP;
-    }
-    else
-    {
-        return false;
-    }
-    
-    return true;
+	else if (ext == ".comp")
+	{
+		*pOutStage = &pDesc->mComp;
+		*pStage = SHADER_STAGE_COMP;
+	}
+	else
+	{
+		return false;
+	}
+
+	return true;
 }
 #else
 bool find_shader_stage(const tinystl::string& fileName, BinaryShaderDesc* pBinaryDesc, BinaryShaderStageDesc** pOutStage, ShaderStage* pStage)
@@ -1471,15 +1598,15 @@ void addShader(Renderer* pRenderer, const ShaderLoadDesc* pDesc, Shader** ppShad
 	for (uint32_t i = 0; i < SHADER_STAGE_COUNT; ++i)
 	{
 		const RendererShaderDefinesDesc rendererDefinesDesc = get_renderer_shaderdefines(pRenderer);
-		
+
 		if (pDesc->mStages[i].mFileName.size() != 0)
 		{
 			ShaderStage stage;
 			BinaryShaderStageDesc* pStage = NULL;
 			if (find_shader_stage(pDesc->mStages[i].mFileName, &binaryDesc, &pStage, &stage))
 			{
-				if (!load_shader_stage_byte_code(pRenderer, stage, pDesc->mStages[i].mFileName, pDesc->mStages[i].mRoot, 
-												 pDesc->mStages[i].mMacroCount, pDesc->mStages[i].pMacros, 
+				if (!load_shader_stage_byte_code(pRenderer, pDesc->mTarget, stage, pDesc->mStages[i].mFileName, pDesc->mStages[i].mRoot,
+												 pDesc->mStages[i].mMacroCount, pDesc->mStages[i].pMacros,
 												 rendererDefinesDesc.rendererShaderDefinesCnt, rendererDefinesDesc.rendererShaderDefines,
 												 byteCodes[i]))
 					return;
@@ -1506,7 +1633,7 @@ void addShader(Renderer* pRenderer, const ShaderLoadDesc* pDesc, Shader** ppShad
 	for (uint32_t i = 0; i < SHADER_STAGE_COUNT; ++i)
 	{
 		const RendererShaderDefinesDesc rendererDefinesDesc = get_renderer_shaderdefines(pRenderer);
-		
+
 		if (pDesc->mStages[i].mFileName.size() > 0)
 		{
 			ShaderStage stage;
@@ -1514,11 +1641,12 @@ void addShader(Renderer* pRenderer, const ShaderLoadDesc* pDesc, Shader** ppShad
 			if (find_shader_stage(pDesc->mStages[i].mFileName, &desc, &pStage, &stage))
 			{
 				File shaderSource = {};
-				shaderSource.Open(pDesc->mStages[i].mFileName + ".metal", FM_ReadBinary, FSR_Absolute);
+				shaderSource.Open(pDesc->mStages[i].mFileName + ".metal", FM_ReadBinary, pDesc->mStages[i].mRoot);
 				ASSERT(shaderSource.IsOpen());
-			
+
 				pStage->mName = pDesc->mStages[i].mFileName;
-				pStage->mCode = shaderSource.ReadText();
+				uint timestamp = 0;
+				process_source_file(&shaderSource, &shaderSource, timestamp, pStage->mCode);
 				pStage->mEntryPoint = "stageMain";
 				// Apply user specified shader macros
 				for (uint32_t j = 0; j < pDesc->mStages[i].mMacroCount; j++)
@@ -1535,8 +1663,8 @@ void addShader(Renderer* pRenderer, const ShaderLoadDesc* pDesc, Shader** ppShad
 			}
 		}
 	}
-    
-    addShader(pRenderer, &desc, ppShader);
+
+	addShader(pRenderer, &desc, ppShader);
 #endif
 }
 /************************************************************************/

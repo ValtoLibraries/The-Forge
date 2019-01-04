@@ -1,9 +1,9 @@
 /*
  * Copyright (c) 2018 Confetti Interactive Inc.
- * 
+ *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -11,9 +11,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -62,7 +62,7 @@ struct PlanetInfoStruct
 	float mRotationSpeed; // Rotation speed around self
 	mat4 mTranslationMat;
 	mat4 mScaleMat;
-	mat4 mSharedMat;    // Matrix to pass down to children
+	mat4 mSharedMat;	// Matrix to pass down to children
 };
 
 struct UniformBlock
@@ -76,62 +76,63 @@ struct UniformBlock
 	vec3 mLightColor;
 };
 
-const uint32_t		gImageCount = 3;
-const int			gSphereResolution = 30; // Increase for higher resolution spheres
-const float			gSphereDiameter = 0.5f;
-const uint			gNumPlanets = 11;       // Sun, Mercury -> Neptune, Pluto, Moon
-const uint			gTimeOffset = 600000;   // For visually better starting locations 
-const float			gRotSelfScale = 0.0004f;
-const float			gRotOrbitYScale = 0.001f;
-const float			gRotOrbitZScale = 0.00001f;
+const uint32_t	  gImageCount = 3;
+const int		   gSphereResolution = 30; // Increase for higher resolution spheres
+const float		 gSphereDiameter = 0.5f;
+const uint		  gNumPlanets = 11;	  // Sun, Mercury -> Neptune, Pluto, Moon
+const uint		  gTimeOffset = 600000;   // For visually better starting locations
+const float		 gRotSelfScale = 0.0004f;
+const float		 gRotOrbitYScale = 0.001f;
+const float		 gRotOrbitZScale = 0.00001f;
 
-Renderer*			pRenderer = NULL;
+Renderer*		   pRenderer = NULL;
 
-Queue*				pGraphicsQueue = NULL;
+Queue*			  pGraphicsQueue = NULL;
 CmdPool*			pCmdPool = NULL;
-Cmd**				ppCmds = NULL;
+Cmd**			   ppCmds = NULL;
 
-SwapChain*			pSwapChain = NULL;
-RenderTarget*		pDepthBuffer = NULL;
-Fence*				pRenderCompleteFences[gImageCount] = { NULL };
-Semaphore*			pImageAcquiredSemaphore = NULL;
-Semaphore*			pRenderCompleteSemaphores[gImageCount] = { NULL };
+SwapChain*		  pSwapChain = NULL;
+RenderTarget*	   pDepthBuffer = NULL;
+Fence*			  pRenderCompleteFences[gImageCount] = { NULL };
+Semaphore*		  pImageAcquiredSemaphore = NULL;
+Semaphore*		  pRenderCompleteSemaphores[gImageCount] = { NULL };
 
-Shader*				pSphereShader = NULL;
-Buffer*				pSphereVertexBuffer = NULL;
-Pipeline*			pSpherePipeline = NULL;
+Shader*			 pSphereShader = NULL;
+Buffer*			 pSphereVertexBuffer = NULL;
+Pipeline*		   pSpherePipeline = NULL;
 
-Shader*				pSkyBoxDrawShader = NULL;
-Buffer*				pSkyBoxVertexBuffer = NULL;
-Pipeline*			pSkyBoxDrawPipeline = NULL;
-RootSignature*		pRootSignature = NULL;
+Shader*			 pSkyBoxDrawShader = NULL;
+Buffer*			 pSkyBoxVertexBuffer = NULL;
+Pipeline*		   pSkyBoxDrawPipeline = NULL;
+RootSignature*	  pRootSignature = NULL;
 Sampler*			pSamplerSkyBox = NULL;
 Texture*			pSkyBoxTextures[6];
 #ifdef TARGET_IOS
-VirtualJoystickUI	gVirtualJoystick;
+VirtualJoystickUI   gVirtualJoystick;
 #endif
-DepthState*			pDepth = NULL;
+DepthState*		 pDepth = NULL;
 RasterizerState*	pSkyboxRast = NULL;
 
-Buffer*				pProjViewUniformBuffer[gImageCount] = { NULL };
-Buffer*				pSkyboxUniformBuffer[gImageCount] = { NULL };
+Buffer*			 pProjViewUniformBuffer[gImageCount] = { NULL };
+Buffer*			 pSkyboxUniformBuffer[gImageCount] = { NULL };
 
 uint32_t			gFrameIndex = 0;
 
-int					gNumberOfSpherePoints;
+int				 gNumberOfSpherePoints;
 UniformBlock		gUniformData;
+UniformBlock		gUniformDataSky;
 PlanetInfoStruct	gPlanetInfoData[gNumPlanets];
 
-ICameraController*	pCameraController = NULL;
+ICameraController*  pCameraController = NULL;
 
 /// UI
-UIApp				gAppUI;
-GuiComponent*		pGui;
+UIApp			   gAppUI;
+GuiComponent*	   pGui;
 
-FileSystem			gFileSystem;
-LogManager			gLogManager;
+FileSystem		  gFileSystem;
+LogManager		  gLogManager;
 
-const char*			pSkyBoxImageFileNames[] =
+const char*		 pSkyBoxImageFileNames[] =
 {
 	"Skybox_right1.png",
 	"Skybox_left2.png",
@@ -141,35 +142,18 @@ const char*			pSkyBoxImageFileNames[] =
 	"Skybox_back6.png"
 };
 
-#ifdef _DURANGO
-// Durango load assets from 'Layout\Image\Loose'
-const char* pszRoots[] =
+const char* pszBases[] =
 {
-	"Shaders/Binary/",	// FSR_BinShaders
-	"Shaders/",			// FSR_SrcShaders
-	"Shaders/Binary/",	// FSR_BinShaders_Common
-	"Shaders/",			// FSR_SrcShaders_Common
-	"Textures/",		// FSR_Textures
-	"Meshes/",			// FSR_Meshes
-	"Fonts/",			// FSR_Builtin_Fonts
-	"",					// FSR_GpuConfig
-	"",					// FSR_OtherFiles
+	"",                                         // FSR_BinShaders
+	"",                                         // FSR_SrcShaders
+	"",                                         // FSR_BinShaders_Common
+	"",                                         // FSR_SrcShaders_Common
+	"../../../UnitTestResources/",              // FSR_Textures
+	"../../../UnitTestResources/",              // FSR_Meshes
+	"../../../UnitTestResources/",              // FSR_Builtin_Fonts
+	"../../../src/12_RendererRuntimeSwitch/",   // FSR_GpuConfig
+	"",                                         // FSR_OtherFiles
 };
-#else
-//Example for using roots or will cause linker error with the extern root in FileSystem.cpp
-const char* pszRoots[] =
-{
-    "",										// FSR_BinShaders
-    "",										// FSR_SrcShaders
-    "",										// FSR_BinShaders_Common
-    "",										// FSR_SrcShaders_Common
-    "../../../UnitTestResources/Textures/",	// FSR_Textures
-    "../../../UnitTestResources/Meshes/",	// FSR_Meshes
-	"../../../UnitTestResources/Fonts/",	// FSR_Builtin_Fonts
-	"../../../src/12_RendererRuntimeSwitch/GPUCfg/",	// FSR_GpuConfig
-    "",										// FSR_OtherFiles
-};
-#endif
 
 TextDrawDesc gFrameTimeDraw = TextDrawDesc(0, 0xff00ffff, 18);
 
@@ -192,11 +176,11 @@ public:
 
 		if (settings.mApi == RENDERER_API_VULKAN)
 		{
-			FileSystem::SetRootPath(FSR_SrcShaders, "../../../src/12_RendererRuntimeSwitch/PCVulkan/");
+			FileSystem::SetRootPath(FSR_SrcShaders, "../../../src/12_RendererRuntimeSwitch/Shaders/PCVulkan/");
 		}
 		else if (settings.mApi == RENDERER_API_D3D12)
 		{
-			FileSystem::SetRootPath(FSR_SrcShaders, "../../../src/12_RendererRuntimeSwitch/PCDX12/");
+			FileSystem::SetRootPath(FSR_SrcShaders, "../../../src/12_RendererRuntimeSwitch/Shaders/PCDX12/");
 		}
 
 		QueueDesc queueDesc = {};
@@ -213,7 +197,7 @@ public:
 		addSemaphore(pRenderer, &pImageAcquiredSemaphore);
 
 		initResourceLoaderInterface(pRenderer, DEFAULT_MEMORY_BUDGET, true);
-		initDebugRendererInterface(pRenderer, "TitilliumText/TitilliumText-Bold.ttf", FSR_Builtin_Fonts);
+		initDebugRendererInterface(pRenderer, "TitilliumText/TitilliumText-Bold.otf", FSR_Builtin_Fonts);
 
 		// Loads Skybox Textures
 		for (int i = 0; i < 6; ++i)
@@ -227,7 +211,7 @@ public:
 			textureDesc.mUseMipmaps = true;
 			textureDesc.pFilename = pSkyBoxImageFileNames[i];
 			textureDesc.ppTexture = &pSkyBoxTextures[i];
-			addResource(&textureDesc, false);
+			addResource(&textureDesc, true);
 		}
 
 #ifdef TARGET_IOS
@@ -463,9 +447,8 @@ public:
 		if (!gAppUI.Init(pRenderer))
 			return false;
 
-		gAppUI.LoadFont("TitilliumText/TitilliumText-Bold.ttf", FSR_Builtin_Fonts);
+		gAppUI.LoadFont("TitilliumText/TitilliumText-Bold.otf", FSR_Builtin_Fonts);
 		GuiDesc guiDesc = {};
-		guiDesc.mStartPosition = { 0.0f, -100.0f };
 		guiDesc.mStartSize = { guiDesc.mStartSize.getX() * 0.5f, guiDesc.mStartSize.getY() * 0.4f };
 		pGui = gAppUI.AddGuiComponent(GetName(), &guiDesc);
 
@@ -474,13 +457,13 @@ public:
 			"VULKAN",
 			NULL
 		};
-		static const int enumValues[] = {
+		static const uint32_t enumValues[] = {
 			RENDERER_API_D3D12,
 			RENDERER_API_VULKAN,
 			0
 		};
 
-		pGui->AddControl(UIProperty("Renderer API : ", (int&)gTargetApi, enumNames, enumValues));
+		pGui->AddWidget(DropdownWidget("Renderer API : ", (uint32_t*)&gTargetApi, enumNames, enumValues, 2));
 
 		CameraMotionParameters cmp{ 160.0f, 600.0f, 200.0f };
 		vec3 camPos{ 48.0f, 48.0f, 20.0f };
@@ -515,11 +498,11 @@ public:
 
 		for (uint i = 0; i < 6; ++i)
 			removeResource(pSkyBoxTextures[i]);
-        
+
 #ifdef TARGET_IOS
 		gVirtualJoystick.Exit();
 #endif
-        
+
 		removeSampler(pRenderer, pSamplerSkyBox);
 		removeShader(pRenderer, pSphereShader);
 		removeShader(pRenderer, pSkyBoxDrawShader);
@@ -643,7 +626,7 @@ public:
 		static float currentTime = 0.0f;
 		currentTime += deltaTime * 1000.0f;
 
-		// update camera with time 
+		// update camera with time
 		mat4 viewMat = pCameraController->getViewMatrix();
 		const float aspectInverse = (float)mSettings.mHeight / (float)mSettings.mWidth;
 		const float horizontal_fov = PI / 2.0f;
@@ -676,14 +659,9 @@ public:
 			gUniformData.mColor[i] = gPlanetInfoData[i].mColor;
 		}
 
-		BufferUpdateDesc viewProjCbv = { pProjViewUniformBuffer[gFrameIndex], &gUniformData };
-		updateResource(&viewProjCbv);
-
+		gUniformDataSky = gUniformData;
 		viewMat.setTranslation(vec3(0));
-		gUniformData.mProjectView = projMat * viewMat;
-
-		BufferUpdateDesc skyboxViewProjCbv = { pSkyboxUniformBuffer[gFrameIndex], &gUniformData };
-		updateResource(&skyboxViewProjCbv);
+		gUniformDataSky.mProjectView = projMat * viewMat;
 
 		gAppUI.Update(deltaTime);
 
@@ -706,17 +684,23 @@ public:
 	void Draw()
 	{
 		acquireNextImage(pRenderer, pSwapChain, pImageAcquiredSemaphore, NULL, &gFrameIndex);
-		// Stall if CPU is running "Swap Chain Buffer Count" frames ahead of GPU
-		Fence* pNextFence = pRenderCompleteFences[gFrameIndex];
-		FenceStatus fenceStatus;
-		getFenceStatus(pRenderer, pNextFence, &fenceStatus);
-		if (fenceStatus == FENCE_STATUS_INCOMPLETE)
-			waitForFences(pGraphicsQueue, 1, &pNextFence, false);
-			
-		RenderTarget* pRenderTarget = pSwapChain->ppSwapchainRenderTargets[gFrameIndex];
 
+		RenderTarget* pRenderTarget = pSwapChain->ppSwapchainRenderTargets[gFrameIndex];
 		Semaphore* pRenderCompleteSemaphore = pRenderCompleteSemaphores[gFrameIndex];
 		Fence* pRenderCompleteFence = pRenderCompleteFences[gFrameIndex];
+
+		// Stall if CPU is running "Swap Chain Buffer Count" frames ahead of GPU
+		FenceStatus fenceStatus;
+		getFenceStatus(pRenderer, pRenderCompleteFence, &fenceStatus);
+		if (fenceStatus == FENCE_STATUS_INCOMPLETE)
+			waitForFences(pGraphicsQueue, 1, &pRenderCompleteFence, false);
+
+		// Update uniform buffers
+		BufferUpdateDesc viewProjCbv = { pProjViewUniformBuffer[gFrameIndex], &gUniformData };
+		updateResource(&viewProjCbv);
+
+		BufferUpdateDesc skyboxViewProjCbv = { pSkyboxUniformBuffer[gFrameIndex], &gUniformDataSky };
+		updateResource(&skyboxViewProjCbv);
 
 		// simply record the screen cleaning command
 		LoadActionsDesc loadActions = {};
@@ -774,7 +758,7 @@ public:
 		cmdBeginDebugMarker(cmd, 0, 1, 0, "Draw UI");
 		static HiresTimer gTimer;
 		gTimer.GetUSec(true);
-        
+
 #ifdef TARGET_IOS
 		gVirtualJoystick.Draw(cmd, pCameraController, { 1.0f, 1.0f, 1.0f, 1.0f });
 #endif

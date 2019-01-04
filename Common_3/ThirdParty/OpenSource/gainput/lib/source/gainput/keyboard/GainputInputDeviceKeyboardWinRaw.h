@@ -171,6 +171,10 @@ public:
 		return deviceState_;
 	}
 
+	virtual InputState * GetNextInputState() override {
+		return &nextState_;
+	}
+
 	void Update(InputDeltaState* delta)
 	{
 		delta_ = delta;
@@ -179,7 +183,7 @@ public:
 
 	bool IsTextInputEnabled() const { return false; }
 	void SetTextInputEnabled(bool enabled) { }
-	char GetNextCharacter() { return 0; }
+	char GetNextCharacter(gainput::DeviceButtonId buttonId) { return 0; }
 
 	void HandleMessage(const MSG& msg)
 	{

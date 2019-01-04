@@ -72,32 +72,54 @@ InputManager::~InputManager()
 
 	GAINPUT_DEV_SHUTDOWN(this);
 }
-	
-	
-InputManager::InputManager(void * appleView, bool useSystemTime, Allocator& allocator) :
-uiView_(appleView),
-allocator_(allocator),
-devices_(allocator_),
-nextDeviceId_(0),
-listeners_(allocator_),
-nextListenerId_(0),
-sortedListeners_(allocator_),
-modifiers_(allocator_),
-nextModifierId_(0),
-deltaState_(allocator_.New<InputDeltaState>(allocator_)),
-currentTime_(0),
-GAINPUT_CONC_CONSTRUCT(concurrentInputs_),
-displayWidth_(-1),
-displayHeight_(-1),
-useSystemTime_(useSystemTime),
-debugRenderingEnabled_(false),
-debugRenderer_(0)
+
+void InputManager::ClearAllStates(gainput::DeviceId deviceId)
 {
-	GAINPUT_DEV_INIT(this);
-#ifdef GAINPUT_PLATFORM_ANDROID
-	gGainputInputManager = this;
-#endif
+	if (deviceId == gainput::InvalidDeviceId)
+		return;
+
+	DeviceButtonSpec buttonsDown[256];
+
+	size_t activeButtons = GetAnyButtonDown(buttonsDown, 256);
+	InputDeltaState* ds = listeners_.empty() ? 0 : deltaState_;
+
+
+	for (size_t i = 0; i < activeButtons; i++)
+	{
+		if (buttonsDown[i].deviceId != deviceId)
+			continue;
+
+		InputDevice * inDevice = GetDevice(buttonsDown[i].deviceId);
+		if (!inDevice)
+			continue;
+		//get next input state
+		InputState * nextDeviceState = inDevice->GetNextInputState();
+		InputState * currentDeviceState = inDevice->GetInputState();
+		if (!nextDeviceState || !nextDeviceState)
+		{
+			continue;
+		}
+		
+		if (inDevice->GetButtonType(buttonsDown[i].buttonId) == BT_BOOL)
+		{
+			if(nextDeviceState)
+				HandleButton(*inDevice, *nextDeviceState, ds, buttonsDown[i].buttonId, false);
+
+			if (currentDeviceState)
+				HandleButton(*inDevice, *currentDeviceState, NULL, buttonsDown[i].buttonId, false);
+		}
+		else
+		{
+			if (nextDeviceState)
+				HandleAxis(*inDevice, *nextDeviceState, ds, buttonsDown[i].buttonId, 0.0f);
+
+			if (currentDeviceState)
+				HandleAxis(*inDevice, *currentDeviceState, NULL, buttonsDown[i].buttonId, 0.0f);
+		}
+	}
+
 }
+
 
 void
 InputManager::Update()
@@ -151,6 +173,21 @@ InputManager::Update()
 		ds->NotifyListeners(sortedListeners_);
 		ds->Clear();
 	}
+	
+
+#ifdef GAINPUT_PLATFORM_IOS
+	//clear buttons
+	//only Does something for KeyboardIOS
+	for (DeviceMap::iterator it = devices_.begin();
+		 it != devices_.end();
+		 ++it)
+	{
+		if (it->second->GetType() == InputDevice::DT_KEYBOARD)
+		{
+			it->second->ClearButtons();
+		}
+	}
+#endif
 }
 
 void

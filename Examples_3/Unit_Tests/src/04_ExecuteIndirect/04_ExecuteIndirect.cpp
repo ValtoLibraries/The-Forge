@@ -1,9 +1,9 @@
 /*
  * Copyright (c) 2018 Confetti Interactive Inc.
- * 
+ *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -11,9 +11,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -85,278 +85,245 @@ LogManager gLogManager;
 Timer gAccumTimer;
 HiresTimer mFrameTimer;
 
-#if defined(DIRECT3D12)
-#define RESOURCE_DIR "PCDX12"
-#elif defined(VULKAN)
-	#if defined(_WIN32)
-	#define RESOURCE_DIR "PCVulkan"
-	#elif defined(__linux__)
-	#define RESOURCE_DIR "LINUXVulkan"
-	#endif
-#elif defined(METAL)
-#define RESOURCE_DIR "OSXMetal"
-#elif defined(_DURANGO)
-#define DIRECT3D12
-#define RESOURCE_DIR "PCDX12"
-#else
-#error PLATFORM NOT SUPPORTED
-#endif
-
-#ifdef _DURANGO
-// Durango load assets from 'Layout\Image\Loose'
-const char* pszRoots[] =
+const char* pszBases[] =
 {
-	"Shaders/Binary/",	// FSR_BinShaders
-	"Shaders/",		// FSR_SrcShaders
-	"Shaders/Binary/",			// FSR_BinShaders_Common
-	"Shaders/",					// FSR_SrcShaders_Common
-	"Textures/",						// FSR_Textures
-	"Meshes/",						// FSR_Meshes
-	"Fonts/",						// FSR_Builtin_Fonts
+	"../../../src/04_ExecuteIndirect/",							// FSR_BinShaders
+	"../../../src/04_ExecuteIndirect/",							// FSR_SrcShaders
+	"../../../../../Middleware_3/PaniniProjection/",	// FSR_BinShaders_Common
+	"../../../../../Middleware_3/PaniniProjection/",	// FSR_SrcShaders_Common
+	"../../../UnitTestResources/",								// FSR_Textures
+	"../../../UnitTestResources/",								// FSR_Meshes
+	"../../../UnitTestResources/",								// FSR_Builtin_Fonts
+	"../../../src/04_ExecuteIndirect/",							// FSR_GpuConfig
 	"",															// FSR_OtherFiles
 };
-#else
-//Example for using roots or will cause linker error with the extern root in FileSystem.cpp
-const char* pszRoots[] =
-{
-    "../../../src/04_ExecuteIndirect/" RESOURCE_DIR "/Binary/",							// FSR_BinShaders
-    "../../../src/04_ExecuteIndirect/" RESOURCE_DIR "/",								// FSR_SrcShaders
-    "../../../../../Middleware_3/PaniniProjection/Shaders/" RESOURCE_DIR "/Binary/",	// FSR_BinShaders_Common
-    "../../../../../Middleware_3/PaniniProjection/Shaders/" RESOURCE_DIR "/",			// FSR_SrcShaders_Common
-	"../../../UnitTestResources/Textures/",												// FSR_Textures
-	"../../../UnitTestResources/Meshes/",												// FSR_Meshes
-	"../../../UnitTestResources/Fonts/",												// FSR_Builtin_Fonts
-	"../../../src/04_ExecuteIndirect/GPUCfg/",									// FSR_GpuConfig
-	"",																					// FSR_OtherFiles
-};
-#endif
 
 struct UniformViewProj
 {
-    mat4 mProjectView;
+	mat4 mProjectView;
 };
 
 struct UniformCompute
 {
-    mat4 mViewProj;
-    vec4 mCamPos;
-    float mDeltaTime;
-    uint32_t mStartIndex;
-    uint32_t mEndIndex;
-    int32_t mNumLODs;
+	mat4 mViewProj;
+	vec4 mCamPos;
+	float mDeltaTime;
+	uint32_t mStartIndex;
+	uint32_t mEndIndex;
+	int32_t mNumLODs;
 #if !defined(METAL)
-    int32_t mIndexOffsets[4 * MAX_LOD_OFFSETS + 1]; // Andrés: Do VK/DX samples work with this declaration? Doesn't match rootConstant.
+	int32_t mIndexOffsets[4 * MAX_LOD_OFFSETS + 1]; // Andrés: Do VK/DX samples work with this declaration? Doesn't match rootConstant.
 #else
-    int32_t mIndexOffsets[MAX_LOD_OFFSETS + 1];
+	int32_t mIndexOffsets[MAX_LOD_OFFSETS + 1];
 #endif
 };
 
 struct UniformBasic
 {
-    mat4 mModelViewProj;
-    mat4 mNormalMat;
-    float4 mSurfaceColor;
-    float4 mDeepColor;
-    int32_t mTextureID;
+	mat4 mModelViewProj;
+	mat4 mNormalMat;
+	float4 mSurfaceColor;
+	float4 mDeepColor;
+	int32_t mTextureID;
 	uint32_t _pad0[3];
 };
 
 struct IndirectArguments
 {
-    //16 - byte aligned
+	//16 - byte aligned
 #if defined(DIRECT3D12)
-    uint32_t mDrawID; // Currently setting a root constant only works with Dx
-    IndirectDrawIndexArguments mDrawArgs;
-    uint32_t pad1, pad2;
+	uint32_t mDrawID; // Currently setting a root constant only works with Dx
+	IndirectDrawIndexArguments mDrawArgs;
+	uint32_t pad1, pad2;
 #elif defined(VULKAN)
-    IndirectDrawIndexArguments mDrawArgs;
-    uint32_t pad1, pad2, pad3; // This one is just padding
+	IndirectDrawIndexArguments mDrawArgs;
+	uint32_t pad1, pad2, pad3; // This one is just padding
 #elif defined(METAL) // Padding messes up the expected indirect data layout on Metal.
-    IndirectDrawIndexArguments mDrawArgs;
+	IndirectDrawIndexArguments mDrawArgs;
 #endif
 };
 
 struct Subset
 {
-    CmdPool* pCmdPool;
-    Cmd** ppCmds;
-    Buffer* pAsteroidInstanceBuffer;
-    Buffer* pSubsetIndirect;
+	CmdPool* pCmdPool;
+	Cmd** ppCmds;
+	Buffer* pAsteroidInstanceBuffer;
+	Buffer* pSubsetIndirect;
 	UniformBasic* pInstanceData;
-    IndirectArguments* mIndirectArgs;
+	IndirectArguments* mIndirectArgs;
 };
 
 struct ThreadData
 {
-    uint32_t mIndex;
-    mat4 mViewProj;
-    uint32_t mFrameIndex;
-    RenderTarget* pRenderTarget;
+	uint32_t mIndex;
+	mat4 mViewProj;
+	uint32_t mFrameIndex;
+	RenderTarget* pRenderTarget;
 	RenderTarget* pDepthBuffer;
-    float mDeltaTime;
+	float mDeltaTime;
 };
 
 struct Vertex
 {
-    vec4 mPosition;
-    vec4 mNormal;
+	vec4 mPosition;
+	vec4 mNormal;
 };
 
 enum
 {
-    RenderingMode_Instanced = 0,
-    RenderingMode_ExecuteIndirect = 1,
-    RenderingMode_GPUUpdate = 2,
+	RenderingMode_Instanced = 0,
+	RenderingMode_ExecuteIndirect = 1,
+	RenderingMode_GPUUpdate = 2,
 	RenderingMode_Count,
 };
 
 // Simulation parameters
-const uint32_t			gNumAsteroids = 50000U;   // 50000 is optimal.
-const uint32_t			gNumSubsets = 1;         // 4 is optimal. Also equivalent to the number of threads used.
-const uint32_t			gNumAsteroidsPerSubset = (gNumAsteroids + gNumSubsets - 1) / gNumSubsets;
-const uint32_t			gTextureCount = 10;
+const uint32_t		  gNumAsteroids = 50000U;   // 50000 is optimal.
+const uint32_t		  gNumSubsets = 1;		 // 4 is optimal. Also equivalent to the number of threads used.
+const uint32_t		  gNumAsteroidsPerSubset = (gNumAsteroids + gNumSubsets - 1) / gNumSubsets;
+const uint32_t		  gTextureCount = 10;
 
-const uint32_t			gImageCount = 3;
+const uint32_t		  gImageCount = 3;
 
-AsteroidSimulation		gAsteroidSim;
-tinystl::vector<Subset>	gAsteroidSubsets;
-ThreadData				gThreadData[gNumSubsets];
+AsteroidSimulation	  gAsteroidSim;
+tinystl::vector<Subset> gAsteroidSubsets;
+ThreadData			  gThreadData[gNumSubsets];
 Texture*				pAsteroidTex = NULL;
 bool					gUseThreads = true;
 bool					gToggleVSync = false;
-int						gRenderingMode = RenderingMode_GPUUpdate;
-int						gPreviousRenderingMode = gRenderingMode;
+uint32_t				gRenderingMode = RenderingMode_GPUUpdate;
+int					 gPreviousRenderingMode = gRenderingMode;
 
-Renderer*				pRenderer = NULL;
+Renderer*			   pRenderer = NULL;
 
-Queue*					pGraphicsQueue = NULL;
+Queue*				  pGraphicsQueue = NULL;
 CmdPool*				pCmdPool = NULL;
-Cmd**					ppCmds = NULL;
+Cmd**				   ppCmds = NULL;
 CmdPool*				pComputeCmdPool = NULL;
-Cmd**					ppComputeCmds = NULL;
+Cmd**				   ppComputeCmds = NULL;
 CmdPool*				pUICmdPool = NULL;
-Cmd**					ppUICmds = NULL;
-DepthState*				pDepth = NULL;
+Cmd**				   ppUICmds = NULL;
+DepthState*			 pDepth = NULL;
 
-SwapChain*				pSwapChain = NULL;
-RenderTarget*			pDepthBuffer = NULL;
-Fence*					pRenderCompleteFences[gImageCount] = { NULL };
-Semaphore*				pImageAcquiredSemaphore = NULL;
-Semaphore*				pRenderCompleteSemaphores[gImageCount] = { NULL };
+SwapChain*			  pSwapChain = NULL;
+RenderTarget*		   pDepthBuffer = NULL;
+Fence*				  pRenderCompleteFences[gImageCount] = { NULL };
+Semaphore*			  pImageAcquiredSemaphore = NULL;
+Semaphore*			  pRenderCompleteSemaphores[gImageCount] = { NULL };
 
 // Basic shader variables, used by instanced rendering.
-Shader*					pBasicShader = NULL;
-Pipeline*				pBasicPipeline = NULL;
+Shader*				 pBasicShader = NULL;
+Pipeline*			   pBasicPipeline = NULL;
 RasterizerState*		pBasicRast = NULL;
-RootSignature*			pBasicRoot = NULL;
+RootSignature*		  pBasicRoot = NULL;
 Sampler*				pBasicSampler = NULL;
 
 // Execute Indirect variables
-Shader*					pIndirectShader = NULL;
-Pipeline*				pIndirectPipeline = NULL;
-RootSignature*			pIndirectRoot = NULL;
-Buffer*					pIndirectBuffer[gImageCount] = {};
-Buffer*					pIndirectUniformBuffer[gImageCount] = { NULL };
-CommandSignature*		pIndirectCommandSignature = NULL;
-CommandSignature*		pIndirectSubsetCommandSignature = NULL;
+Shader*				 pIndirectShader = NULL;
+Pipeline*			   pIndirectPipeline = NULL;
+RootSignature*		  pIndirectRoot = NULL;
+Buffer*				 pIndirectBuffer[gImageCount] = {};
+Buffer*				 pIndirectUniformBuffer[gImageCount] = { NULL };
+CommandSignature*	   pIndirectCommandSignature = NULL;
+CommandSignature*	   pIndirectSubsetCommandSignature = NULL;
 
 // Compute shader variables
-Shader*					pComputeShader = NULL;
-Pipeline*				pComputePipeline = NULL;
-RootSignature*			pComputeRoot = NULL;
-Buffer*					pComputeUniformBuffer[gImageCount] = {};
+Shader*				 pComputeShader = NULL;
+Pipeline*			   pComputePipeline = NULL;
+RootSignature*		  pComputeRoot = NULL;
+Buffer*				 pComputeUniformBuffer[gImageCount] = {};
 
 // Skybox Variables
-Shader*					pSkyBoxDrawShader = NULL;
-Pipeline*				pSkyBoxDrawPipeline = NULL;
+Shader*				 pSkyBoxDrawShader = NULL;
+Pipeline*			   pSkyBoxDrawPipeline = NULL;
 RasterizerState*		pSkyboxRast = NULL;
-RootSignature*			pSkyBoxRoot = NULL;
+RootSignature*		  pSkyBoxRoot = NULL;
 Sampler*				pSkyBoxSampler = NULL;
-Buffer*					pSkyboxUniformBuffer[gImageCount] = { NULL };
-Buffer*					pSkyBoxVertexBuffer = NULL;
+Buffer*				 pSkyboxUniformBuffer[gImageCount] = { NULL };
+Buffer*				 pSkyBoxVertexBuffer = NULL;
 Texture*				pSkyBoxTextures[6];
 
 // Necessary buffers
-Buffer*					pAsteroidVertexBuffer = NULL;
-Buffer*					pAsteroidIndexBuffer = NULL;
-Buffer*					pStaticAsteroidBuffer = NULL;
-Buffer*					pDynamicAsteroidBuffer = NULL;
+Buffer*				 pAsteroidVertexBuffer = NULL;
+Buffer*				 pAsteroidIndexBuffer = NULL;
+Buffer*				 pStaticAsteroidBuffer = NULL;
+Buffer*				 pDynamicAsteroidBuffer = NULL;
 
 // UI
-UIApp					gAppUI;
-GuiComponent*			pGui;
-ICameraController*		pCameraController = NULL;
+UIApp				   gAppUI;
+GuiComponent*		   pGui;
+ICameraController*	  pCameraController = NULL;
 #ifdef TARGET_IOS
-VirtualJoystickUI		gVirtualJoystick;
+VirtualJoystickUI	   gVirtualJoystick;
 #endif
 
 GpuProfiler*			pGpuProfiler = NULL;
 
 uint32_t				gFrameIndex = 0;
 
-const char*				pSkyBoxImageFileNames[] =
+const char*			 pSkyBoxImageFileNames[] =
 {
-    "Skybox_right1.png",
-    "Skybox_left2.png",
-    "Skybox_top3.png",
-    "Skybox_bottom4.png",
-    "Skybox_front5.png",
-    "Skybox_back6.png"
+	"Skybox_right1.png",
+	"Skybox_left2.png",
+	"Skybox_top3.png",
+	"Skybox_bottom4.png",
+	"Skybox_front5.png",
+	"Skybox_back6.png"
 };
 
-float					skyBoxPoints[] = {
-    10.0f,  -10.0f, -10.0f,6.0f, // -z
-    -10.0f, -10.0f, -10.0f,6.0f,
-    -10.0f, 10.0f, -10.0f,6.0f,
-    -10.0f, 10.0f, -10.0f,6.0f,
-    10.0f,  10.0f, -10.0f,6.0f,
-    10.0f,  -10.0f, -10.0f,6.0f,
+float				   skyBoxPoints[] = {
+	10.0f,  -10.0f, -10.0f,6.0f, // -z
+	-10.0f, -10.0f, -10.0f,6.0f,
+	-10.0f, 10.0f, -10.0f,6.0f,
+	-10.0f, 10.0f, -10.0f,6.0f,
+	10.0f,  10.0f, -10.0f,6.0f,
+	10.0f,  -10.0f, -10.0f,6.0f,
 
-    -10.0f, -10.0f,  10.0f,2.0f,  //-x
-    -10.0f, -10.0f, -10.0f,2.0f,
-    -10.0f,  10.0f, -10.0f,2.0f,
-    -10.0f,  10.0f, -10.0f,2.0f,
-    -10.0f,  10.0f,  10.0f,2.0f,
-    -10.0f, -10.0f,  10.0f,2.0f,
+	-10.0f, -10.0f,  10.0f,2.0f,  //-x
+	-10.0f, -10.0f, -10.0f,2.0f,
+	-10.0f,  10.0f, -10.0f,2.0f,
+	-10.0f,  10.0f, -10.0f,2.0f,
+	-10.0f,  10.0f,  10.0f,2.0f,
+	-10.0f, -10.0f,  10.0f,2.0f,
 
-    10.0f, -10.0f, -10.0f,1.0f, //+x
-    10.0f, -10.0f,  10.0f,1.0f,
-    10.0f,  10.0f,  10.0f,1.0f,
-    10.0f,  10.0f,  10.0f,1.0f,
-    10.0f,  10.0f, -10.0f,1.0f,
-    10.0f, -10.0f, -10.0f,1.0f,
+	10.0f, -10.0f, -10.0f,1.0f, //+x
+	10.0f, -10.0f,  10.0f,1.0f,
+	10.0f,  10.0f,  10.0f,1.0f,
+	10.0f,  10.0f,  10.0f,1.0f,
+	10.0f,  10.0f, -10.0f,1.0f,
+	10.0f, -10.0f, -10.0f,1.0f,
 
-    -10.0f, -10.0f,  10.0f,5.0f,  // +z
-    -10.0f,  10.0f,  10.0f,5.0f,
-    10.0f,  10.0f,  10.0f,5.0f,
-    10.0f,  10.0f,  10.0f,5.0f,
-    10.0f, -10.0f,  10.0f,5.0f,
-    -10.0f, -10.0f,  10.0f,5.0f,
+	-10.0f, -10.0f,  10.0f,5.0f,  // +z
+	-10.0f,  10.0f,  10.0f,5.0f,
+	10.0f,  10.0f,  10.0f,5.0f,
+	10.0f,  10.0f,  10.0f,5.0f,
+	10.0f, -10.0f,  10.0f,5.0f,
+	-10.0f, -10.0f,  10.0f,5.0f,
 
-    -10.0f,  10.0f, -10.0f, 3.0f,  //+y
-    10.0f,  10.0f, -10.0f,3.0f,
-    10.0f,  10.0f,  10.0f,3.0f,
-    10.0f,  10.0f,  10.0f,3.0f,
-    -10.0f,  10.0f,  10.0f,3.0f,
-    -10.0f,  10.0f, -10.0f,3.0f,
+	-10.0f,  10.0f, -10.0f, 3.0f,  //+y
+	10.0f,  10.0f, -10.0f,3.0f,
+	10.0f,  10.0f,  10.0f,3.0f,
+	10.0f,  10.0f,  10.0f,3.0f,
+	-10.0f,  10.0f,  10.0f,3.0f,
+	-10.0f,  10.0f, -10.0f,3.0f,
 
-    10.0f,  -10.0f, 10.0f, 4.0f,  //-y
-    10.0f,  -10.0f, -10.0f,4.0f,
-    -10.0f,  -10.0f,  -10.0f,4.0f,
-    -10.0f,  -10.0f,  -10.0f,4.0f,
-    -10.0f,  -10.0f,  10.0f,4.0f,
-    10.0f,  -10.0f, 10.0f,4.0f,
+	10.0f,  -10.0f, 10.0f, 4.0f,  //-y
+	10.0f,  -10.0f, -10.0f,4.0f,
+	-10.0f,  -10.0f,  -10.0f,4.0f,
+	-10.0f,  -10.0f,  -10.0f,4.0f,
+	-10.0f,  -10.0f,  10.0f,4.0f,
+	10.0f,  -10.0f, 10.0f,4.0f,
 };
 
 // Panini Projection state and parameter variables
 #if !defined(TARGET_IOS)
-Panini				gPanini;
+Panini				  gPanini;
 PaniniParameters		gPaniniParams;
 #endif
-DynamicUIControls		gPaniniControls;
-RenderTarget*			pIntermediateRenderTarget = NULL;
+DynamicUIControls	   gPaniniControls;
+RenderTarget*		   pIntermediateRenderTarget = NULL;
 bool					gbPaniniEnabled = false;
-TextDrawDesc		gFrameTimeDraw = TextDrawDesc(0, 0xff00ffff, 18);
+TextDrawDesc			gFrameTimeDraw = TextDrawDesc(0, 0xff00ffff, 18);
 
 class ExecuteIndirect : public IApp
 {
@@ -389,18 +356,14 @@ public:
 		addSemaphore(pRenderer, &pImageAcquiredSemaphore);
 
 		initResourceLoaderInterface(pRenderer, DEFAULT_MEMORY_BUDGET, true);
-		initDebugRendererInterface(pRenderer, "TitilliumText/TitilliumText-Bold.ttf", FSR_Builtin_Fonts);
+		initDebugRendererInterface(pRenderer, "TitilliumText/TitilliumText-Bold.otf", FSR_Builtin_Fonts);
 
 		addGpuProfiler(pRenderer, pGraphicsQueue, &pGpuProfiler);
 
 		for (int i = 0; i < 6; ++i)
 		{
 			TextureLoadDesc textureDesc = {};
-#ifndef TARGET_IOS
 			textureDesc.mRoot = FSR_Textures;
-#else
-			textureDesc.mRoot = FSRoot::FSR_Absolute; // Resources on iOS are bundled with the application.
-#endif
 			textureDesc.mUseMipmaps = true;
 			textureDesc.pFilename = pSkyBoxImageFileNames[i];
 			textureDesc.ppTexture = &pSkyBoxTextures[i];
@@ -408,7 +371,7 @@ public:
 		}
 
 #ifdef TARGET_IOS
-		if (!gVirtualJoystick.Init(pRenderer, "circlepad.png", FSR_Absolute))
+		if (!gVirtualJoystick.Init(pRenderer, "circlepad.png", FSR_Textures))
 			return false;
 #endif
 
@@ -493,6 +456,7 @@ public:
 		bufDesc = {};
 		bufDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_VERTEX_BUFFER;
 		bufDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_CPU_TO_GPU;
+		bufDesc.mDesc.mFlags = BUFFER_CREATION_FLAG_PERSISTENT_MAP_BIT;
 		bufDesc.mDesc.mSize = skyBoxDataSize;
 		bufDesc.mDesc.mVertexStride = sizeof(float) * 4;
 		bufDesc.pData = skyBoxPoints;
@@ -669,7 +633,7 @@ public:
 		if (!gAppUI.Init(pRenderer))
 			return false;
 
-		gAppUI.LoadFont("TitilliumText/TitilliumText-Bold.ttf", FSR_Builtin_Fonts);
+		gAppUI.LoadFont("TitilliumText/TitilliumText-Bold.otf", FSR_Builtin_Fonts);
 		GuiDesc guiDesc = {};
 		pGui = gAppUI.AddGuiComponent(GetName(), &guiDesc);
 
@@ -679,7 +643,7 @@ public:
 			"Execute Indirect with GPU Compute",
 			NULL
 		};
-		static const int enumValues[] = {
+		static const uint32_t enumValues[] = {
 			RenderingMode_Instanced,
 			RenderingMode_ExecuteIndirect,
 			RenderingMode_GPUUpdate,
@@ -687,28 +651,25 @@ public:
 		};
 		/************************************************************************/
 		/************************************************************************/
-		UIProperty renderingModeProp = UIProperty("Rendering Mode: ", gRenderingMode, enumNames, enumValues);
-		UIProperty useThreadsProp = UIProperty("Multithreaded CPU Update", gUseThreads);
-		UIProperty paniniProp = UIProperty("Enable Panini Projection", gbPaniniEnabled);
-
 #if !defined(TARGET_IOS) && !defined(_DURANGO)
-		UIProperty vsyncProp = UIProperty("Toggle VSync", gToggleVSync);
-		pGui->AddControl(vsyncProp);
+		pGui->AddWidget(CheckboxWidget("Toggle VSync", &gToggleVSync));
 #endif
 
-		pGui->AddControl(renderingModeProp);
-		pGui->AddControl(useThreadsProp);
-		pGui->AddControl(paniniProp);
+		pGui->AddWidget(DropdownWidget("Rendering Mode: ", &gRenderingMode, enumNames, enumValues, 3));
+		pGui->AddWidget(CheckboxWidget("Multithreaded CPU Update", &gUseThreads));
+		pGui->AddWidget(CheckboxWidget("Enable Panini Projection", &gbPaniniEnabled));
 		/************************************************************************/
 		// Panini props
 		/************************************************************************/
-#if !defined(TARGET_IOS)	
-		gPaniniControls.mDynamicProperties.emplace_back(UIProperty("Camera Horizontal FoV", gPaniniParams.FoVH, 30.0f, 179.0f, 1.0f));
-		gPaniniControls.mDynamicProperties.emplace_back(UIProperty("Panini D Parameter", gPaniniParams.D, 0.0f, 1.0f, 0.001f));
-		gPaniniControls.mDynamicProperties.emplace_back(UIProperty("Panini S Parameter", gPaniniParams.S, 0.0f, 1.0f, 0.001f));
-		gPaniniControls.mDynamicProperties.emplace_back(UIProperty("Screen Scale", gPaniniParams.scale, 1.0f, 10.0f, 0.01f));
+#if !defined(TARGET_IOS)
+		gPaniniControls.mDynamicProperties.emplace_back(SliderFloatWidget("Camera Horizontal FoV", &gPaniniParams.FoVH, 30.0f, 179.0f, 1.0f).Clone());
+		gPaniniControls.mDynamicProperties.emplace_back(SliderFloatWidget("Panini D Parameter", &gPaniniParams.D, 0.0f, 1.0f, 0.001f).Clone());
+		gPaniniControls.mDynamicProperties.emplace_back(SliderFloatWidget("Panini S Parameter", &gPaniniParams.S, 0.0f, 1.0f, 0.001f).Clone());
+		gPaniniControls.mDynamicProperties.emplace_back(SliderFloatWidget("Screen Scale", &gPaniniParams.scale, 1.0f, 10.0f, 0.01f).Clone());
 		if (gbPaniniEnabled)
 			gPaniniControls.ShowDynamicProperties(pGui);
+		else
+			gPaniniControls.HideDynamicProperties(pGui);
 #endif
 		/************************************************************************/
 		/************************************************************************/
@@ -737,13 +698,14 @@ public:
 		waitForFences(pGraphicsQueue, 1, &pRenderCompleteFences[gFrameIndex % gImageCount], true);
 
 #if !defined(TARGET_IOS)
+		gPaniniControls.Destroy();
 		gPanini.Exit();
 #endif
 
 		destroyCameraController(pCameraController);
 
 		removeDebugRendererInterface();
-        
+
 		gAppUI.Exit();
 
 		removeGpuProfiler(pRenderer, pGpuProfiler);
@@ -812,7 +774,7 @@ public:
 		removeSampler(pRenderer, pBasicSampler);
 		removeRasterizerState(pSkyboxRast);
 		removeRasterizerState(pBasicRast);
-		
+
 		removeCmd_n(pCmdPool, gImageCount, ppCmds);
 		removeCmd_n(pUICmdPool, gImageCount, ppUICmds);
 		removeCmd_n(pComputeCmdPool, gImageCount, ppComputeCmds);
@@ -910,14 +872,14 @@ public:
 		postProcRTDesc.mSampleQuality = 0;
 		addRenderTarget(pRenderer, &postProcRTDesc, &pIntermediateRenderTarget);
 
-		
+
 #if !defined(TARGET_IOS)
 		RenderTarget* rts[1];
 		rts[0] = pIntermediateRenderTarget;
 		bool bSuccess = gPanini.Load(rts);
 		gPanini.SetSourceTexture(pIntermediateRenderTarget->pTexture);
 #else
-        bool bSuccess = true;
+		bool bSuccess = true;
 #endif
 
 		return bSuccess;
@@ -1009,12 +971,19 @@ public:
 
 		// Prepare images for frame buffers
 		acquireNextImage(pRenderer, pSwapChain, pImageAcquiredSemaphore, NULL, &gFrameIndex);
+
 		RenderTarget* pSwapchainRenderTarget = pSwapChain->ppSwapchainRenderTargets[gFrameIndex];
 		RenderTarget* pSceneRenderTarget = gbPaniniEnabled ? pIntermediateRenderTarget : pSwapchainRenderTarget;
+		Semaphore* pRenderCompleteSemaphore = pRenderCompleteSemaphores[gFrameIndex];
+		Fence* pRenderCompleteFence = pRenderCompleteFences[gFrameIndex];
+
+		// Stall if CPU is running "Swap Chain Buffer Count" frames ahead of GPU
+		FenceStatus fenceStatus;
+		getFenceStatus(pRenderer, pRenderCompleteFence, &fenceStatus);
+		if (fenceStatus == FENCE_STATUS_INCOMPLETE)
+			waitForFences(pGraphicsQueue, 1, &pRenderCompleteFence, false);
 
 		uint32_t frameIdx = gFrameIndex;
-		Semaphore* pRenderCompleteSemaphore = pRenderCompleteSemaphores[frameIdx];
-		Fence* pRenderCompleteFence = pRenderCompleteFences[frameIdx];
 
 		// Update projection view matrices
 
@@ -1297,20 +1266,13 @@ public:
 		queueSubmit(pGraphicsQueue, (uint32_t)allCmds.size(), allCmds.data(), pRenderCompleteFence, 1, &pImageAcquiredSemaphore, 1,
 			&pRenderCompleteSemaphore);
 		queuePresent(pGraphicsQueue, pSwapChain, gFrameIndex, 1, &pRenderCompleteSemaphore);
-
-		// Stall if CPU is running "Swap Chain Buffer Count - 1" frames ahead of GPU
-		Fence* pNextFence = pRenderCompleteFences[(gFrameIndex + 1) % gImageCount];
-		FenceStatus fenceStatus;
-		getFenceStatus(pRenderer, pNextFence, &fenceStatus);
-		if (fenceStatus == FENCE_STATUS_INCOMPLETE)
-			waitForFences(pGraphicsQueue, 1, &pNextFence, false);
 	}
 
 	tinystl::string GetName()
 	{
 		return "04_ExecuteIndirect";
 	}
-	
+
 	bool addSwapChain()
 	{
 		SwapChainDesc swapChainDesc = {};
@@ -1324,7 +1286,7 @@ public:
 		swapChainDesc.mColorFormat = getRecommendedSwapchainFormat(true);
 		swapChainDesc.mEnableVsync = false;
 		::addSwapChain(pRenderer, &swapChainDesc, &pSwapChain);
-		
+
 		return pSwapChain != NULL;
 	}
 

@@ -25,14 +25,14 @@ if exist %filename% (
 
 echo Pulling Art Assets
 "Tools/wget" -O %filename% http://www.conffx.com/%filename%
-"Tools/7z" x %filename% > NUL
 
+echo Unzipping Art Assets...
+"Tools/7z" x %filename% -y > NUL
+
+echo Finishing up...
 del %filename%
 
 exit /b 0
-
-
-
 
 :: Goes through non-admin Extension directory of all visual studio versions 
 :: which live in %LOCALAPPDATA% - admin ones live in %ProgramFiles% - and 
@@ -73,3 +73,5 @@ if %NumFilesFound% EQU 0 (
 )
 
 exit /b 0
+
+EXIT /B %RETURN_CODE%

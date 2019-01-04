@@ -186,6 +186,10 @@ public:
 		return fd_ != -1 ? InputDevice::DS_OK : InputDevice::DS_UNAVAILABLE;
 	}
 
+	virtual InputState * GetNextInputState() override {
+		return NULL;
+	}
+
 	void Update(InputDeltaState* delta)
 	{
 		if (fd_ < 0)
@@ -217,7 +221,7 @@ public:
 	bool IsTextInputEnabled() const { return textInputEnabled_; }
 	void SetTextInputEnabled(bool enabled) { textInputEnabled_ = enabled; }
 
-	char GetNextCharacter()
+	char GetNextCharacter(gainput::DeviceButtonId buttonId)
 	{
 		if (!textBuffer_.CanGet())
 		{

@@ -111,9 +111,6 @@
     <ClCompile Include="..\..\..\Common_3\OS\Core\Timer.cpp">
       <Filter>OS\Core</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\Middleware_3\UI\NuklearGUIDriver.cpp">
-      <Filter>OS\UI</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\Middleware_3\UI\AppUI.cpp">
       <Filter>OS\UI</Filter>
     </ClCompile>
@@ -191,28 +188,28 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\src\12_RendererDLL\PCDX12\basic.frag">
+    <None Include="..\src\12_RendererRuntimeSwitch\Shaders\PCDX12\basic.frag">
       <Filter>Shaders\PCDX12</Filter>
     </None>
-    <None Include="..\src\12_RendererDLL\PCDX12\basic.vert">
+    <None Include="..\src\12_RendererRuntimeSwitch\Shaders\PCDX12\basic.vert">
       <Filter>Shaders\PCDX12</Filter>
     </None>
-    <None Include="..\src\12_RendererDLL\PCDX12\skybox.frag">
+    <None Include="..\src\12_RendererRuntimeSwitch\Shaders\PCDX12\skybox.frag">
       <Filter>Shaders\PCDX12</Filter>
     </None>
-    <None Include="..\src\12_RendererDLL\PCDX12\skybox.vert">
+    <None Include="..\src\12_RendererRuntimeSwitch\Shaders\PCDX12\skybox.vert">
       <Filter>Shaders\PCDX12</Filter>
     </None>
-    <None Include="..\src\12_RendererDLL\PCVulkan\basic.frag">
+    <None Include="..\src\12_RendererRuntimeSwitch\Shaders\Vulkan\basic.frag">
       <Filter>Shaders\PCVulkan</Filter>
     </None>
-    <None Include="..\src\12_RendererDLL\PCVulkan\basic.vert">
+    <None Include="..\src\12_RendererRuntimeSwitch\Shaders\Vulkan\basic.vert">
       <Filter>Shaders\PCVulkan</Filter>
     </None>
-    <None Include="..\src\12_RendererDLL\PCVulkan\skybox.frag">
+    <None Include="..\src\12_RendererRuntimeSwitch\Shaders\Vulkan\skybox.frag">
       <Filter>Shaders\PCVulkan</Filter>
     </None>
-    <None Include="..\src\12_RendererDLL\PCVulkan\skybox.vert">
+    <None Include="..\src\12_RendererRuntimeSwitch\Shaders\Vulkan\skybox.vert">
       <Filter>Shaders\PCVulkan</Filter>
     </None>
   </ItemGroup>
@@ -269,9 +266,6 @@
       <Filter>OS\Core</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\Middleware_3\UI\AppUI.h">
-      <Filter>OS\UI</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\Middleware_3\UI\NuklearGUIDriver.h">
       <Filter>OS\UI</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\Middleware_3\UI\UIShaders.h">
