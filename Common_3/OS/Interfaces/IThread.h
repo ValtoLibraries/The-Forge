@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -24,7 +24,6 @@
 
 #include "../Interfaces/IOperatingSystem.h"
 #include "../Math/MathTypes.h"
-#include "../../ThirdParty/OpenSource/TinySTL/vector.h"
 
 #ifndef _THREAD_H_
 #define _THREAD_H_
@@ -38,6 +37,17 @@
 #else
 typedef unsigned ThreadID;
 #endif
+
+struct AtomicUint
+{
+	AtomicUint();
+	~AtomicUint();
+	unsigned int AtomicIncrement();
+	unsigned int AtomicDecrement();
+	void AtomicStore(unsigned int i);
+
+	volatile unsigned int mAtomicInt;
+};
 
 /// Operating system mutual exclusion primitive.
 struct Mutex
@@ -57,13 +67,13 @@ struct Mutex
 
 struct MutexLock
 {
-	MutexLock(Mutex& mutex);
-	~MutexLock();
+	MutexLock(Mutex& rhs) : mMutex(rhs) { rhs.Acquire(); }
+	~MutexLock() { mMutex.Release(); }
 
 	/// Prevent copy construction.
 	MutexLock(const MutexLock& rhs) = delete;
 	/// Prevent assignment.
-	MutexLock& operator =(const MutexLock& rhs) = delete;
+	MutexLock& operator=(const MutexLock& rhs) = delete;
 
 	Mutex& mMutex;
 };
@@ -73,79 +83,26 @@ struct ConditionVariable
 	ConditionVariable();
 	~ConditionVariable();
 
+	void Wait(const Mutex& mutex);
 	void Wait(const Mutex& mutex, unsigned md);
 	void Set();
+	void SetAll();
 
 #ifdef _WIN32
 	void* pHandle;
 #else
-	pthread_cond_t pHandle;
+	pthread_cond_t  pHandle;
 #endif
 };
 
-typedef void(*JobFunction)(void*);
+typedef void (*ThreadFunction)(void*);
 
 /// Work queue item.
-struct WorkItem
+struct ThreadDesc
 {
-	// Construct
-	WorkItem()
-		: pFunc(0)
-		, pData(0)
-		, mPriority(0)
-		, mCompleted(false)
-	{}
-
 	/// Work item description and thread index (Main thread => 0)
-	JobFunction	 pFunc;
-	void*		   pData;
-	unsigned		mPriority;
-	volatile bool   mCompleted;
-};
-
-#ifndef _WIN32
-/// Forward declaration
-struct Thread;
-#endif
-
-/// Work queue subsystem for multithreading.
-class  ThreadPool
-{
-public:
-	/// Construct.
-	ThreadPool();
-	/// Destruct.
-	~ThreadPool();
-
-	/// Can only be called once during lifetime of program
-	void CreateThreads(unsigned numThreads);
-	void AddWorkItem(WorkItem* item);
-	bool RemoveWorkItem(WorkItem*& item);
-	unsigned RemoveWorkItems(const tinystl::vector<WorkItem*>& items);
-	void Pause();
-	void Resume();
-	void Shutdown() { mShutDown = true; }
-	void Complete(unsigned priority);
-
-	unsigned GetNumThreads() const { return (uint32_t)mThreads.size(); }
-	bool IsCompleted(unsigned priority) const;
-	bool IsCompleting() const { return mCompleting; }
-
-	static void ProcessItems(void* pThreadSystem);
-
-private:
-	void Cleanup(unsigned priority);
-
-	tinystl::vector<struct Thread*> mThreads;
-	tinystl::vector <WorkItem*>	 mWorkItems;
-	tinystl::vector<WorkItem*>	  mWorkQueue;
-	Mutex						   mQueueMutex;
-	ConditionVariable			   mWaitConditionVar;
-	Mutex						   mWaitMutex;
-	volatile bool				   mShutDown;
-	volatile bool				   mPausing;
-	bool							mPaused;
-	bool							mCompleting;
+	ThreadFunction pFunc;
+	void*          pData;
 };
 
 #ifdef _WIN32
@@ -154,25 +111,25 @@ typedef void* ThreadHandle;
 typedef pthread_t ThreadHandle;
 #endif
 
-ThreadHandle create_thread(WorkItem* pItem);
-void destroy_thread(ThreadHandle handle);
-void join_thread(ThreadHandle handle);
+ThreadHandle create_thread(ThreadDesc* pItem);
+void         destroy_thread(ThreadHandle handle);
+void         join_thread(ThreadHandle handle);
 
 struct Thread
 {
-	Thread(ThreadPool* threadSystem);
-	~Thread();
-
-	ThreadHandle pHandle;
-	WorkItem* pItem;
-
-	static ThreadID mainThreadID;
-
-	static void SetMainThread();
-	static ThreadID GetCurrentThreadID();
-	static bool IsMainThread();
-	static void Sleep(unsigned mSec);
+	static ThreadID     mainThreadID;
+	static void         SetMainThread();
+	static ThreadID     GetCurrentThreadID();
+	static void         GetCurrentThreadName(char * buffer, int buffer_size);
+	static void         SetCurrentThreadName(const char * name);
+	static bool         IsMainThread();
+	static void         Sleep(unsigned mSec);
 	static unsigned int GetNumCPUCores(void);
 };
+
+// Max thread name should be 15 + null character
+#ifndef MAX_THREAD_NAME_LENGTH
+#define MAX_THREAD_NAME_LENGTH 15
+#endif
 
 #endif

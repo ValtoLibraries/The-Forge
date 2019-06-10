@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -33,60 +33,80 @@
 #include <unistd.h>
 #include <sys/sysctl.h>
 
+AtomicUint::AtomicUint()
+{
+    mAtomicInt = 0;
+}
+
+AtomicUint::~AtomicUint()
+{
+
+}
+
+void AtomicUint::AtomicStore(unsigned int new_val)
+{
+    int origin_val ;
+    origin_val = mAtomicInt ;
+    do { origin_val = __sync_val_compare_and_swap ((volatile unsigned int*)&mAtomicInt, origin_val, new_val);} while(origin_val != new_val);
+}
+
+unsigned int AtomicUint::AtomicIncrement()
+{
+    return __sync_fetch_and_add((volatile unsigned int*)&mAtomicInt, 1);
+}
+
+unsigned int AtomicUint::AtomicDecrement()
+{
+    return __sync_fetch_and_add((volatile unsigned int*)&mAtomicInt, -1);
+}
+
 Mutex::Mutex()
 {
-	  pHandle = PTHREAD_MUTEX_INITIALIZER;
-	  //pthread_mutex_init(&pHandle, NULL);
+	pHandle = PTHREAD_MUTEX_INITIALIZER;
+	//pthread_mutex_init(&pHandle, NULL);
 }
 
-Mutex::~Mutex()
-{
-	  pthread_mutex_destroy(&pHandle);
-}
+Mutex::~Mutex() { pthread_mutex_destroy(&pHandle); }
 
-void Mutex::Acquire()
-{
-  pthread_mutex_lock(&pHandle);
-}
+void Mutex::Acquire() { pthread_mutex_lock(&pHandle); }
 
-void Mutex::Release()
-{
-  pthread_mutex_unlock(&pHandle);
-}
+void Mutex::Release() { pthread_mutex_unlock(&pHandle); }
 
 void* ThreadFunctionStatic(void* data)
 {
-  WorkItem* pItem = static_cast<WorkItem*>(data);
-  pItem->pFunc(pItem->pData);
-  return 0;
+	ThreadDesc* pItem = static_cast<ThreadDesc*>(data);
+	pItem->pFunc(pItem->pData);
+	return 0;
 }
 
-  ConditionVariable::ConditionVariable()
-  {
-	  pHandle = PTHREAD_COND_INITIALIZER;
-	  int res = pthread_cond_init(&pHandle, NULL);
-	  assert(res==0);
-  }
+ConditionVariable::ConditionVariable()
+{
+	pHandle = PTHREAD_COND_INITIALIZER;
+	int res = pthread_cond_init(&pHandle, NULL);
+	assert(res == 0);
+}
 
-  ConditionVariable::~ConditionVariable()
-  {
-	  pthread_cond_destroy(&pHandle);
-  }
+ConditionVariable::~ConditionVariable() { pthread_cond_destroy(&pHandle); }
 
-  void ConditionVariable::Wait(const Mutex &mutex, unsigned int ms)
-  {
-	  timespec ts;
-	  ts.tv_sec = 0;
-	  ts.tv_nsec = ms*1000;
+void ConditionVariable::Wait(const Mutex& mutex)
+{
+	pthread_mutex_t* mutexHandle = (pthread_mutex_t*)&mutex.pHandle;
+	pthread_cond_wait(&pHandle, mutexHandle);
+}
 
-	  pthread_mutex_t* mutexHandle = (pthread_mutex_t*)&mutex.pHandle;
-	  pthread_cond_timedwait(&pHandle, mutexHandle, &ts);
-  }
+void ConditionVariable::Wait(const Mutex& mutex, unsigned int ms)
+{
+	timespec ts;
+	ts.tv_sec = 0;
+	ts.tv_nsec = ms * 1000;
 
-  void ConditionVariable::Set()
-  {
-	  pthread_cond_signal(&pHandle);
-  }
+	pthread_mutex_t* mutexHandle = (pthread_mutex_t*)&mutex.pHandle;
+	pthread_cond_timedwait(&pHandle, mutexHandle, &ts);
+}
+
+void ConditionVariable::Set() { pthread_cond_signal(&pHandle); }
+
+void ConditionVariable::SetAll() { pthread_cond_broadcast(&pHandle); }
 
 ThreadID Thread::mainThreadID;
 
@@ -97,51 +117,40 @@ ThreadID Thread::mainThreadID;
 	  pthread_setschedparam(pHandle, SCHED_OTHER, &param);
 }*/
 
-void Thread::SetMainThread()
-{
-	  mainThreadID = GetCurrentThreadID();
-}
+void Thread::SetMainThread() { mainThreadID = GetCurrentThreadID(); }
 
-ThreadID Thread::GetCurrentThreadID()
-{
-  return pthread_self();
-}
+ThreadID Thread::GetCurrentThreadID() { return pthread_self(); }
 
-bool Thread::IsMainThread()
-{
-  return GetCurrentThreadID() == mainThreadID;
-}
+void Thread::GetCurrentThreadName(char * buffer, int buffer_size) {	pthread_getname_np(pthread_self(), buffer, buffer_size); }
 
-ThreadHandle create_thread(WorkItem* pData)
+void Thread::SetCurrentThreadName(const char * name) { pthread_setname_np(pthread_self(), name); }
+
+bool Thread::IsMainThread() { return GetCurrentThreadID() == mainThreadID; }
+
+ThreadHandle create_thread(ThreadDesc* pData)
 {
 	pthread_t handle;
-	int res = pthread_create(&handle,NULL,ThreadFunctionStatic,pData);
-	assert(res==0);
+	int       res = pthread_create(&handle, NULL, ThreadFunctionStatic, pData);
+	assert(res == 0);
 	return (ThreadHandle)handle;
 }
 
 void destroy_thread(ThreadHandle handle)
 {
 	pthread_join(handle, NULL);
-	handle = NULL;
+	handle = (ThreadHandle)NULL;
 }
 
-void join_thread(ThreadHandle handle)
-{
-	pthread_join(handle, NULL);
-}
+void join_thread(ThreadHandle handle) { pthread_join(handle, NULL); }
 
-void Thread::Sleep(unsigned mSec)
-{
-  usleep(mSec*1000);
-}
+void Thread::Sleep(unsigned mSec) { usleep(mSec * 1000); }
 
 // threading class (Static functions)
 unsigned int Thread::GetNumCPUCores(void)
 {
-	  size_t len;
-	  unsigned int ncpu;
-	  ncpu = sysconf(_SC_NPROCESSORS_ONLN);
-	  return ncpu;
+	size_t       len;
+	unsigned int ncpu;
+	ncpu = sysconf(_SC_NPROCESSORS_ONLN);
+	return ncpu;
 }
-#endif //if __linux__
+#endif    //if __linux__

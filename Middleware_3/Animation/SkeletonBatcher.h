@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -29,11 +29,11 @@
 
 #include "Rig.h"
 
-#define MAX_INSTANCES 815 // For allocating space in uniform block. Must match with shader and application.
+#define MAX_INSTANCES 815    // For allocating space in uniform block. Must match with shader and application.
 
-#define MAX_BATCHES 500 // Batch count must always be less than this
+#define MAX_BATCHES 500    // Batch count must always be less than this
 
-const uint32_t ImageCount = 3; // must match the application
+const uint32_t ImageCount = 3;    // must match the application
 
 // Uniform data to send
 struct UniformSkeletonBlock
@@ -50,22 +50,22 @@ struct UniformSkeletonBlock
 // Description needed to handle buffer updates and draw calls
 struct SkeletonRenderDesc
 {
-	Pipeline* mSkeletonPipeline;
-	RootSignature* mRootSignature;
-	Buffer* mJointVertexBuffer;
-	int mNumJointPoints;
-	bool mDrawBones;
-	Buffer* mBoneVertexBuffer;
-	int mNumBonePoints;
+	Renderer*         mRenderer;
+	Pipeline*         mSkeletonPipeline;
+	RootSignature*    mRootSignature;
+	Buffer*           mJointVertexBuffer;
+	int               mNumJointPoints;
+	bool              mDrawBones;
+	Buffer*           mBoneVertexBuffer;
+	int               mNumBonePoints;
+	BufferCreationFlags mCreationFlag;
 };
 
 // Allows for efficiently instance rendering all joints and bones of all skeletons in the scene
 // Will eventually be a debug option and a part of a much larger Animation System's draw functionalities
 class SkeletonBatcher
 {
-
-public:
-
+	public:
 	// Set up the pipeline and initialize the buffers
 	void Initialize(const SkeletonRenderDesc& skeletonRenderDesc);
 
@@ -87,23 +87,26 @@ public:
 	// Instance draw all the skeletons
 	void Draw(Cmd* cmd, const uint32_t& frameIndex);
 
-private:
-
+	private:
 	// List of Rigs whose skeletons need to be rendered
-	tinystl::vector<Rig*> mRigs;
-	unsigned int mNumRigs = 0;
+	eastl::vector<Rig*> mRigs;
+	unsigned int          mNumRigs = 0;
 
 	// Application variables used to be able to update buffers
-	Pipeline* mSkeletonPipeline;
+	Renderer*      mRenderer;
+	Pipeline*      mSkeletonPipeline;
 	RootSignature* mRootSignature;
-	Buffer* mJointVertexBuffer;
-	int mNumJointPoints;
-	Buffer* mBoneVertexBuffer;
-	int mNumBonePoints;
+	Buffer*        mJointVertexBuffer;
+	int            mNumJointPoints;
+	Buffer*        mBoneVertexBuffer;
+	int            mNumBonePoints;
+
+	// Descriptor binder with all required memory allocation space
+	DescriptorBinder* mDescriptorBinder;
 
 	// Buffer pointers that will get updated for each batch to be rendered
-	Buffer* mProjViewUniformBufferJoints[MAX_BATCHES][ImageCount] = { NULL };
-	Buffer* mProjViewUniformBufferBones[MAX_BATCHES][ImageCount] = { NULL };
+	Buffer* mProjViewUniformBufferJoints[MAX_BATCHES][ImageCount] = {{ NULL }};
+	Buffer* mProjViewUniformBufferBones[MAX_BATCHES][ImageCount] = {{ NULL } };
 
 	// Uniform data for the joints and bones
 	UniformSkeletonBlock mUniformDataJoints;

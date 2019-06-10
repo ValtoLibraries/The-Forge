@@ -11,18 +11,29 @@ The Forge is a cross-platform rendering framework supporting
 - macOS with Metal 2
 - iOS with Metal 2
 - XBOX One / XBOX One X (only available for accredited developers on request)
-- PS4 (in development) (only available for accredited developers on request)
+- PS4 (only available for accredited developers on request)
 
-Particularly, The Forge supports cross-platform
+Particularly, the graphics layer of The Forge supports cross-platform
 - Descriptor management
-- Multi-threaded resource loading
+- Multi-threaded and asynchronous resource loading
 - Shader reflection
 - Multi-threaded command buffer generation
 
-Future plans are
-- Unified shader generation -> check out an alpha version of the [Confetti Shader Translator](http://confettishadertranslator.azurewebsites.net). This shader translator is build with the purpose of supporting a higher-level shading language, which we call super HLSL or short sHLSL
+The Forge can be used to provide the rendering layer for custom next-gen game engines. It is also meant to provide building blocks to write your own game engine. It is like a "lego" set that allows you to use pieces to build a game engine quickly. The "lego" High-Level Features supported on all platforms are at the moment:
+- Asynchronous Resource loading with a resource loader task system as shown in 10_PixelProjectedReflections
+- [Lua Scripting System](https://www.lua.org/) - currently used in 06_Playground to load models and textures and animate the camera
+- Animation System based on [Ozz Animation System](https://github.com/guillaumeblanc/ozz-animation)
+- Consistent Math Library  based on an extended version of [Vectormath](https://github.com/glampert/vectormath)
+- Extended version of [EASTL](https://github.com/electronicarts/EASTL/)
+- For loading art assets we have a modified and integrated version of [Assimp](https://github.com/assimp/assimp)
+- Consistent Memory Managament: on GPU following [Vulkan Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator)
+- Input system with Gestures for Touch devices based on an extended version of [gainput](https://github.com/jkuhlmann/gainput)
+- Very fast Entity Component System based on [ENTT](https://github.com/skypjack/entt)
+- UI system based on [imGui](https://github.com/ocornut/imgui) with a dedicated unit test extended for touch input devices
+- Various implementations of high-end Graphics Effects as shown in the unit tests below
 
-The intended usage of The Forge is to enable developers to quickly build their own game engines. The Forge can provide the rendering layer for custom next-gen game engines. 
+Please find a link and credits for all open-source packages used at the end of this readme.
+
 
 <a href="https://twitter.com/TheForge_FX?lang=en" target="_blank"><img src="Screenshots/twitter.png" 
 alt="Twitter" width="20" height="20" border="0" /> Join the channel at https://twitter.com/TheForge_FX?lang=en</a>
@@ -34,146 +45,120 @@ alt="Twitter" width="20" height="20" border="0" /> Join the channel at https://t
 
 # News
 
-## Release 1.21 - December 1st, 2018 - Season Greetings with new Skinning Unit Test | Unified Vulkan Shaders
-The team will soon go into winter hybernation mode ... which means many Confetti people will fly home over the holiday season to spend time with their loved ones. We will be back with more releases next year, probably in February. 
 
-To send you season greetings, we extended our Ozz implementation by adding a new Skinning unit test:
-
-PC Windows 10 DirectX 12 GeForce 950 Driver 411.63 with a resolution of 1080p
-![PC Windows 10 skinning unit test](Screenshots/Skinning_PC.gif)
-
-Linux Ubuntu 18.04.1 LTS Vulkan 1.1.92 RADEON 480 Driver 18.30 with a resolution of 1920x1080
-![Ubuntu skinning unit test](Screenshots/Skinning_Ubuntu.png)
-
-iMac with AMD RADEON 580 (Part No. MNED2xx/A) with resolution of 1920x1080
-![macOS skinning unit test](Screenshots/Skinning_macOS.png)
-
-iPhone 7 iOS 12.0.1 (16A404) with a resolution of 1334x750
-![iOS skinning unit test](Screenshots/Skinning_iOS.png)
-
-XBOX One
-![XBOX One skinning unit test](Screenshots/Skinning_XBOX.png)
-
-- Vulkan: 
-  - all three Vulkan platforms (Windows, Linux, Android) use now the same Vulkan shaders
-  - Upgraded Linux and Windows SDK to 1.1.92.1
-- The math library now supports more integer data types
-- Updated assimp to use latest master + added projects instead of shipping binaries
-- macOS / iOS
-  - Added support for iOS Gestures (Not currently in use in the unit-tests)
-  - Improved pixel projected reflections on Metal Platforms
-  - Upgraded all the XCode projects to target Xcode 10.1 (10B61) and  iOS Version 12.0.1 (16A404) 
-  - Started Testing additionally on A12 Devices Phone Xs Max (Model MT5D2LL/A)
-- Numerous shader translator updates. Head over to [Confetti Shader Translator](http://confettishadertranslator.azurewebsites.net) check them out :-) It is getting more and more stable.
+## Release 1.29 - June 6th, 2019 - EASTL Integration | Micro-profiler improvements | Neon intrinsic Support
+ * We replaced for all platforms TinySTL with [EASTL](https://github.com/electronicarts/EASTL/) for support of additional data structures and functionality. This was a major change and we still expect a few bugs to appear.
+ * ARM based platforms (iOS/Android) can pick a new NEON intrinsics code path in our math library
+ * Microprofiler  
+   * Multithreaded GPU Profiling is now supported
+   * Microprofiler is now enabled on all the Unit-tests and togglable using UI checkbox.
+   * Added new common interface, IProfiler.h
+ * Issue list: 
+   * #105 - 04_ExecuteIndirect crash on macOS
 
 
-## Release 1.20 - November 15th, 2018 - Triangle Visibility Buffer with PBR | Ray Marching Unit Test | Font Rendering Dark Mode
-* Triangle Visibility Buffer (PC, XBOX One, macOS, Linux will be supported in the next release): 
-  * Added PBR art assets and PBR Lighting (please download the art assets again with the script see Install section below)
-  * Added swapchain3 DirectX 12 HDR support (in the future swapchain4 and Vulkan HDR will be added) and additionally made sure the PBR art assets are HDR "enabled"
-  * There is an automatic camera fly-through to make demos easier 
-  * God rays were added for additional "awesomeness"
-  * With the new PBR art assets and God rays (switchable), we still expect it to run faster than before on all target platforms
+## Release 1.28 - May 24th, 2019 - SWB Level Editor | Micro Profiler Re-Write | Log and File System improvements | better macOS/iOS support 
+We added a new section below the Examples to show screenshots and an explanation of some of the Tools that we integrated. We will fill this up over the next few releases.
+* We were helping James Webb with his level editor for 'Star Wars Galaxies' called SWB that now uses The Forge
 
-PC Windows 10 DirectX12 NVIDIA GeForce 1080 Driver 416.16 with a resolution of 3840x2160 in window mode (MSAA x2)  
-![Triangle Visibility Buffer PC DirectX 12](Screenshots/Visibility_Buffer_PC_DirectX12.png)
+Here is a screenshot
 
-PC Windows 10 Vulkan 1.1.85 NVIDIA GeForce 1080 Driver 416.16 with a resolution of 3840x2160 in window mode (MSAA x2)
-![Triangle Visibility Buffer PC Vulkan](Screenshots/Visibility_Buffer_PC_Vulkan.png)
+![SWB Level Editor](Screenshots/SWB.png)
 
-Linux Ubuntu 18.04.1 LTS Vulkan 1.1.85 AMD RX480 resolution of 1920x1080 in window mode (MSAA x2)
-![Triangle Visibility Buffer Linux Vulkan](Screenshots/Visibility_Buffer_Linux_Vulkan.png)
+SWB is an editor for the 2003 game 'Star Wars Galaxies' that can edit terrains, scenes, particles and import/export models via FBX. The editor uses an engine called 'atlas' that will be made open source in the future. It focuses on making efficient use of the new graphics APIs (with help from The-Forge!), ease-of-use and terrain rendering.
+* Memory tracking: 
+  * Fluid memory tracker cross-platform for Windows, macOS and Linux
+  * We used MTuner to remove many memory leaks and improve memory usage. MTuner might be integrated in the future.
+* [Micro Profiler](https://github.com/zeux/microprofile): our initial implementation of Microprofiler needed to be re-done from scratch. This time we wanted to do the integration right and also implemented the dedicated UI. 
 
-iMac with AMD RADEON 580 (Part No. MNED2xx/A) 2560x1440 in window mode (MSAA x1)
-![Triangle Visibility Buffer iMac](Screenshots/Visibility_Buffer_iMac.png)
+![Microprofiler in Visibility Buffer](Screenshots/MicroProfileExampleVisibilityBuffer.png)
 
-Xbox One resolution of 1920x1080
-![Triangle Visibility Buffer XBOX One](Screenshots/Visibility_Buffer_XBOX_One.png)
+![Microprofiler in Visibility Buffer](Screenshots/MicroProfileExampleVisibilityBuffer2.png)
 
+To enable/disable profiling, go to file ProfileEnableMacro.h line 9 and set it
+to 0(disabled) or 1(enabled). 
+It's supported on the following platforms:
+ - Windows
+ - Linux
+ - macOS (GPU profiling is disabled)
+ - iOS (GPU profiling is disabled)
+ - Android(WIP will be enabled later on)
 
-* There is a new unit test provided by Mykhailo Parfeniuk, originally posted on ShaderToy by Inigo Quilez (https://www.shadertoy.com/view/Xds3zN and https://sopyer.github.io/b/post/vulkan-shader-sample/) that shows a ray marched scene with shadows, reflections and AO
+We can find MicroProfile integrated in the follwing examples (more will follow):
+ - Unit Test 02_Compute
+ - VisibilityBuffer
 
-PC Windows 10 Vulkan 1.1.85 GeForce 950 Driver 416.81 with a resolution of 1920x1080 in window mode:  
-![Ray Marching example PC](Screenshots/16_RayMarching_PC.png)
+How to use it:
+MicroProfile has different display modes. The most useful one when running inside
+the application is Timers. We can change the display mode going to Mode and right
+clicking the one we want.
 
-iMac with AMD RADEON 580 (Part No. MNED2xx/A) with resolution of 1920x1080 in window mode:  
-![Ray Marching example iMac](Screenshots/16_RayMarching_iMac.png)
+If we are on Timer, we will be able to right click on the labels. This will enable
+a graph at the bottom left.
 
-Linux Vulkan 1.1.85 RADEON 480 Driver 18.30 with a resolution of 1920x1080 in window mode: 
-![Ray Marching example Linux](Screenshots/16_RayMarching_Linux.png)
+If we wanted to just see some of the groups inside the profile display, go to Groups
+and select the ones you want.
 
-* The font rendering unit test was upgraded
-  * Added light and dark theme (... inspired by macOS here)
-  * Added fit-to-screen functionality for arbitrary resolutions
-  * Scene text is now docked to center
+The other options are self explanatory.
 
-![Image of the Font Rendering Unit test](Screenshots/05_FontRendering.PNG)
+If the user wants to dump the profile to a file, we just need to go to dump,
+and right click on the amount of frames we want. This generates a html file in the
+executable folder. Open it with your prefered web browser to have a look.
 
-* There were many updates for iOS / macOS and XBOX One run-times and a few for Linux
+Dumping is useful, because we will be able to see the profile frame by frame,
+without it being updated every frame. This will be useful when displaying in Detailed
+mode.
 
-
-## Release 1.19 - November 1st, 2018 - Material Playground
-* Added more materials to the Material Playground. Therefore you want to download the Art folder again just for this release (see the Install section below on how to do this).
-Here are shots of five of the supported platforms:
-
-PC Windows 10 Vulkan 1.1.82.1 GeForce 1080 Driver 399.07 with a resolution of 1920x1080 in full-screen:  
-![Material Playground on PC](Screenshots/MaterialPlayground/01-PC-Vulkan-1920x1080.png)
-
-Linux Vulkan 1.1.82.1 RADEON  480 Driver 18.30 with a resolution of 1920x1080 in full-screen: 
-![Material Playground on PC](Screenshots/MaterialPlayground/03-Linux-Vulkan-1920x1080.png)
-
-iMac with AMD RADEON 580 (Part No. MNED2xx/A) with resolution of 5120x2880 in full-screen:  
-![Material Playground on iMac](Screenshots/MaterialPlayground/04-iMac-5120x2880.png)
-
-iPad (Model A1803) with iOS 12.0 and a resolution of 2048x1536 in full-screen:
-![Material Playground on iPad](Screenshots/MaterialPlayground/02-iPad-2048x1536.png)
-
-XBOX One:
-![Material Playground on XBOX One](Screenshots/MaterialPlayground/05-Xbox-One-1920x1080.png)
-
-* Updated Fontstash library to the latest version and added .OTF font file support
-* macOS / iOS Metal 2 we are working on applications running on those run-times, so there is a constant stream of improvmements coming in:
-  * Sampler arrays
-  * Enable some parts of GPU profiler code for debug markers, cpu timestamps on Metal runtime
-  * File system bug fixes
-  * Include headers fixes
-  * Improved error and warnings in Metal shaders
-
-
+There is also a Help menu item.
+* Log system improvements: 
+  * Support for multiple log files
+  * Easy to use log macros
+  * Scoped logging
+  * Multithreaded support
+  * New log format: date, time, thread, file, line, log level and message
+  * No need to declare global LogManager, it will be created on demand
+* Filesystem improvements: this is fed  back from one of our game engine integrations of The Forge
+  * file time functions now use time_t
+  * added FileWatcher class for Windows/Linux/macOS
+  * added CombinePaths function
+* macOS / iOS Metal: 
+  * added Barriers with memoryBarrierWithScope for Buffers,Textures and Render targets
+  * added GPU sync with MTLFence as fallback (for cross encoder synchranization and BlitEncoder where memoryBarrier isn't available). Removed force fence on render targets change because it is no longer necessary. There might be a small performance improvements coming from this
+  * support of Microprofiler see above
+  * refactor of windows support code: replaced MTKView for iOS and macOS with a custom NSview and NSWindow implementation. We have more explicit control now over the window.
+* Issues fixed:
+  * #112 - cmdBindDescriptors performance issue (DX12)
+  * #110 - RenderDoc compatibility with SM6+
 
 See the release notes from previous releases in the [Release section](https://github.com/ConfettiFX/The-Forge/releases).
 
   
 # PC Windows Requirements:
 
-1. Windows 10 with latest update
+1. Windows 10 
+
 
 2. Drivers
-* AMD / NVIDIA - latest drivers should work. On Vulkan, at least NVIDIA Beta Driver 389.20 are required to support Linked Multi-GPU. 
+* AMD / NVIDIA - latest drivers 
 * Intel - need to install the latest driver (currently Version: 25.20.100.6326, October 9th, 2018) [Intel® Graphics Driver for Windows® 10](https://downloadcenter.intel.com/download/28240/Intel-Graphics-Driver-for-Windows-10?product=80939). As mentioned before this driver still doesn't have full DirectX 12 and Vulkan support.
 
 
-3. Visual Studio 2017 with Windows SDK / DirectX version 16299.91 (Fall Creators Update)
+3. Visual Studio 2017 with Windows SDK / DirectX version 17763.132 (you need to get it via the Visual Studio Intaller)
 https://developer.microsoft.com/en-us/windows/downloads/sdk-archive
 
-4. Vulkan [1.1.92.1](https://vulkan.lunarg.com/sdk/home)
-
-
-5. Ray Tracing 
- * DirectX Raytracing Experimental SDK v0.09.01
- * Windows 10 RS4 builds more info at [DXR](http://aka.ms/DXR)
+4. Vulkan [1.1.101.0](https://vulkan.lunarg.com/sdk/home)
 
 6. The Forge is currently tested on 
 * AMD 5x, VEGA GPUs (various)
-* NVIDIA GeForce 9x, 10x GPUs (various)
+* NVIDIA GeForce 9x, 10x. 20x GPUs (various)
 * Intel Skull Canyon
 
 
 # macOS Requirements:
 
-1. macOS: 10.14 (18A389)
+1. macOS Mojave 10.14.4 beta (18E174f)
 
-2. XCode: 10.1 (10B61)
+2. Xcode 10.2 beta (10P82s)
 
 3. The Forge is currently tested on the following macOS devices:
 * iMac with AMD RADEON 560 (Part No. MNDY2xx/A)
@@ -187,7 +172,7 @@ We will not test any Hackintosh configuration.
 
 # iOS Requirements:
 
-1. iOS: 12.0.1 (16A404)
+1. iOS 12.2 beta (16E5181f)
 
 2. XCode: see macOS
 
@@ -195,7 +180,7 @@ To run the unit tests, The Forge requires an iOS device with an A9 or higher CPU
 
 We are currently testing on 
 * iPhone 7 (Model A1778)
-* iPad (Model A1803)
+* iPad (Model A1893)
 * iPhone Xs Max (Model MT5D2LL/A)
 
 
@@ -205,19 +190,18 @@ We are currently testing on
 
 2. GPU Drivers:
 * [AMDGpu-Pro 18.30-641594](https://www.amd.com/en/support/graphics/radeon-500-series/radeon-rx-500-series/radeon-rx-580)
-* [NVIDIA Linux x86_64/AMD64/EM64T 390.87](http://www.nvidia.com/object/unix.html) You can update using the command line too https://tecadmin.net/install-latest-nvidia-drivers-ubuntu/
+* [NVIDIA Linux x86_64/AMD64/EM64T 418.56](http://www.nvidia.com/object/unix.html) You can update using the command line too https://tecadmin.net/install-latest-nvidia-drivers-ubuntu/
+* Ubuntu comes with open souce Intel and AMD drivers, but for the latest driver you can use the stable Mesa packages supplied here: https://launchpad.net/~paulo-miguel-dias/+archive/ubuntu/pkppa/
 
 3. Workspace file is provided for [codelite 12.0.6](https://codelite.org/)
 
-4. Vulkan SDK Version: download the native Ubuntu Linux package for all the elements of the Vulkan SDK [LunarG Vulkan SDK Packages for Ubuntu 16.04 and 18.04](https://packages.lunarg.com/)
+4. Vulkan SDK Version 1.1.101: download the native Ubuntu Linux package for all the elements of the Vulkan SDK [LunarG Vulkan SDK Packages for Ubuntu 16.04 and 18.04](https://packages.lunarg.com/)
+
 
 5. The Forge is currently tested on Ubuntu with the following GPUs:
  * AMD RADEON RX 480
  * AMD RADEON VEGA 56
- * NVIDIA GeForce GTX 950
-
-Make sure VulkanSDK environment variables are configured correctly.
-Please read the "Set up the Runtime Environment" and "Environment Variable Persistence" [https://vulkan.lunarg.com/doc/sdk/1.1.70.1/linux/getting_started.html](https://vulkan.lunarg.com/doc/sdk/1.1.70.1/linux/getting_started.html)
+ * NVIDIA GeForce 2070 RTX
 
 
 # Android Requirements:
@@ -282,9 +266,19 @@ This unit test shows the current state of our font rendering library that is bas
 
 ## 6. Material Playground
 
-This unit test will show a wide range of game related materials in the future.
+This unit test shows a range of game related materials:
 
-![Material Playground on PC](Screenshots/MaterialPlayground/01-PC-Vulkan-1920x1080.png)
+Hair:
+
+![Hair on PC](Screenshots/MaterialPlayground/06_MaterialPlayground_Hair_closup.gif)
+
+Metal:
+
+![Material Playground Metal on PC](Screenshots/MaterialPlayground/06_MaterialPlayground_Metal.png)
+
+Wood:
+
+![Material Playground Wood on PC](Screenshots/MaterialPlayground/06_MaterialPlayground_Wood.png)
 
 ## 7. Hardware Tessellation
 
@@ -300,7 +294,14 @@ In the spirit of the shadertoy examples this unit test shows a procedurally gene
 ## 9. Light and Shadow Playground
 This unit test shows various shadow and lighting techniques that can be chosen from a drop down menu. There will be more in the future.
 
-![Image of the Light and Shadow Unit test](Screenshots/09_LightShadowPlayground.png)
+iMac with AMD RADEON 580 (Part No. MNED2xxA) with resolution of 5120x2880:
+![Light & Shadow Playground](Screenshots/09_LightShadowPlayground.png)
+
+iPhone 7 iOS 12.1.4 (16D57) with a resolution of 1334x750:
+![Light & Shadow Playground](Screenshots/09_LightShadowPlayground_iOS.png)
+
+Linux Ubuntu 18.04.1 LTS Vulkan 1.1.92 RADEON 480 Driver 18.30 with a resolution of 1920x1080:
+![Light & Shadow Playground](Screenshots/09_LightShadowPlayground_Linux.png)
 
 ## 9a. Hybrid Ray-Traced Shadows
 This unit test was build by Kostas Anagnostou @KostasAAA to show how to ray trace shadows without using a ray tracing API like DXR / RTX. It should run on all GPUs (not just NVIDIA RTX GPUs) and the expectation is that it should run comparable with a DXR / RTX based version even on a NVIDIA RTX GPU. That means the users of your game do not have to buy a NVIDIA RTX GPU to enjoy HRT shadows :-)
@@ -329,63 +330,142 @@ This unit test shows how the integration of imGui with a wide range of functiona
 
 
 ## 14. Order-Independent Transparency unit test
-This unit test compares various Order-Indpendent Transparency Methods.
-
+This unit test compares various Order-Indpendent Transparency Methods. In the moment it shows:
+- Alpha blended transparency
+- Weighted blended Order Independent Transparency [Morgan McGuire Blog Entry 2014](http://casual-effects.blogspot.com/2014/03/weighted-blended-order-independent.html) and [Morgan McGuire Blog Entry 2015](http://casual-effects.blogspot.com/2015/03/implemented-weighted-blended-order.html)
+- Weighted blended Order Independent Transparency by Volition [GDC 2018 Talk](https://www.gdcvault.com/play/1025400/Rendering-Technology-in-Agents-of)
+- Adaptive Order Independent Transparency with Raster Order Views [paper by Intel, supports DirectX 11, 12 only](https://software.intel.com/en-us/articles/oit-approximation-with-pixel-synchronization-update-2014), and a [Primer](https://software.intel.com/en-us/gamedev/articles/rasterizer-order-views-101-a-primer)
+- Phenomenological Transparency - Diffusion, Refraction, Shadows by [Morgan McGuire](https://casual-effects.com/research/McGuire2017Transparency/McGuire2017Transparency.pdf)
 ![Image of the Order-Indpendent Transparency unit test in The Forge](Screenshots/14_OIT.png)
 
 
 ## 15. Wave Intrinsics unit test
-This unit test shows how to use the new wave intrinsics. In the moment it only supports Windows (DirectX 12 / Vulkan 1.1) and Linux with Vulkan 1.1. More platforms will be added.
+This unit test shows how to use the new wave intrinsics. Supporting Windows with DirectX 12 / Vulkan, Linux with Vulkan and macOS / iOS.
 
 ![Image of the Wave Intrinsics unit test in The Forge](Screenshots/15_WaveIntrinsics.png)
 
-## 16. Ray Tracing Unit Test for DXR
-Ray Tracing API unit test, showing how to use DXR on Windows only.
+## 16. Ray Tracing Unit Test
+Ray Tracing API unit test, showing how the cross-platfrom Ray Tracing Interface running on Windows, Ubuntu with Vulkan RTX, macOS and iOS
 
-![Image of the DXR Ray Tracing unit test in The Forge](Screenshots/16_RayTracing.png)
+PC Windows 10 RS5, DirectX12, GeForce RTX 2070, Driver version 418.81 1080p:
+![Ray Tracing on PC With DXR](Screenshots/16_RayTrace_Windows_DXR.png)
+
+PC Ubuntu Vulkan RTX, GeForce RTX 2070, Driver Version 418.56 1080p
+![Ray Tracing on PC Ubuntu with Vulkan RTX](Screenshots/16_RayTrace_Linux_Vulkan.png)
+
+Mac Mini with Intel Core i5 3GHz cpu with integrated graphics Intel UHD Graphics 630 (Part No. MRTT2RU/A) with resolution 3440x1440:
+![Ray Tracing on macOS](Screenshots/RayTracing_macOS.png)
+
+iPad 6th Generation iOS 12.1.3 (16D39) with a resolution of 2048x1536
+![Ray Tracing on iOS](Screenshots/RayTracing_iPad.png)
+
+## 16a. Sphere Tracing
+This unit test was originally posted on ShaderToy by [Inigo Quilez](https://www.shadertoy.com/view/Xds3zN) and [Sopyer](https://sopyer.github.io/b/post/vulkan-shader-sample/). It shows how a scene is ray marched with shadows, reflections and AO
+
+![Image of the Sphere Tracing  unit test in The Forge](Screenshots/16_RayMarching_Linux.png)
+
+## 17. ENTT - Entity Component System Test
+This unit test shows how to use a high-performance entity component system in The Forge.
+
+![Image of the Entity Component System unit test in The Forge](Screenshots/17_EntityComponentSystem.png)
 
 
-## 17. Ozz Playback Animation
+## 18. Ozz Playback Animation
 This unit test shows how to playback a clip on a rig.
 
 ![Image of Playback Animation in The Forge](Screenshots/01_Playback.gif)
 
-## 18. Ozz Playback Blending
+## 19. Ozz Playback Blending
 This unit test shows how to blend multiple clips and play them back on a rig.
 
 ![Image of Playback Blending in The Forge](Screenshots/02_Blending.gif)
 
-## 19. Ozz Joint Attachment
+## 20. Ozz Joint Attachment
 This unit test shows how to attach an object to a rig which is being posed by an animation.
 
 ![Image of Ozz Joint Attachment in The Forge](Screenshots/03_JointAttachment.gif)
 
-## 20. Ozz Partial Blending
+## 21. Ozz Partial Blending
 This unit test shows how to blend clips having each only effect a certain portion of joints.
 
 ![Image of Ozz Partial Blending in The Forge](Screenshots/04_PartialBlending.gif)
 
-## 21. Ozz Additive Blending
+## 22. Ozz Additive Blending
 This unit test shows how to introduce an additive clip onto another clip and play the result on a rig.
 
 ![Image of Ozz Additive Blending in The Forge](Screenshots/05_Additive.gif)
 
-## 22. Ozz Baked Physics
+## 23. Ozz Baked Physics
 This unit test shows how to use a scene of a physics interaction that has been baked into an animation and play it back on a rig.
 
 ![Image of Ozz Baked Physics in The Forge](Screenshots/07_BakedPhysics.gif)
 
-## 23. Ozz Multi Threading
+## 24. Ozz Multi Threading
 This unit test shows how to animate multiple rigs simultaneously while using multi-threading for the animation updates.
 
 ![Image of Ozz Multi Threading in The Forge](Screenshots/09_MultiThread.gif)
 
+## 25. Ozz Skinning
+This unit test shows how to use skinning with Ozz
+
+![Image of the Ozz Skinning unit test](Screenshots/Skinning_PC.gif)
 
 
 # Examples
 There is an example implementation of the Triangle Visibility Buffer as covered in various conference talks. [Here](https://diaryofagraphicsprogrammer.blogspot.com/2018/03/triangle-visibility-buffer.html) is a blog entry that details the implementation in The Forge.
 
 ![Image of the Visibility Buffer](Screenshots/Visibility_Buffer.png)
+
+
+# Tools
+Below are screenshots and descriptions of some of the tools we integrated.
+
+## Microprofiler
+We integrated the [Micro Profiler](https://github.com/zeux/microprofile) into our code base. 
+
+![Microprofiler in Visibility Buffer](Screenshots/MicroProfileExampleVisibilityBuffer.png)
+
+![Microprofiler in Visibility Buffer](Screenshots/MicroProfileExampleVisibilityBuffer2.png)
+
+To enable/disable profiling, go to file ProfileEnableMacro.h line 9 and set it
+to 0(disabled) or 1(enabled). 
+It's supported on the following platforms:
+ - Windows
+ - Linux
+ - macOS (GPU profiling is disabled)
+ - iOS (GPU profiling is disabled)
+ - Android(WIP will be enabled later on)
+
+We can find MicroProfile integrated in the follwing examples:
+ - Unit Test 02_Compute
+ - VisibilityBuffer
+
+MicroProfile provides us an easy to use UI and visualization our frame.
+
+How to use it:
+MicroProfile has different display modes. The most useful one when running inside
+the application is Timers. We can change the display mode going to Mode and right
+clicking the one we want.
+
+If we are on Timer, we will be able to right click on the labels. This will enable
+a graph at the bottom left.
+
+If we wanted to just see some of the groups inside the profile display, go to Groups
+and select the ones you want.
+
+The other options are self explanatory.
+
+If the user wants to dump the profile to a file, we just need to go to dump,
+and right click on the amount of frames we want. This generates a html file in the
+executable folder. Open it with your prefered web browser to have a look.
+
+Dumping is useful, because we will be able to see the profile frame by frame,
+without it being updated every frame. This will be useful when displaying in Detailed
+mode.
+
+For any doubt on the use of the MicroProfile, hover Help.
+
+
 
 
 # Releases / Maintenance
@@ -406,6 +486,11 @@ The Forge is used as the rendering framework in Torque 3D:
 <a href="http://www.garagegames.com/products/torque-3d" target="_blank"><img src="Screenshots/Torque-Logo_H.png" 
 alt="Torque 3D" width="417" height="106" border="0" /></a>
 
+## Star Wars Galaxies Level Editor
+SWB is an editor for the 2003 game 'Star Wars Galaxies' that can edit terrains, scenes, particles and import/export models via FBX. The editor uses an engine called 'atlas' that will be made open source in the future. It focuses on making efficient use of the new graphics APIs (with help from The-Forge!), ease-of-use and terrain rendering.
+
+![SWB Level Editor](Screenshots/SWB.png)
+
 
 # Open-Source Libraries
 The Forge utilizes the following Open-Source libraries:
@@ -421,15 +506,20 @@ The Forge utilizes the following Open-Source libraries:
 * [shaderc](https://github.com/google/shaderc)
 * [SPIRV_Cross](https://github.com/KhronosGroup/SPIRV-Cross)
 * [TinyEXR](https://github.com/syoyo/tinyexr)
-* [TinySTL](https://github.com/mendsley/tinystl)
 * [Vulkan Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator)
 * [GeometryFX](https://gpuopen.com/gaming-product/geometryfx/)
 * [WinPixEventRuntime](https://blogs.msdn.microsoft.com/pix/winpixeventruntime/)
 * [Fluid Studios Memory Manager](http://www.paulnettle.com/)
 * [volk Metaloader for Vulkan](https://github.com/zeux/volk)
 * [gainput](https://github.com/jkuhlmann/gainput)
-* [Shader Playground](https://github.com/tgjones/shader-playground)
 * [hlslparser](https://github.com/Thekla/hlslparser)
-* [ImGui](https://github.com/ocornut/imgui)
+* [imGui](https://github.com/ocornut/imgui)
 * [DirectX Shader Compiler](https://github.com/Microsoft/DirectXShaderCompiler)
 * [Ozz Animation System](https://github.com/guillaumeblanc/ozz-animation)
+* [ENTT](https://github.com/skypjack/entt)
+* [Lua Scripting System](https://www.lua.org/)
+* [TressFX](https://github.com/GPUOpen-Effects/TressFX)
+* [Micro Profiler](https://github.com/zeux/microprofile)
+* [MTuner](https://github.com/milostosic/MTuner) 
+* [EASTL](https://github.com/electronicarts/EASTL/)
+

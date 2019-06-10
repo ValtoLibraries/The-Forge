@@ -1,6 +1,6 @@
 /*
 *
-* Copyright (c) 2018 Confetti Interactive Inc.
+* Copyright (c) 2018-2019 Confetti Interactive Inc.
 *
 * This file is part of The-Forge
 * (see https://github.com/ConfettiFX/The-Forge).
@@ -25,12 +25,12 @@
 
 // Unit Test for testing materials and pbr.
 
-//asimp importer
+//assimp
 #include "../../../../Common_3/Tools/AssimpImporter/AssimpImporter.h"
 
 //tiny stl
-#include "../../../../Common_3/ThirdParty/OpenSource/TinySTL/vector.h"
-#include "../../../../Common_3/ThirdParty/OpenSource/TinySTL/string.h"
+#include "../../../../Common_3/ThirdParty/OpenSource/EASTL/vector.h"
+#include "../../../../Common_3/ThirdParty/OpenSource/EASTL/string.h"
 
 //Interfaces
 #include "../../../../Common_3/OS/Interfaces/ICameraController.h"
@@ -38,60 +38,44 @@
 #include "../../../../Common_3/OS/Interfaces/IFileSystem.h"
 #include "../../../../Common_3/OS/Interfaces/ITimeManager.h"
 #include "../../../../Middleware_3/UI/AppUI.h"
-#include "../../../../Common_3/OS/Core/DebugRenderer.h"
+#include "../../../../Common_3/OS/Core/Atomics.h"
 #include "../../../../Common_3/Renderer/IRenderer.h"
 #include "../../../../Common_3/Renderer/ResourceLoader.h"
 #include "../../../../Common_3/OS/Interfaces/IApp.h"
-
-//Renderer
-#include "../../../../Common_3/Renderer/GpuProfiler.h"
+#include "../../../../Common_3/OS/Interfaces/IProfiler.h"
 
 //Math
 #include "../../../../Common_3/OS/Math/MathTypes.h"
 
 //ui
 #include "../../../../Middleware_3/UI/AppUI.h"
-#include "../../../../Common_3/OS/Core/DebugRenderer.h"
 
 //Input
-#include "../../../../Middleware_3/Input/InputSystem.h"
-#include "../../../../Middleware_3/Input/InputMappings.h"
-
+#include "../../../../Common_3/OS/Input/InputSystem.h"
+#include "../../../../Common_3/OS/Input/InputMappings.h"
 
 #include "../../../../Common_3/OS/Interfaces/IMemoryManager.h"
 
-const char* pszBases[] =
-{
-	"../../../src/10_PixelProjectedReflections/",									// FSR_BinShaders
-	"../../../src/10_PixelProjectedReflections/",									// FSR_SrcShaders
-	"",																		// FSR_BinShaders_Common
-	"",																		// FSR_SrcShaders_Common
-	"../../../../../Art/Sponza/",											// FSR_Textures
-	"../../../../../Art/Sponza/",											// FSR_Meshes
-	"../../../UnitTestResources/",											// FSR_Builtin_Fonts
-	"../../../src/10_PixelProjectedReflections/",									// FSR_GpuConfig
-	"",																		// FSR_OtherFiles
+#include "../../../../Common_3/OS/Core/ThreadSystem.h"
+
+#include "../../../Common/AppHelpers.h"
+
+const char* pszBases[FSR_Count] = {
+	"../../../src/10_PixelProjectedReflections/",    // FSR_BinShaders
+	"../../../src/10_PixelProjectedReflections/",    // FSR_SrcShaders
+	"../../../../../Art/Sponza/",                    // FSR_Textures
+	"../../../../../Art/Sponza/",                    // FSR_Meshes
+	"../../../UnitTestResources/",                   // FSR_Builtin_Fonts
+	"../../../src/10_PixelProjectedReflections/",    // FSR_GpuConfig
+	"",                                              // FSR_Animation
+	"",                                              // FSR_OtherFiles
+	"../../../../../Middleware_3/Text/",             // FSR_MIDDLEWARE_TEXT
+	"../../../../../Middleware_3/UI/",               // FSR_MIDDLEWARE_UI
 };
 
-LogManager gLogManager;
-
-
-#define MAX_IN_ROW  4
-#define TOTAL_SPHERE 16
 
 #define DEFERRED_RT_COUNT 3
-
-#define LOAD_MATERIAL_BALL
-
 #define MAX_PLANES 4
-
-#define DegToRad 0.01745329251994329576923690768489f;
-
-struct Vertex {
-	float3 mPos;
-	float3 mNormal;
-	float2 mUv;
-};
 
 // Have a uniform for camera data
 struct UniformCamData
@@ -115,7 +99,7 @@ struct UniformExtendedCamData
 // Have a uniform for PPR properties
 struct UniformPPRProData
 {
-	uint renderMode;
+	uint  renderMode;
 	float useHolePatching;
 	float useExpensiveHolePatching;
 	float useNormalMap;
@@ -129,16 +113,16 @@ struct UniformPPRProData
 // Have a uniform for object data
 struct UniformObjData
 {
-	mat4 mWorldMat;
+	mat4  mWorldMat;
 	float mRoughness = 0.04f;
 	float mMetallic = 0.0f;
-	int pbrMaterials = -1;
+	int   pbrMaterials = -1;
 };
 
 struct Light
 {
-	vec4 mPos;
-	vec4 mCol;
+	vec4  mPos;
+	vec4  mCol;
 	float mRadius;
 	float mIntensity;
 	float _pad0;
@@ -148,22 +132,22 @@ struct Light
 struct UniformLightData
 {
 	// Used to tell our shaders how many lights are currently present
-	Light mLights[16]; // array of lights seem to be broken so just a single light for now
-	int mCurrAmountOfLights = 0;
+	Light mLights[16];    // array of lights seem to be broken so just a single light for now
+	int   mCurrAmountOfLights = 0;
 };
 
 struct DirectionalLight
 {
 	vec4 mPos;
-	vec4 mCol; //alpha is the intesity
+	vec4 mCol;    //alpha is the intesity
 	vec4 mDir;
 };
 
 struct UniformDirectionalLightData
 {
 	// Used to tell our shaders how many lights are currently present
-	DirectionalLight mLights[16]; // array of lights seem to be broken so just a single light for now
-	int mCurrAmountOfDLights = 0;
+	DirectionalLight mLights[16];    // array of lights seem to be broken so just a single light for now
+	int              mCurrAmountOfDLights = 0;
 };
 
 struct PlaneInfo
@@ -176,10 +160,10 @@ struct PlaneInfo
 struct UniformPlaneInfoData
 {
 	PlaneInfo planeInfo[MAX_PLANES];
-	uint32_t numPlanes;
-	uint32_t pad00;
-	uint32_t pad01;
-	uint32_t pad02;
+	uint32_t  numPlanes;
+	uint32_t  pad00;
+	uint32_t  pad01;
+	uint32_t  pad02;
 };
 
 enum
@@ -199,11 +183,10 @@ static bool gUseFadeEffect = true;
 static uint32_t gRenderMode = SCENE_WITH_PPR;
 
 static uint32_t gPlaneNumber = 1;
-static float gPlaneSize = 75.0f;
-static float gRRP_Intensity = 0.2f;
+static float    gPlaneSize = 75.0f;
+static float    gRRP_Intensity = 0.2f;
 
-const char* pMaterialImageFileNames[] =
-{
+const char* pMaterialImageFileNames[] = {
 	"SponzaPBR_Textures/ao.png",
 	"SponzaPBR_Textures/ao.png",
 	"SponzaPBR_Textures/ao.png",
@@ -322,7 +305,6 @@ const char* pMaterialImageFileNames[] =
 	"SponzaPBR_Textures/VaseHanging/VaseHanging_normal.tga",
 	"SponzaPBR_Textures/VaseHanging/VaseHanging_roughness.tga",
 
-
 	//VasePlant
 	"SponzaPBR_Textures/VasePlant/VasePlant_diffuse.tga",
 	"SponzaPBR_Textures/VasePlant/VasePlant_normal.tga",
@@ -347,170 +329,186 @@ const uint32_t gIrradianceSize = 32;
 const uint32_t gSpecularSize = 128;
 const uint32_t gSpecularMips = 5;
 
-const uint32_t			  gImageCount = 3;
-bool						gToggleVSync = false;
+const uint32_t gImageCount = 3;
+bool           bToggleMicroProfiler = false;
+bool           bPrevToggleMicroProfiler = false;
 
+bool           gToggleVSync = false;
 
-Renderer*				   pRenderer = NULL;
-UIApp					   gAppUI;
+Renderer* pRenderer = NULL;
+UIApp     gAppUI;
 
-Queue*					  pGraphicsQueue = NULL;
-CmdPool*					pCmdPool = NULL;
-Cmd**					   ppCmds = NULL;
+Queue*   pGraphicsQueue = NULL;
+CmdPool* pCmdPool = NULL;
+Cmd**    ppCmds = NULL;
 
-CmdPool*					pPreCmdPool = NULL;
-Cmd**					   pPrepCmds = NULL;
+CmdPool* pPreCmdPool = NULL;
+Cmd**    pPrepCmds = NULL;
 
-CmdPool*					pBrdfCmdPool = NULL;
-Cmd**					   pBrdfCmds = NULL;
+CmdPool* pBrdfCmdPool = NULL;
+Cmd**    pBrdfCmds = NULL;
 
-CmdPool*					pPPR_ProjectionCmdPool = NULL;
-Cmd**					   pPPR_ProjectionCmds = NULL;
+CmdPool* pPPR_ProjectionCmdPool = NULL;
+Cmd**    pPPR_ProjectionCmds = NULL;
 
-CmdPool*					pPPR_ReflectionCmdPool = NULL;
-Cmd**					   pPPR_ReflectionCmds = NULL;
+CmdPool* pPPR_ReflectionCmdPool = NULL;
+Cmd**    pPPR_ReflectionCmds = NULL;
 
+SwapChain* pSwapChain = NULL;
 
-SwapChain*				  pSwapChain = NULL;
+RenderTarget* pRenderTargetDeferredPass[DEFERRED_RT_COUNT] = { NULL };
 
-RenderTarget*			   pRenderTargetDeferredPass[DEFERRED_RT_COUNT] = { nullptr };
+RenderTarget* pSceneBuffer = NULL;
+RenderTarget* pReflectionBuffer = NULL;
 
-RenderTarget*			   pSceneBuffer = NULL;
-RenderTarget*			   pReflectionBuffer = NULL;
+RenderTarget* pDepthBuffer = NULL;
+Fence*        pRenderCompleteFences[gImageCount] = { NULL };
+Semaphore*    pImageAcquiredSemaphore = NULL;
+Semaphore*    pRenderCompleteSemaphores[gImageCount] = { NULL };
 
-RenderTarget*			   pDepthBuffer = NULL;
-Fence*					  pRenderCompleteFences[gImageCount] = { NULL };
-Semaphore*				  pImageAcquiredSemaphore = NULL;
-Semaphore*				  pRenderCompleteSemaphores[gImageCount] = { NULL };
+Shader*           pShaderBRDF = NULL;
+Pipeline*         pPipelineBRDF = NULL;
+RootSignature*    pRootSigBRDF = NULL;
 
+Buffer*           pSkyboxVertexBuffer = NULL;
+Shader*           pSkyboxShader = NULL;
+Pipeline*         pSkyboxPipeline = NULL;
+RootSignature*    pSkyboxRootSignature = NULL;
 
-Shader*					 pShaderBRDF = NULL;
-Pipeline*				   pPipelineBRDF = NULL;
-RootSignature*			  pRootSigBRDF = NULL;
+Shader*           pPPR_ProjectionShader = NULL;
+RootSignature*    pPPR_ProjectionRootSignature = NULL;
+Pipeline*         pPPR_ProjectionPipeline = NULL;
 
-Buffer*					 pSkyboxVertexBuffer = NULL;
-Shader*					 pSkyboxShader = NULL;
-Pipeline*				   pSkyboxPipeline = NULL;
-RootSignature*			  pSkyboxRootSignature = NULL;
+Shader*           pPPR_ReflectionShader = NULL;
+RootSignature*    pPPR_ReflectionRootSignature = NULL;
+Pipeline*         pPPR_ReflectionPipeline = NULL;
 
-Shader*					 pPPR_ProjectionShader = NULL;
-RootSignature*			  pPPR_ProjectionRootSignature = NULL;
-Pipeline*				   pPPR_ProjectionPipeline = NULL;
+Shader*           pPPR_HolePatchingShader = NULL;
+RootSignature*    pPPR_HolePatchingRootSignature = NULL;
+Pipeline*         pPPR_HolePatchingPipeline = NULL;
 
-Shader*					 pPPR_ReflectionShader = NULL;
-RootSignature*			  pPPR_ReflectionRootSignature = NULL;
-Pipeline*				   pPPR_ReflectionPipeline = NULL;
+Buffer* pScreenQuadVertexBuffer = NULL;
 
-Shader*					 pPPR_HolePatchingShader = NULL;
-RootSignature*			  pPPR_HolePatchingRootSignature = NULL;
-Pipeline*				   pPPR_HolePatchingPipeline = NULL;
+Shader*           pShaderGbuffers = NULL;
+Pipeline*         pPipelineGbuffers = NULL;
+RootSignature*    pRootSigGbuffers = NULL;
 
-Buffer*					 pScreenQuadVertexBuffer = NULL;
+DescriptorBinder* pDescriptorBinder = NULL;
 
-Shader*					 pShaderGbuffers = NULL;
-Pipeline*				   pPipelineGbuffers = NULL;
-RootSignature*			  pRootSigGbuffers = NULL;
+Texture* pSkybox = NULL;
+Texture* pBRDFIntegrationMap = NULL;
+Texture* pIrradianceMap = NULL;
+Texture* pSpecularMap = NULL;
 
-Texture*					pSkybox = NULL;
-Texture*					pBRDFIntegrationMap = NULL;
-Texture*					pIrradianceMap = NULL;
-Texture*					pSpecularMap = NULL;
-
-Buffer*					 pIntermediateBuffer = NULL;
+Buffer* pIntermediateBuffer = NULL;
 
 #define TOTAL_IMGS 84
-Texture*					pMaterialTextures[TOTAL_IMGS];
+Texture* pMaterialTextures[TOTAL_IMGS];
 
-tinystl::vector<int>		gSponzaTextureIndexforMaterial;
+eastl::vector<int> gSponzaTextureIndexforMaterial;
 
 //For clearing Intermediate Buffer
-tinystl::vector<uint32_t>   gInitializeVal;
+eastl::vector<uint32_t> gInitializeVal;
 
 #ifdef TARGET_IOS
-VirtualJoystickUI		   gVirtualJoystick;
+VirtualJoystickUI gVirtualJoystick;
 #endif
 
-UniformObjData			  pUniformDataMVP;
-
+UniformObjData pUniformDataMVP;
 
 /************************************************************************/
 // Vertex buffers for the model
 /************************************************************************/
 
-//Sponza
-tinystl::vector<Buffer*>	pSponzaVertexBufferPosition;
-tinystl::vector<Buffer*>	pSponzaIndexBuffer;
-Buffer*					 pSponzaBuffer;
-tinystl::vector<int>		gSponzaMaterialID;
+enum
+{
+	SPONZA_MODEL,
+	LION_MODEL,
+	MODEL_COUNT
+};
 
-//Lion
-Buffer*					 pLionVertexBufferPosition;
-Buffer*					 pLionIndexBuffer;
-Buffer*					 pLionBuffer;
+Buffer* pSponzaBuffer;
+Buffer* pLionBuffer;
 
+Buffer*        pBufferUniformCamera[gImageCount] = { NULL };
+UniformCamData pUniformDataCamera;
 
-Buffer*					 pBufferUniformCamera[gImageCount] = { NULL };
-UniformCamData			  pUniformDataCamera;
+UniformCamData gUniformDataSky;
 
-UniformCamData			  gUniformDataSky;
+Buffer*                pBufferUniformExtendedCamera[gImageCount] = { NULL };
+UniformExtendedCamData pUniformDataExtenedCamera;
 
-Buffer*					 pBufferUniformExtendedCamera[gImageCount] = { NULL };
-UniformExtendedCamData	  pUniformDataExtenedCamera;
+Buffer* pBufferUniformCameraSky[gImageCount] = { NULL };
 
-Buffer*					 pBufferUniformCameraSky[gImageCount] = { NULL };
+Buffer*           pBufferUniformPPRPro[gImageCount] = { NULL };
+UniformPPRProData pUniformPPRProData;
 
-Buffer*					 pBufferUniformPPRPro[gImageCount] = { NULL };
-UniformPPRProData		   pUniformPPRProData;
+Buffer*          pBufferUniformLights = NULL;
+UniformLightData pUniformDataLights;
 
-Buffer*					 pBufferUniformLights = NULL;
-UniformLightData			pUniformDataLights;
-
-Buffer*					 pBufferUniformDirectionalLights = NULL;
+Buffer*                     pBufferUniformDirectionalLights = NULL;
 UniformDirectionalLightData pUniformDataDirectionalLights;
 
+Buffer*              pBufferUniformPlaneInfo[gImageCount] = { NULL };
+UniformPlaneInfoData pUniformDataPlaneInfo;
 
-Buffer*					 pBufferUniformPlaneInfo[gImageCount] = { NULL };
-UniformPlaneInfoData		pUniformDataPlaneInfo;
+Shader*   pShaderPostProc = NULL;
+Pipeline* pPipelinePostProc = NULL;
 
-Shader*					 pShaderPostProc = NULL;
-Pipeline*				   pPipelinePostProc = NULL;
+DepthState*      pDepth = NULL;
+RasterizerState* pRasterstateDefault = NULL;
+Sampler*         pSamplerBilinear = NULL;
+Sampler*         pSamplerLinear = NULL;
 
-DepthState*				 pDepth = NULL;
-RasterizerState*			pRasterstateDefault = NULL;
-Sampler*					pSamplerBilinear = NULL;
-Sampler*					pSamplerLinear = NULL;
+Sampler* pSamplerNearest = NULL;
 
-Sampler*					pSamplerNearest = NULL;
+uint32_t gFrameIndex = 0;
 
-uint32_t					gFrameIndex = 0;
+GpuProfiler* pGpuProfiler = NULL;
 
-GpuProfiler*				pGpuProfiler = NULL;
+BlendState* pBlendStateOneZero = NULL;
 
-BlendState*				 pBlendStateOneZero = nullptr;
+eastl::vector<Buffer*> gSphereBuffers;
 
-
-tinystl::vector<Buffer*>	gSphereBuffers;
-
-ICameraController*		  pCameraController = NULL;
+ICameraController* pCameraController = NULL;
 
 TextDrawDesc gFrameTimeDraw = TextDrawDesc(0, 0xff00ffff, 18);
 
-tinystl::vector<int> gSponzaIndicesArray;
-tinystl::vector<int> gLionIndicesArray;
+GuiComponent* pGui = NULL;
+GuiComponent* pLoadingGui = NULL;
 
-GuiComponent* pGui;
+ThreadSystem* pIOThreads = NULL;
 
-const char*	 pTextureName[] =
+const char* pTextureName[] = { "albedoMap", "normalMap", "metallicMap", "roughnessMap", "aoMap" };
+
+static const size_t TextureLoadingProgress = 128;
+static const size_t TextureGPUProgress = 64;
+static const size_t TextureTotalProgress = TextureLoadingProgress + TextureGPUProgress;
+static const size_t ModelLoadingProgress = 1024 * 64;
+static const size_t ModelGPUProgress = 32;
+static const size_t ModelTotalProgress = ModelLoadingProgress + ModelGPUProgress;
+
+struct MeshVertex
 {
-	"albedoMap",
-	"normalMap",
-	"metallicMap",
-	"roughnessMap",
-	"aoMap"
+	float3 mPos;
+	float3 mNormal;
+	float2 mUv;
 };
 
-const char*	 gModel_Sponza = "sponza.obj";
-const char*	 gModel_Lion = "lion.obj";
+struct Mesh
+{
+	Buffer*                   pVertexBuffer = NULL;
+	Buffer*                   pIndexBuffer = NULL;
+	eastl::vector<uint32_t> materialID;
+	struct CmdParam
+	{
+		uint32_t indexCount, startIndex, startVertex;
+	};
+	eastl::vector<CmdParam> cmdArray;
+};
+
+const char* gModelNames[2] = { "sponza.obj", "lion.obj" };
+Mesh        gModels[2];
 
 void transitionRenderTargets()
 {
@@ -524,449 +522,36 @@ void transitionRenderTargets()
 	cmdResourceBarrier(ppCmds[0], 0, 0, numBarriers, rtBarriers, false);
 	endCmd(ppCmds[0]);
 	queueSubmit(pGraphicsQueue, 1, &ppCmds[0], pRenderCompleteFences[0], 0, NULL, 0, NULL);
-	waitForFences(pGraphicsQueue, 1, &pRenderCompleteFences[0], false);
-}
-
-// Compute PBR maps (skybox, BRDF Integration Map, Irradiance Map and Specular Map).
-void computePBRMaps()
-{
-	// Temporary resources that will be loaded on PBR preprocessing.
-	Texture* pPanoSkybox = NULL;
-	Shader* pPanoToCubeShader = NULL;
-	RootSignature* pPanoToCubeRootSignature = NULL;
-	Pipeline* pPanoToCubePipeline = NULL;
-	Shader* pBRDFIntegrationShader = NULL;
-	RootSignature* pBRDFIntegrationRootSignature = NULL;
-	Pipeline* pBRDFIntegrationPipeline = NULL;
-	Shader* pIrradianceShader = NULL;
-	RootSignature* pIrradianceRootSignature = NULL;
-	Pipeline* pIrradiancePipeline = NULL;
-	Shader* pSpecularShader = NULL;
-	RootSignature* pSpecularRootSignature = NULL;
-	Pipeline* pSpecularPipeline = NULL;
-	Sampler* pSkyboxSampler = NULL;
-
-	SamplerDesc samplerDesc = {
-		FILTER_LINEAR, FILTER_LINEAR, MIPMAP_MODE_LINEAR, ADDRESS_MODE_REPEAT, ADDRESS_MODE_REPEAT, ADDRESS_MODE_REPEAT, 0, 16
-	};
-	addSampler(pRenderer, &samplerDesc, &pSkyboxSampler);
-
-	// Load the skybox panorama texture.
-	TextureLoadDesc panoDesc = {};
-	panoDesc.mRoot = FSR_Textures;
-	panoDesc.mUseMipmaps = true;
-	panoDesc.pFilename = "LA_Helipad.hdr";
-	panoDesc.ppTexture = &pPanoSkybox;
-	addResource(&panoDesc);
-
-	TextureDesc skyboxImgDesc = {};
-	skyboxImgDesc.mArraySize = 6;
-	skyboxImgDesc.mDepth = 1;
-	skyboxImgDesc.mFormat = ImageFormat::RGBA32F;
-	skyboxImgDesc.mHeight = gSkyboxSize;
-	skyboxImgDesc.mWidth = gSkyboxSize;
-	skyboxImgDesc.mMipLevels = gSkyboxMips;
-	skyboxImgDesc.mSampleCount = SAMPLE_COUNT_1;
-	skyboxImgDesc.mSrgb = false;
-	skyboxImgDesc.mStartState = RESOURCE_STATE_UNORDERED_ACCESS;
-	skyboxImgDesc.mDescriptors = DESCRIPTOR_TYPE_TEXTURE_CUBE | DESCRIPTOR_TYPE_RW_TEXTURE;
-	skyboxImgDesc.pDebugName = L"skyboxImgBuff";
-
-	TextureLoadDesc skyboxLoadDesc = {};
-	skyboxLoadDesc.pDesc = &skyboxImgDesc;
-	skyboxLoadDesc.ppTexture = &pSkybox;
-	addResource(&skyboxLoadDesc);
-
-	TextureDesc irrImgDesc = {};
-	irrImgDesc.mArraySize = 6;
-	irrImgDesc.mDepth = 1;
-	irrImgDesc.mFormat = ImageFormat::RGBA32F;
-	irrImgDesc.mHeight = gIrradianceSize;
-	irrImgDesc.mWidth = gIrradianceSize;
-	irrImgDesc.mMipLevels = 1;
-	irrImgDesc.mSampleCount = SAMPLE_COUNT_1;
-	irrImgDesc.mSrgb = false;
-	irrImgDesc.mStartState = RESOURCE_STATE_UNORDERED_ACCESS;
-	irrImgDesc.mDescriptors = DESCRIPTOR_TYPE_TEXTURE_CUBE | DESCRIPTOR_TYPE_RW_TEXTURE;
-	irrImgDesc.pDebugName = L"irrImgBuff";
-
-	TextureLoadDesc irrLoadDesc = {};
-	irrLoadDesc.pDesc = &irrImgDesc;
-	irrLoadDesc.ppTexture = &pIrradianceMap;
-	addResource(&irrLoadDesc);
-
-	TextureDesc specImgDesc = {};
-	specImgDesc.mArraySize = 6;
-	specImgDesc.mDepth = 1;
-	specImgDesc.mFormat = ImageFormat::RGBA32F;
-	specImgDesc.mHeight = gSpecularSize;
-	specImgDesc.mWidth = gSpecularSize;
-	specImgDesc.mMipLevels = gSpecularMips;
-	specImgDesc.mSampleCount = SAMPLE_COUNT_1;
-	specImgDesc.mSrgb = false;
-	specImgDesc.mStartState = RESOURCE_STATE_UNORDERED_ACCESS;
-	specImgDesc.mDescriptors = DESCRIPTOR_TYPE_TEXTURE_CUBE | DESCRIPTOR_TYPE_RW_TEXTURE;
-	specImgDesc.pDebugName = L"specImgBuff";
-
-	TextureLoadDesc specImgLoadDesc = {};
-	specImgLoadDesc.pDesc = &specImgDesc;
-	specImgLoadDesc.ppTexture = &pSpecularMap;
-	addResource(&specImgLoadDesc);
-
-	// Create empty texture for BRDF integration map.
-	TextureLoadDesc brdfIntegrationLoadDesc = {};
-	TextureDesc brdfIntegrationDesc = {};
-	brdfIntegrationDesc.mWidth = gBRDFIntegrationSize;
-	brdfIntegrationDesc.mHeight = gBRDFIntegrationSize;
-	brdfIntegrationDesc.mDepth = 1;
-	brdfIntegrationDesc.mArraySize = 1;
-	brdfIntegrationDesc.mMipLevels = 1;
-	brdfIntegrationDesc.mFormat = ImageFormat::RG32F;
-	brdfIntegrationDesc.mDescriptors = DESCRIPTOR_TYPE_TEXTURE | DESCRIPTOR_TYPE_RW_TEXTURE;
-	brdfIntegrationDesc.mSampleCount = SAMPLE_COUNT_1;
-	brdfIntegrationDesc.mHostVisible = false;
-	brdfIntegrationLoadDesc.pDesc = &brdfIntegrationDesc;
-	brdfIntegrationLoadDesc.ppTexture = &pBRDFIntegrationMap;
-	addResource(&brdfIntegrationLoadDesc);
-
-	// Load pre-processing shaders.
-	ShaderLoadDesc panoToCubeShaderDesc = {};
-	panoToCubeShaderDesc.mStages[0] = { "panoToCube.comp", NULL, 0, FSR_SrcShaders };
-
-	GPUPresetLevel presetLevel = pRenderer->pActiveGpuSettings->mGpuVendorPreset.mPresetLevel;
-	uint32_t importanceSampleCounts[GPUPresetLevel::GPU_PRESET_COUNT] = { 0, 0, 64, 128, 256, 1024 };
-	uint32_t importanceSampleCount = importanceSampleCounts[presetLevel];
-	ShaderMacro importanceSampleMacro = { "IMPORTANCE_SAMPLE_COUNT", tinystl::string::format("%u", importanceSampleCount) };
-
-	ShaderLoadDesc brdfIntegrationShaderDesc = {};
-	brdfIntegrationShaderDesc.mStages[0] = { "BRDFIntegration.comp", &importanceSampleMacro, 1, FSR_SrcShaders };
-
-	ShaderLoadDesc irradianceShaderDesc = {};
-	irradianceShaderDesc.mStages[0] = { "computeIrradianceMap.comp", NULL, 0, FSR_SrcShaders };
-
-	ShaderLoadDesc specularShaderDesc = {};
-	specularShaderDesc.mStages[0] = { "computeSpecularMap.comp", &importanceSampleMacro, 1, FSR_SrcShaders };
-
-	addShader(pRenderer, &panoToCubeShaderDesc, &pPanoToCubeShader);
-	addShader(pRenderer, &brdfIntegrationShaderDesc, &pBRDFIntegrationShader);
-	addShader(pRenderer, &irradianceShaderDesc, &pIrradianceShader);
-	addShader(pRenderer, &specularShaderDesc, &pSpecularShader);
-
-	const char* pStaticSamplerNames[] = { "skyboxSampler" };
-	RootSignatureDesc panoRootDesc = { &pPanoToCubeShader, 1 };
-	panoRootDesc.mStaticSamplerCount = 1;
-	panoRootDesc.ppStaticSamplerNames = pStaticSamplerNames;
-	panoRootDesc.ppStaticSamplers = &pSkyboxSampler;
-	RootSignatureDesc brdfRootDesc = { &pBRDFIntegrationShader, 1 };
-	brdfRootDesc.mStaticSamplerCount = 1;
-	brdfRootDesc.ppStaticSamplerNames = pStaticSamplerNames;
-	brdfRootDesc.ppStaticSamplers = &pSkyboxSampler;
-	RootSignatureDesc irradianceRootDesc = { &pIrradianceShader, 1 };
-	irradianceRootDesc.mStaticSamplerCount = 1;
-	irradianceRootDesc.ppStaticSamplerNames = pStaticSamplerNames;
-	irradianceRootDesc.ppStaticSamplers = &pSkyboxSampler;
-	RootSignatureDesc specularRootDesc = { &pSpecularShader, 1 };
-	specularRootDesc.mStaticSamplerCount = 1;
-	specularRootDesc.ppStaticSamplerNames = pStaticSamplerNames;
-	specularRootDesc.ppStaticSamplers = &pSkyboxSampler;
-	addRootSignature(pRenderer, &panoRootDesc, &pPanoToCubeRootSignature);
-	addRootSignature(pRenderer, &brdfRootDesc, &pBRDFIntegrationRootSignature);
-	addRootSignature(pRenderer, &irradianceRootDesc, &pIrradianceRootSignature);
-	addRootSignature(pRenderer, &specularRootDesc, &pSpecularRootSignature);
-
-	ComputePipelineDesc pipelineSettings = { 0 };
-	pipelineSettings.pShaderProgram = pPanoToCubeShader;
-	pipelineSettings.pRootSignature = pPanoToCubeRootSignature;
-	addComputePipeline(pRenderer, &pipelineSettings, &pPanoToCubePipeline);
-	pipelineSettings.pShaderProgram = pBRDFIntegrationShader;
-	pipelineSettings.pRootSignature = pBRDFIntegrationRootSignature;
-	addComputePipeline(pRenderer, &pipelineSettings, &pBRDFIntegrationPipeline);
-	pipelineSettings.pShaderProgram = pIrradianceShader;
-	pipelineSettings.pRootSignature = pIrradianceRootSignature;
-	addComputePipeline(pRenderer, &pipelineSettings, &pIrradiancePipeline);
-	pipelineSettings.pShaderProgram = pSpecularShader;
-	pipelineSettings.pRootSignature = pSpecularRootSignature;
-	addComputePipeline(pRenderer, &pipelineSettings, &pSpecularPipeline);
-
-	// Since this happens on iniatilization, use the first cmd/fence pair available.
-	Cmd* cmd = ppCmds[0];
-	Fence* pRenderCompleteFence = pRenderCompleteFences[0];
-
-	// Compute the BRDF Integration map.
-	beginCmd(cmd);
-
-	TextureBarrier uavBarriers[4] = {
-		{ pSkybox, RESOURCE_STATE_UNORDERED_ACCESS },
-	{ pIrradianceMap, RESOURCE_STATE_UNORDERED_ACCESS },
-	{ pSpecularMap, RESOURCE_STATE_UNORDERED_ACCESS },
-	{ pBRDFIntegrationMap, RESOURCE_STATE_UNORDERED_ACCESS },
-	};
-	cmdResourceBarrier(cmd, 0, NULL, 4, uavBarriers, false);
-
-	cmdBindPipeline(cmd, pBRDFIntegrationPipeline);
-	DescriptorData params[2] = {};
-	params[0].pName = "dstTexture";
-	params[0].ppTextures = &pBRDFIntegrationMap;
-	cmdBindDescriptors(cmd, pBRDFIntegrationRootSignature, 1, params);
-	const uint32_t* pThreadGroupSize = pBRDFIntegrationShader->mReflection.mStageReflections[0].mNumThreadsPerGroup;
-	cmdDispatch(cmd, gBRDFIntegrationSize / pThreadGroupSize[0], gBRDFIntegrationSize / pThreadGroupSize[1], pThreadGroupSize[2]);
-
-	TextureBarrier srvBarrier[1] = {
-		{ pBRDFIntegrationMap, RESOURCE_STATE_SHADER_RESOURCE }
-	};
-
-	cmdResourceBarrier(cmd, 0, NULL, 1, srvBarrier, true);
-
-	// Store the panorama texture inside a cubemap.
-	cmdBindPipeline(cmd, pPanoToCubePipeline);
-	params[0].pName = "srcTexture";
-	params[0].ppTextures = &pPanoSkybox;
-	cmdBindDescriptors(cmd, pPanoToCubeRootSignature, 1, params);
-
-	struct Data
-	{
-		uint mip;
-		uint textureSize;
-	} data = { 0, gSkyboxSize };
-
-	for (int i = 0; i < (int)gSkyboxMips; i++)
-	{
-		data.mip = i;
-		params[0].pName = "RootConstant";
-		params[0].pRootConstant = &data;
-		params[1].pName = "dstTexture";
-		params[1].ppTextures = &pSkybox;
-		params[1].mUAVMipSlice = i;
-		cmdBindDescriptors(cmd, pPanoToCubeRootSignature, 2, params);
-
-		pThreadGroupSize = pPanoToCubeShader->mReflection.mStageReflections[0].mNumThreadsPerGroup;
-		cmdDispatch(cmd, max(1u, (uint32_t)(data.textureSize >> i) / pThreadGroupSize[0]),
-			max(1u, (uint32_t)(data.textureSize >> i) / pThreadGroupSize[1]), 6);
-	}
-
-	TextureBarrier srvBarriers[1] = {
-		{ pSkybox, RESOURCE_STATE_SHADER_RESOURCE }
-	};
-	cmdResourceBarrier(cmd, 0, NULL, 1, srvBarriers, false);
-	/************************************************************************/
-	// Compute sky irradiance
-	/************************************************************************/
-	params[0] = {};
-	params[1] = {};
-	cmdBindPipeline(cmd, pIrradiancePipeline);
-	params[0].pName = "srcTexture";
-	params[0].ppTextures = &pSkybox;
-	params[1].pName = "dstTexture";
-	params[1].ppTextures = &pIrradianceMap;
-	cmdBindDescriptors(cmd, pIrradianceRootSignature, 2, params);
-	pThreadGroupSize = pIrradianceShader->mReflection.mStageReflections[0].mNumThreadsPerGroup;
-	cmdDispatch(cmd, gIrradianceSize / pThreadGroupSize[0], gIrradianceSize / pThreadGroupSize[1], 6);
-	/************************************************************************/
-	// Compute specular sky
-	/************************************************************************/
-	cmdBindPipeline(cmd, pSpecularPipeline);
-	params[0].pName = "srcTexture";
-	params[0].ppTextures = &pSkybox;
-	cmdBindDescriptors(cmd, pSpecularRootSignature, 1, params);
-
-	struct PrecomputeSkySpecularData
-	{
-		uint mipSize;
-		float roughness;
-	};
-
-	for (int i = 0; i < (int)gSpecularMips; i++)
-	{
-		PrecomputeSkySpecularData data = {};
-		data.roughness = (float)i / (float)(gSpecularMips - 1);
-		data.mipSize = gSpecularSize >> i;
-		params[0].pName = "RootConstant";
-		params[0].pRootConstant = &data;
-		params[1].pName = "dstTexture";
-		params[1].ppTextures = &pSpecularMap;
-		params[1].mUAVMipSlice = i;
-		cmdBindDescriptors(cmd, pSpecularRootSignature, 2, params);
-		pThreadGroupSize = pIrradianceShader->mReflection.mStageReflections[0].mNumThreadsPerGroup;
-		cmdDispatch(cmd, max(1u, (gSpecularSize >> i) / pThreadGroupSize[0]), max(1u, (gSpecularSize >> i) / pThreadGroupSize[1]), 6);
-	}
-	/************************************************************************/
-	/************************************************************************/
-	TextureBarrier srvBarriers2[2] = {
-		{ pIrradianceMap, RESOURCE_STATE_SHADER_RESOURCE },
-	{ pSpecularMap, RESOURCE_STATE_SHADER_RESOURCE }
-	};
-	cmdResourceBarrier(cmd, 0, NULL, 2, srvBarriers2, false);
-
-	endCmd(cmd);
-	queueSubmit(pGraphicsQueue, 1, &cmd, pRenderCompleteFence, 0, 0, 0, 0);
-	waitForFences(pGraphicsQueue, 1, &pRenderCompleteFence, false);
-
-	// Remove temporary resources.
-	removePipeline(pRenderer, pSpecularPipeline);
-	removeRootSignature(pRenderer, pSpecularRootSignature);
-	removeShader(pRenderer, pSpecularShader);
-
-	removePipeline(pRenderer, pIrradiancePipeline);
-	removeRootSignature(pRenderer, pIrradianceRootSignature);
-	removeShader(pRenderer, pIrradianceShader);
-
-	removePipeline(pRenderer, pBRDFIntegrationPipeline);
-	removeRootSignature(pRenderer, pBRDFIntegrationRootSignature);
-	removeShader(pRenderer, pBRDFIntegrationShader);
-
-	removePipeline(pRenderer, pPanoToCubePipeline);
-	removeRootSignature(pRenderer, pPanoToCubeRootSignature);
-	removeShader(pRenderer, pPanoToCubeShader);
-
-	removeResource(pPanoSkybox);
-
-	removeSampler(pRenderer, pSkyboxSampler);
+	waitForFences(pRenderer, 1, &pRenderCompleteFences[0]);
 }
 
 void assignSponzaTextures();
 
-//loadModels
-bool loadModels()
+void unloadMesh(Mesh& mesh)
 {
-	//Load Sponza
-	Model sponza;
-	tinystl::string sceneFullPath = FileSystem::FixPath(gModel_Sponza, FSRoot::FSR_Meshes);
-
-	if (!AssimpImporter::ImportModel(sceneFullPath.c_str(), &sponza))
-	{
-		ErrorMsg("Failed to load %s", FileSystem::GetFileNameAndExtension(sceneFullPath).c_str());
-		return false;
-	}
-
-	size_t sponza_meshCount = sponza.mMeshArray.size();
-	size_t sponza_matCount = sponza.mMaterialList.size();
-
-	for (size_t i = 0; i < sponza_meshCount; i++)
-	{
-		Mesh subMesh = sponza.mMeshArray[i];
-
-		gSponzaMaterialID.push_back(subMesh.mMaterialId);
-
-		size_t size_Sponza = subMesh.mIndices.size();
-		tinystl::vector<Vertex> sponzaVertices;
-		tinystl::vector<uint> sponzaIndices;
-
-		size_t vertexSize = subMesh.mPositions.size();
-
-		for (size_t j = 0; j < vertexSize; j++)
-		{
-			Vertex toAdd = { subMesh.mPositions[j],subMesh.mNormals[j], subMesh.mUvs[j] };
-			sponzaVertices.push_back(toAdd);
-		}
-
-		for (size_t j = 0; j < size_Sponza; j++)
-		{
-			sponzaIndices.push_back(subMesh.mIndices[j]);
-		}
-
-		// Vertex position buffer for the scene
-		BufferLoadDesc vbPosDesc_Sponza = {};
-		vbPosDesc_Sponza.mDesc.mDescriptors = DESCRIPTOR_TYPE_VERTEX_BUFFER;
-		vbPosDesc_Sponza.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_GPU_ONLY;
-		vbPosDesc_Sponza.mDesc.mVertexStride = sizeof(Vertex);
-		vbPosDesc_Sponza.mDesc.mSize = sponzaVertices.size() * vbPosDesc_Sponza.mDesc.mVertexStride;
-		vbPosDesc_Sponza.pData = sponzaVertices.data();
-
-		Buffer* localBuffer = NULL;
-		vbPosDesc_Sponza.ppBuffer = &localBuffer;
-		vbPosDesc_Sponza.mDesc.pDebugName = L"Vertex Position Buffer Desc for Sponza";
-		addResource(&vbPosDesc_Sponza);
-
-		pSponzaVertexBufferPosition.push_back(localBuffer);
-
-		// Index buffer for the scene
-		BufferLoadDesc ibDesc_Sponza = {};
-		ibDesc_Sponza.mDesc.mDescriptors = DESCRIPTOR_TYPE_INDEX_BUFFER;
-		ibDesc_Sponza.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_GPU_ONLY;
-		ibDesc_Sponza.mDesc.mIndexType = INDEX_TYPE_UINT32;
-		ibDesc_Sponza.mDesc.mSize = sizeof(uint32_t) * (uint32_t)sponzaIndices.size();
-		ibDesc_Sponza.pData = sponzaIndices.data();
-
-		gSponzaIndicesArray.push_back((int)sponzaIndices.size());
-
-		Buffer* localIndexBuffer = NULL;
-		ibDesc_Sponza.ppBuffer = &localIndexBuffer;
-		ibDesc_Sponza.mDesc.pDebugName = L"Index Buffer Desc for Sponza";
-		addResource(&ibDesc_Sponza);
-
-		pSponzaIndexBuffer.push_back(localIndexBuffer);
-	}
-
-	Model lion;
-	sceneFullPath = FileSystem::FixPath(gModel_Lion, FSRoot::FSR_Meshes);
-
-	if (!AssimpImporter::ImportModel(sceneFullPath.c_str(), &lion))
-	{
-		ErrorMsg("Failed to load %s", FileSystem::GetFileNameAndExtension(sceneFullPath).c_str());
-		return false;
-	}
-
-	size_t lion_meshCount = lion.mMeshArray.size();
-	size_t lion_matCount = lion.mMaterialList.size();
-
-	Mesh subMesh = lion.mMeshArray[0];
-
-	size_t size_Lion = subMesh.mIndices.size();
-	int vertexSize = (int)subMesh.mPositions.size();
-
-	tinystl::vector<Vertex> lionVertices;
-	tinystl::vector<uint> lionIndices;
-
-	for (int i = 0; i < vertexSize; i++)
-	{
-		Vertex toAdd = { subMesh.mPositions[i],subMesh.mNormals[i], subMesh.mUvs[i] };
-		lionVertices.push_back(toAdd);
-	}
-
-	for (int i = 0; i < size_Lion; i++)
-	{
-		lionIndices.push_back(subMesh.mIndices[i]);
-	}
-
-	// Vertex position buffer for the scene
-	BufferLoadDesc vbPosDesc_Lion = {};
-	vbPosDesc_Lion.mDesc.mDescriptors = DESCRIPTOR_TYPE_VERTEX_BUFFER;
-	vbPosDesc_Lion.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_GPU_ONLY;
-	vbPosDesc_Lion.mDesc.mVertexStride = sizeof(Vertex);
-	vbPosDesc_Lion.mDesc.mSize = lionVertices.size() * vbPosDesc_Lion.mDesc.mVertexStride;
-	vbPosDesc_Lion.pData = lionVertices.data();
-
-	vbPosDesc_Lion.ppBuffer = &pLionVertexBufferPosition;
-	vbPosDesc_Lion.mDesc.pDebugName = L"Vertex Position Buffer Desc for Lion";
-	addResource(&vbPosDesc_Lion);
-
-
-	// Index buffer for the scene
-	BufferLoadDesc ibDesc_Lion = {};
-	ibDesc_Lion.mDesc.mDescriptors = DESCRIPTOR_TYPE_INDEX_BUFFER;
-	ibDesc_Lion.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_GPU_ONLY;
-	ibDesc_Lion.mDesc.mIndexType = INDEX_TYPE_UINT32;
-	ibDesc_Lion.mDesc.mSize = sizeof(uint32_t) * (uint32_t)lionIndices.size();
-	ibDesc_Lion.pData = lionIndices.data();
-
-	gLionIndicesArray.push_back((int)lionIndices.size());
-
-
-	ibDesc_Lion.ppBuffer = &pLionIndexBuffer;
-	ibDesc_Lion.mDesc.pDebugName = L"Index Buffer Desc for Lion";
-	addResource(&ibDesc_Lion);
-
-	//assinged right textures for each mesh
-	assignSponzaTextures();
-
-	return true;
+	if (mesh.pVertexBuffer)
+		removeResource(mesh.pVertexBuffer);
+	if (mesh.pIndexBuffer)
+		removeResource(mesh.pIndexBuffer);
 }
 
-class PixelProjectedReflections : public IApp
+class PixelProjectedReflections: public IApp
 {
-public:
+	size_t mPrevProgressBarValue = 0, mProgressBarValue = 0, mProgressBarValueMax = 0;
+	size_t mAtomicProgress = 0;
+
+	public:
+	PixelProjectedReflections()
+	{
+#ifdef TARGET_IOS
+		mSettings.mContentScaleFactor = 1.f;
+#endif
+	}
+	
 	bool Init()
 	{
+		initThreadSystem(&pIOThreads);
+
 		RendererDesc settings = { 0 };
 		initRenderer(GetName(), &settings, &pRenderer);
 		//check for init success
@@ -993,9 +578,6 @@ public:
 		addCmdPool(pRenderer, pGraphicsQueue, false, &pPPR_ReflectionCmdPool);
 		addCmd_n(pPPR_ReflectionCmdPool, false, gImageCount, &pPPR_ReflectionCmds);
 
-
-
-
 		for (uint32_t i = 0; i < gImageCount; ++i)
 		{
 			addFence(pRenderer, &pRenderCompleteFences[i]);
@@ -1004,43 +586,50 @@ public:
 
 		addSemaphore(pRenderer, &pImageAcquiredSemaphore);
 
-		initResourceLoaderInterface(pRenderer, DEFAULT_MEMORY_BUDGET, true);
-		initDebugRendererInterface(pRenderer, "TitilliumText/TitilliumText-Bold.otf", FSR_Builtin_Fonts);
-
-		//tinystl::vector<Image> toLoad(TOTAL_IMGS);
-		//adding material textures
-		for (int i = 0; i <TOTAL_IMGS; ++i)
-		{
-			TextureLoadDesc textureDesc = {};
-			textureDesc.mRoot = FSR_Textures;
-			textureDesc.mUseMipmaps = true;
-			textureDesc.pFilename = pMaterialImageFileNames[i];
-			textureDesc.ppTexture = &pMaterialTextures[i];
-			addResource(&textureDesc, true);
-		}
+		initResourceLoaderInterface(pRenderer);
 
 #ifdef TARGET_IOS
 		if (!gVirtualJoystick.Init(pRenderer, "circlepad.png", FSR_Textures))
 			return false;
 #endif
 
-		addGpuProfiler(pRenderer, pGraphicsQueue, &pGpuProfiler);
-		computePBRMaps();
+		initProfiler(pRenderer, gImageCount);
+		profileRegisterInput();
 
-		SamplerDesc samplerDesc = {
-			FILTER_LINEAR, FILTER_LINEAR, MIPMAP_MODE_LINEAR,
-			ADDRESS_MODE_REPEAT, ADDRESS_MODE_REPEAT, ADDRESS_MODE_REPEAT
-		};
+		addGpuProfiler(pRenderer, pGraphicsQueue, &pGpuProfiler, "GpuProfiler");
+		ComputePBRMapsTaskData computePBRMapsData;
+		computePBRMapsData.pRenderer = pRenderer;
+		computePBRMapsData.pQueue = pGraphicsQueue;
+		computePBRMapsData.pCmd = ppCmds[0];
+		computePBRMapsData.pFence = pRenderCompleteFences[0];
+		computePBRMapsData.pSemaphore = NULL;
+		computePBRMapsData.mSourceName = "LA_Helipad.hdr";
+		computePBRMapsData.mPresetLevel = pRenderer->mGpuSettings->mGpuVendorPreset.mPresetLevel;
+		computePBRMapsData.mSkyboxSize = gSkyboxSize;
+		computePBRMapsData.mSkyboxMips = gSkyboxMips;
+		computePBRMapsData.mSpecularSize = gSpecularSize;
+		computePBRMapsData.mSpecularMips = gSpecularMips;
+		computePBRMapsData.mBRDFIntegrationSize = gBRDFIntegrationSize;
+		computePBRMapsData.mIrradianceSize = gIrradianceSize;
+		computePBRMaps(&computePBRMapsData);
+		queueSubmit(pGraphicsQueue, 1, ppCmds, pRenderCompleteFences[0], 0, NULL, 0, NULL);
+		waitForFences(pRenderer, 1, pRenderCompleteFences);
+		cleanupPBRMapsTaskData(&computePBRMapsData);
+		pSkybox = computePBRMapsData.pSkybox;
+		pBRDFIntegrationMap = computePBRMapsData.pBRDFIntegrationMap;
+		pIrradianceMap = computePBRMapsData.pIrradianceMap;
+		pSpecularMap = computePBRMapsData.pSpecularMap;
+
+		SamplerDesc samplerDesc = { FILTER_LINEAR,       FILTER_LINEAR,       MIPMAP_MODE_LINEAR,
+									ADDRESS_MODE_REPEAT, ADDRESS_MODE_REPEAT, ADDRESS_MODE_REPEAT };
 		addSampler(pRenderer, &samplerDesc, &pSamplerBilinear);
 
-		SamplerDesc nearstSamplerDesc = {
-			FILTER_NEAREST, FILTER_NEAREST, MIPMAP_MODE_NEAREST,
-			ADDRESS_MODE_REPEAT, ADDRESS_MODE_REPEAT, ADDRESS_MODE_REPEAT
-		};
+		SamplerDesc nearstSamplerDesc = { FILTER_NEAREST,      FILTER_NEAREST,      MIPMAP_MODE_NEAREST,
+										  ADDRESS_MODE_REPEAT, ADDRESS_MODE_REPEAT, ADDRESS_MODE_REPEAT };
 		addSampler(pRenderer, &nearstSamplerDesc, &pSamplerNearest);
 
 		// GBuffer
-		ShaderMacro totalImagesShaderMacro = { "TOTAL_IMGS", tinystl::string::format("%i", TOTAL_IMGS) };
+		ShaderMacro    totalImagesShaderMacro = { "TOTAL_IMGS", eastl::string().sprintf("%i", TOTAL_IMGS) };
 		ShaderLoadDesc gBuffersShaderDesc = {};
 		gBuffersShaderDesc.mStages[0] = { "fillGbuffers.vert", NULL, 0, FSR_SrcShaders };
 #ifndef TARGET_IOS
@@ -1051,7 +640,7 @@ public:
 		addShader(pRenderer, &gBuffersShaderDesc, &pShaderGbuffers);
 
 		const char* pStaticSamplerNames[] = { "defaultSampler" };
-		Sampler* pStaticSamplers[] = { pSamplerBilinear };
+		Sampler*    pStaticSamplers[] = { pSamplerBilinear };
 
 		RootSignatureDesc gBuffersRootDesc = { &pShaderGbuffers, 1 };
 		gBuffersRootDesc.mStaticSamplerCount = 1;
@@ -1063,13 +652,12 @@ public:
 #endif
 		addRootSignature(pRenderer, &gBuffersRootDesc, &pRootSigGbuffers);
 
-
 		ShaderLoadDesc skyboxShaderDesc = {};
 		skyboxShaderDesc.mStages[0] = { "skybox.vert", NULL, 0, FSR_SrcShaders };
 		skyboxShaderDesc.mStages[1] = { "skybox.frag", NULL, 0, FSR_SrcShaders };
 		addShader(pRenderer, &skyboxShaderDesc, &pSkyboxShader);
 
-		const char* pSkyboxamplerName = "skyboxSampler";
+		const char*       pSkyboxamplerName = "skyboxSampler";
 		RootSignatureDesc skyboxRootDesc = { &pSkyboxShader, 1 };
 		skyboxRootDesc.mStaticSamplerCount = 1;
 		skyboxRootDesc.ppStaticSamplerNames = &pSkyboxamplerName;
@@ -1082,9 +670,8 @@ public:
 		brdfRenderSceneShaderDesc.mStages[1] = { "renderSceneBRDF.frag", NULL, 0, FSR_SrcShaders };
 		addShader(pRenderer, &brdfRenderSceneShaderDesc, &pShaderBRDF);
 
-
 		const char* pStaticSampler2Names[] = { "envSampler", "defaultSampler" };
-		Sampler* pStaticSamplers2[] = { pSamplerBilinear, pSamplerNearest };
+		Sampler*    pStaticSamplers2[] = { pSamplerBilinear, pSamplerNearest };
 
 		RootSignatureDesc brdfRootDesc = { &pShaderBRDF, 1 };
 		brdfRootDesc.mStaticSamplerCount = 2;
@@ -1120,15 +707,25 @@ public:
 
 		addShader(pRenderer, &PPR_HolePatchingShaderDesc, &pPPR_HolePatchingShader);
 
-
 		const char* pStaticSamplerforHolePatchingNames[] = { "nearestSampler", "bilinearSampler" };
-		Sampler* pStaticSamplersforHolePatching[] = { pSamplerNearest, pSamplerBilinear };
+		Sampler*    pStaticSamplersforHolePatching[] = { pSamplerNearest, pSamplerBilinear };
 
 		RootSignatureDesc PPR_HolePatchingRootDesc = { &pPPR_HolePatchingShader, 1 };
 		PPR_HolePatchingRootDesc.mStaticSamplerCount = 2;
 		PPR_HolePatchingRootDesc.ppStaticSamplerNames = pStaticSamplerforHolePatchingNames;
 		PPR_HolePatchingRootDesc.ppStaticSamplers = pStaticSamplersforHolePatching;
 		addRootSignature(pRenderer, &PPR_HolePatchingRootDesc, &pPPR_HolePatchingRootSignature);
+
+		// Create descriptor binder
+		DescriptorBinderDesc descriptorBinderDesc[] = {
+			{ pRootSigGbuffers, 0, MODEL_COUNT },
+			{ pSkyboxRootSignature },
+			{ pRootSigBRDF, 1 },
+			{ pPPR_ProjectionRootSignature },
+			{ pPPR_ReflectionRootSignature },
+			{ pPPR_HolePatchingRootSignature }
+		};
+		addDescriptorBinder(pRenderer, 0, sizeof(descriptorBinderDesc) / sizeof(*descriptorBinderDesc), descriptorBinderDesc, &pDescriptorBinder);
 
 		// Create depth state and rasterizer state
 		DepthStateDesc depthStateDesc = {};
@@ -1140,12 +737,6 @@ public:
 		RasterizerStateDesc rasterizerStateDesc = {};
 		rasterizerStateDesc.mCullMode = CULL_MODE_NONE;
 		addRasterizerState(pRenderer, &rasterizerStateDesc, &pRasterstateDefault);
-
-		if (!loadModels())
-		{
-			finishResourceLoading();
-			return false;
-		}
 
 		BufferLoadDesc sponza_buffDesc = {};
 		sponza_buffDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -1167,50 +758,32 @@ public:
 
 		//Generate sky box vertex buffer
 		float skyBoxPoints[] = {
-			0.5f,  -0.5f, -0.5f,1.0f, // -z
-			-0.5f, -0.5f, -0.5f,1.0f,
-			-0.5f, 0.5f, -0.5f,1.0f,
-			-0.5f, 0.5f, -0.5f,1.0f,
-			0.5f,  0.5f, -0.5f,1.0f,
-			0.5f,  -0.5f, -0.5f,1.0f,
+			0.5f,  -0.5f, -0.5f, 1.0f,    // -z
+			-0.5f, -0.5f, -0.5f, 1.0f,  -0.5f, 0.5f,  -0.5f, 1.0f,  -0.5f, 0.5f,
+			-0.5f, 1.0f,  0.5f,  0.5f,  -0.5f, 1.0f,  0.5f,  -0.5f, -0.5f, 1.0f,
 
-			-0.5f, -0.5f,  0.5f,1.0f,  //-x
-			-0.5f, -0.5f, -0.5f,1.0f,
-			-0.5f,  0.5f, -0.5f,1.0f,
-			-0.5f,  0.5f, -0.5f,1.0f,
-			-0.5f,  0.5f,  0.5f,1.0f,
-			-0.5f, -0.5f,  0.5f,1.0f,
+			-0.5f, -0.5f, 0.5f,  1.0f,    //-x
+			-0.5f, -0.5f, -0.5f, 1.0f,  -0.5f, 0.5f,  -0.5f, 1.0f,  -0.5f, 0.5f,
+			-0.5f, 1.0f,  -0.5f, 0.5f,  0.5f,  1.0f,  -0.5f, -0.5f, 0.5f,  1.0f,
 
-			0.5f, -0.5f, -0.5f,1.0f, //+x
-			0.5f, -0.5f,  0.5f,1.0f,
-			0.5f,  0.5f,  0.5f,1.0f,
-			0.5f,  0.5f,  0.5f,1.0f,
-			0.5f,  0.5f, -0.5f,1.0f,
-			0.5f, -0.5f, -0.5f,1.0f,
+			0.5f,  -0.5f, -0.5f, 1.0f,    //+x
+			0.5f,  -0.5f, 0.5f,  1.0f,  0.5f,  0.5f,  0.5f,  1.0f,  0.5f,  0.5f,
+			0.5f,  1.0f,  0.5f,  0.5f,  -0.5f, 1.0f,  0.5f,  -0.5f, -0.5f, 1.0f,
 
-			-0.5f, -0.5f,  0.5f,1.0f,  // +z
-			-0.5f,  0.5f,  0.5f,1.0f,
-			0.5f,  0.5f,  0.5f,1.0f,
-			0.5f,  0.5f,  0.5f,1.0f,
-			0.5f, -0.5f,  0.5f,1.0f,
-			-0.5f, -0.5f,  0.5f,1.0f,
+			-0.5f, -0.5f, 0.5f,  1.0f,    // +z
+			-0.5f, 0.5f,  0.5f,  1.0f,  0.5f,  0.5f,  0.5f,  1.0f,  0.5f,  0.5f,
+			0.5f,  1.0f,  0.5f,  -0.5f, 0.5f,  1.0f,  -0.5f, -0.5f, 0.5f,  1.0f,
 
-			-0.5f,  0.5f, -0.5f, 1.0f,  //+y
-			0.5f,  0.5f, -0.5f,1.0f,
-			0.5f,  0.5f,  0.5f,1.0f,
-			0.5f,  0.5f,  0.5f,1.0f,
-			-0.5f,  0.5f,  0.5f,1.0f,
-			-0.5f,  0.5f, -0.5f,1.0f,
+			-0.5f, 0.5f,  -0.5f, 1.0f,    //+y
+			0.5f,  0.5f,  -0.5f, 1.0f,  0.5f,  0.5f,  0.5f,  1.0f,  0.5f,  0.5f,
+			0.5f,  1.0f,  -0.5f, 0.5f,  0.5f,  1.0f,  -0.5f, 0.5f,  -0.5f, 1.0f,
 
-			0.5f,  -0.5f, 0.5f, 1.0f,  //-y
-			0.5f,  -0.5f, -0.5f,1.0f,
-			-0.5f,  -0.5f,  -0.5f,1.0f,
-			-0.5f,  -0.5f,  -0.5f,1.0f,
-			-0.5f,  -0.5f,  0.5f,1.0f,
-			0.5f,  -0.5f, 0.5f,1.0f,
+			0.5f,  -0.5f, 0.5f,  1.0f,    //-y
+			0.5f,  -0.5f, -0.5f, 1.0f,  -0.5f, -0.5f, -0.5f, 1.0f,  -0.5f, -0.5f,
+			-0.5f, 1.0f,  -0.5f, -0.5f, 0.5f,  1.0f,  0.5f,  -0.5f, 0.5f,  1.0f,
 		};
 
-		uint64_t skyBoxDataSize = 4 * 6 * 6 * sizeof(float);
+		uint64_t       skyBoxDataSize = 4 * 6 * 6 * sizeof(float);
 		BufferLoadDesc skyboxVbDesc = {};
 		skyboxVbDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_VERTEX_BUFFER;
 		skyboxVbDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_GPU_ONLY;
@@ -1220,14 +793,11 @@ public:
 		skyboxVbDesc.ppBuffer = &pSkyboxVertexBuffer;
 		addResource(&skyboxVbDesc);
 
-
 		float screenQuadPoints[] = {
-			-1.0f,  3.0f, 0.5f, 0.0f, -1.0f,
-			-1.0f, -1.0f, 0.5f, 0.0f, 1.0f,
-			3.0f, -1.0f, 0.5f, 2.0f, 1.0f,
+			-1.0f, 3.0f, 0.5f, 0.0f, -1.0f, -1.0f, -1.0f, 0.5f, 0.0f, 1.0f, 3.0f, -1.0f, 0.5f, 2.0f, 1.0f,
 		};
 
-		uint64_t screenQuadDataSize = 5 * 3 * sizeof(float);
+		uint64_t       screenQuadDataSize = 5 * 3 * sizeof(float);
 		BufferLoadDesc screenQuadVbDesc = {};
 		screenQuadVbDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_VERTEX_BUFFER;
 		screenQuadVbDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_GPU_ONLY;
@@ -1236,7 +806,6 @@ public:
 		screenQuadVbDesc.pData = screenQuadPoints;
 		screenQuadVbDesc.ppBuffer = &pScreenQuadVertexBuffer;
 		addResource(&screenQuadVbDesc);
-
 
 		// Uniform buffer for camera data
 		BufferLoadDesc ubCamDesc = {};
@@ -1257,9 +826,9 @@ public:
 		// Uniform buffer for extended camera data
 		BufferLoadDesc ubECamDesc = {};
 		ubECamDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		ubECamDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_GPU_ONLY;
+		ubECamDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_CPU_TO_GPU;
 		ubECamDesc.mDesc.mSize = sizeof(UniformExtendedCamData);
-		ubECamDesc.mDesc.mFlags = BUFFER_CREATION_FLAG_OWN_MEMORY_BIT | BUFFER_CREATION_FLAG_PERSISTENT_MAP_BIT;
+		ubECamDesc.mDesc.mFlags = BUFFER_CREATION_FLAG_PERSISTENT_MAP_BIT;
 		ubECamDesc.pData = NULL;
 
 		for (uint32_t i = 0; i < gImageCount; ++i)
@@ -1267,9 +836,6 @@ public:
 			ubECamDesc.ppBuffer = &pBufferUniformExtendedCamera[i];
 			addResource(&ubECamDesc);
 		}
-
-
-
 
 		// Uniform buffer for PPR's properties
 		BufferLoadDesc ubPPR_ProDesc = {};
@@ -1285,28 +851,25 @@ public:
 			addResource(&ubPPR_ProDesc);
 		}
 
-
 		// Uniform buffer for light data
 		BufferLoadDesc ubLightsDesc = {};
 		ubLightsDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		ubLightsDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_CPU_TO_GPU;
+		ubLightsDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_GPU_ONLY;
 		ubLightsDesc.mDesc.mSize = sizeof(UniformLightData);
-		ubLightsDesc.mDesc.mFlags = BUFFER_CREATION_FLAG_PERSISTENT_MAP_BIT;
+		ubLightsDesc.mDesc.mFlags = BUFFER_CREATION_FLAG_NONE;
 		ubLightsDesc.pData = NULL;
 		ubLightsDesc.ppBuffer = &pBufferUniformLights;
 		addResource(&ubLightsDesc);
 
-
 		// Uniform buffer for DirectionalLight data
 		BufferLoadDesc ubDLightsDesc = {};
 		ubDLightsDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		ubDLightsDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_CPU_TO_GPU;
+		ubDLightsDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_GPU_ONLY;
 		ubDLightsDesc.mDesc.mSize = sizeof(UniformDirectionalLightData);
-		ubDLightsDesc.mDesc.mFlags = BUFFER_CREATION_FLAG_PERSISTENT_MAP_BIT;
+		ubDLightsDesc.mDesc.mFlags = BUFFER_CREATION_FLAG_NONE;
 		ubDLightsDesc.pData = NULL;
 		ubDLightsDesc.ppBuffer = &pBufferUniformDirectionalLights;
 		addResource(&ubDLightsDesc);
-
 
 		// Uniform buffer for extended camera data
 		BufferLoadDesc ubPlaneInfoDesc = {};
@@ -1334,7 +897,6 @@ public:
 		pUniformDataMVP.pbrMaterials = 1;
 		BufferUpdateDesc sponza_objBuffUpdateDesc = { pSponzaBuffer, &pUniformDataMVP };
 		updateResource(&sponza_objBuffUpdateDesc);
-
 
 		// Update the uniform buffer for the objects
 		mat4 lion_modelmat = mat4::translation(vec3(0.0f, -6.0f, 1.0f)) * mat4::rotationY(-1.5708f) * mat4::scale(vec3(0.2f, 0.2f, 0.2f));
@@ -1393,42 +955,25 @@ public:
 		BufferUpdateDesc directionalLightBuffUpdateDesc = { pBufferUniformDirectionalLights, &pUniformDataDirectionalLights };
 		updateResource(&directionalLightBuffUpdateDesc);
 
-
-
-
-
-
 		// Create UI
 		if (!gAppUI.Init(pRenderer))
 			return false;
 
 		gAppUI.LoadFont("TitilliumText/TitilliumText-Bold.otf", FSR_Builtin_Fonts);
 
-
 		GuiDesc guiDesc = {};
-		guiDesc.mStartSize = vec2(370.0f, 320.0f);
+		float   dpiScale = getDpiScale().x;
+		guiDesc.mStartSize = vec2(370.0f / dpiScale, 320.0f / dpiScale);
 		guiDesc.mStartPosition = vec2(0.0f, guiDesc.mStartSize.getY());
-
 
 		pGui = gAppUI.AddGuiComponent("Pixel-Projected Reflections", &guiDesc);
 
+    pGui->AddWidget(CheckboxWidget("Toggle Micro Profiler", &bToggleMicroProfiler));
 
-		static const uint32_t enumRenderModes[] = {
-			SCENE_ONLY,
-			PPR_ONLY,
-			SCENE_WITH_PPR,
-			SCENE_EXCLU_PPR,
-			0
-		};
+		static const uint32_t enumRenderModes[] = { SCENE_ONLY, PPR_ONLY, SCENE_WITH_PPR, SCENE_EXCLU_PPR, 0 };
 
-		static const char* enumRenderModeNames[] = {
-			"Render Scene Only",
-			"Render PPR Only",
-			"Render Scene with PPR ",
-			"Render Scene with exclusive PPR",
-			NULL
-		};
-
+		static const char* enumRenderModeNames[] = { "Render Scene Only", "Render PPR Only", "Render Scene with PPR ",
+													 "Render Scene with exclusive PPR", NULL };
 
 #if !defined(TARGET_IOS) && !defined(_DURANGO)
 		pGui->AddWidget(CheckboxWidget("Toggle VSync", &gToggleVSync));
@@ -1447,32 +992,56 @@ public:
 		pGui->AddWidget(SliderUintWidget("Number of Planes", &gPlaneNumber, 1, 4));
 		pGui->AddWidget(SliderFloatWidget("Size of Main Plane", &gPlaneSize, 5.0f, 100.0f));
 
+		GuiDesc guiDesc2 = {};
+		guiDesc2.mStartPosition = vec2(700.0f / dpiScale, 450.0f / dpiScale);
+		pLoadingGui = gAppUI.AddGuiComponent("Loading", &guiDesc2);
+
+		mProgressBarValueMax = 2 * ModelTotalProgress + TOTAL_IMGS * TextureTotalProgress;
+		ProgressBarWidget ProgressBar("               [ProgressBar]               ", &mProgressBarValue, mProgressBarValueMax);
+		pLoadingGui->AddWidget(ProgressBar);
+
 		CameraMotionParameters camParameters{ 100.0f, 150.0f, 300.0f };
+		vec3                   camPos{ 20.0f, -2.0f, 0.9f };
+		vec3                   lookAt{ 0.0f, -2.0f, 0.9f };
 
+		pCameraController = createFpsCameraController(camPos, lookAt);
 
-		vec3 camPos{ 20.0f, -2.0f, 0.9f };
-		vec3 lookat{ 0.0f, -2.0f, 0.9f };
-
-		pCameraController = createFpsCameraController(camPos, lookat);
+#if defined(TARGET_IOS) || defined(__ANDROID__)
+		gVirtualJoystick.InitLRSticks();
+		pCameraController->setVirtualJoystick(&gVirtualJoystick);
+#endif
 		requestMouseCapture(true);
 
 		pCameraController->setMotionParameters(camParameters);
 
 		InputSystem::RegisterInputEvent(cameraInputEvent);
+
+		// In case copy queue should be externally synchronized(e.g. Vulkan with 1 queueu)
+		// do resource streaming after resource loading completed.
+		// Shared queue won't be used concurrently,
+		// unless someone will try to update GPU only or GPU-to-CPU resource after this point
+		addThreadSystemRangeTask(
+			pIOThreads, &memberTaskFunc<PixelProjectedReflections, &PixelProjectedReflections::loadTexture>, this, TOTAL_IMGS);
+
+		addThreadSystemRangeTask(
+			pIOThreads, &memberTaskFunc<PixelProjectedReflections, &PixelProjectedReflections::loadMesh>, this, 2);
+
+		assignSponzaTextures();
+
 		return true;
 	}
 
 	void Exit()
 	{
-		waitForFences(pGraphicsQueue, 1, &pRenderCompleteFences[gFrameIndex], true);
+		waitQueueIdle(pGraphicsQueue);
 		destroyCameraController(pCameraController);
-		removeDebugRendererInterface();
+
+		exitProfiler(pRenderer);
 
 		for (uint32_t i = 0; i < gImageCount; ++i)
 		{
 			removeFence(pRenderer, pRenderCompleteFences[i]);
 			removeSemaphore(pRenderer, pRenderCompleteSemaphores[i]);
-
 		}
 		removeSemaphore(pRenderer, pImageAcquiredSemaphore);
 
@@ -1481,6 +1050,8 @@ public:
 		removeResource(pSkybox);
 		removeResource(pBRDFIntegrationMap);
 
+		removeResource(pSponzaBuffer);
+		removeResource(pLionBuffer);
 
 #ifdef TARGET_IOS
 		gVirtualJoystick.Exit();
@@ -1497,23 +1068,18 @@ public:
 			removeResource(pBufferUniformCamera[i]);
 		}
 
+		// Remove streamer before removing any actual resources
+		// otherwise we might delete a resource while uploading to it.
+		shutdownThreadSystem(pIOThreads);
+		finishResourceLoading();
 
 		removeResource(pBufferUniformLights);
 		removeResource(pBufferUniformDirectionalLights);
 		removeResource(pSkyboxVertexBuffer);
 		removeResource(pScreenQuadVertexBuffer);
-		removeResource(pSponzaBuffer);
-		removeResource(pLionBuffer);
 
-		for (size_t i = 0; i<pSponzaVertexBufferPosition.size(); i++)
-			removeResource(pSponzaVertexBufferPosition[i]);
-
-		for (size_t i = 0; i<pSponzaIndexBuffer.size(); i++)
-			removeResource(pSponzaIndexBuffer[i]);
-
-		removeResource(pLionVertexBufferPosition);
-		removeResource(pLionIndexBuffer);
-
+		for (Mesh& model : gModels)
+			unloadMesh(model);
 
 		gAppUI.Exit();
 
@@ -1534,13 +1100,14 @@ public:
 		removeRootSignature(pRenderer, pPPR_ProjectionRootSignature);
 		removeRootSignature(pRenderer, pRootSigBRDF);
 		removeRootSignature(pRenderer, pSkyboxRootSignature);
-
 		removeRootSignature(pRenderer, pRootSigGbuffers);
 
+		removeDescriptorBinder(pRenderer, pDescriptorBinder);
 
 		// Remove commands and command pool&
 		removeCmd_n(pCmdPool, gImageCount, ppCmds);
 		removeCmdPool(pRenderer, pCmdPool);
+
 		removeQueue(pGraphicsQueue);
 
 		removeCmd_n(pPreCmdPool, gImageCount, pPrepCmds);
@@ -1555,13 +1122,171 @@ public:
 		removeCmd_n(pPPR_ReflectionCmdPool, gImageCount, pPPR_ReflectionCmds);
 		removeCmdPool(pRenderer, pPPR_ReflectionCmdPool);
 
-
 		for (uint i = 0; i < TOTAL_IMGS; ++i)
-			removeResource(pMaterialTextures[i]);
+		{
+			if (pMaterialTextures[i])
+			{
+				removeResource(pMaterialTextures[i]);
+			}
+		}
 
 		// Remove resource loader and renderer
 		removeResourceLoaderInterface(pRenderer);
 		removeRenderer(pRenderer);
+	}
+
+	void loadMesh(size_t index)
+	{
+		//Load Sponza
+		AssimpImporter        importer;
+		AssimpImporter::Model model;
+		eastl::string       sceneFullPath = FileSystem::FixPath(gModelNames[index], FSRoot::FSR_Meshes);
+
+		if (!importer.ImportModel(sceneFullPath.c_str(), &model))
+		{
+			ErrorMsg("Failed to load %s", FileSystem::GetFileNameAndExtension(sceneFullPath).c_str());
+			return;
+		}
+
+		uint32_t meshCount = (uint32_t)model.mMeshArray.size();
+
+		Mesh& mesh = gModels[index];
+
+		mesh.materialID.resize(meshCount);
+		mesh.cmdArray.resize(meshCount);
+
+		MeshVertex* vertices = NULL;
+		uint32_t*   indices = NULL;
+
+		uint32_t totalVertexCount = 0;
+		uint32_t totalIndexCount = 0;
+		for (uint32_t i = 0; i < meshCount; i++)
+		{
+			AssimpImporter::Mesh subMesh = model.mMeshArray[i];
+
+			mesh.materialID[i] = subMesh.mMaterialId;
+
+			uint32_t vertexCount = (uint32_t)subMesh.mPositions.size();
+			uint32_t indexCount = (uint32_t)subMesh.mIndices.size();
+
+			mesh.cmdArray[i] = { indexCount, totalIndexCount, totalVertexCount };
+
+			vertices = (MeshVertex*)conf_realloc(vertices, sizeof(MeshVertex) * (totalVertexCount + vertexCount));
+			indices = (uint32_t*)conf_realloc(indices, sizeof(uint32_t) * (totalIndexCount + indexCount));
+
+			for (uint32_t j = 0; j < vertexCount; j++)
+			{
+				vertices[totalVertexCount++] = { subMesh.mPositions[j], subMesh.mNormals[j], subMesh.mUvs[j] };
+			}
+
+			for (uint32_t j = 0; j < indexCount; j++)
+			{
+				indices[totalIndexCount++] = subMesh.mIndices[j];
+			}
+		}
+
+		SyncToken token;
+
+		// Vertex position buffer for the scene
+		BufferLoadDesc vbPosDesc = {};
+		vbPosDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_VERTEX_BUFFER;
+		vbPosDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_GPU_ONLY;
+		vbPosDesc.mDesc.mVertexStride = sizeof(MeshVertex);
+		vbPosDesc.mDesc.mSize = totalVertexCount * sizeof(MeshVertex);
+		vbPosDesc.pData = vertices;
+		vbPosDesc.ppBuffer = &mesh.pVertexBuffer;
+		vbPosDesc.mDesc.pDebugName = L"Vertex Position Buffer Desc for Sponza";
+		addResource(&vbPosDesc, &token);
+		addToWaitQueue({ token, { &freeData, vertices, 0 } });
+
+		// Index buffer for the scene
+		BufferLoadDesc ibDesc = {};
+		ibDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_INDEX_BUFFER;
+		ibDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_GPU_ONLY;
+		ibDesc.mDesc.mIndexType = INDEX_TYPE_UINT32;
+		ibDesc.mDesc.mSize = sizeof(uint32_t) * totalIndexCount;
+		ibDesc.pData = indices;
+		ibDesc.ppBuffer = &mesh.pIndexBuffer;
+		ibDesc.mDesc.pDebugName = L"Index Buffer Desc for Sponza";
+		addResource(&ibDesc, &token);
+		addToWaitQueue({ token, { &freeData, indices, 0 } });
+
+		addToWaitQueue(
+			{ token, { &methodCallback<PixelProjectedReflections, &PixelProjectedReflections::onResourceLoaded>, this, index } });
+	}
+
+	void loadTexture(size_t index)
+	{
+		TextureLoadDesc textureDesc;
+		memset(&textureDesc, 0, sizeof(textureDesc));
+		textureDesc.mUseMipmaps = true;
+		textureDesc.pFilename = pMaterialImageFileNames[index];
+		textureDesc.ppTexture = &pMaterialTextures[index];
+		textureDesc.mRoot = FSR_Textures;
+		SyncToken token;
+		addResource(&textureDesc, &token);
+		addToWaitQueue(
+			{ token, { &methodCallback<PixelProjectedReflections, &PixelProjectedReflections::onResourceLoaded>, this, index + 2 } });
+	}
+
+	static void freeData(void* userData, size_t) { conf_free(userData); }
+
+	typedef struct OnCompletion
+	{
+		void (*mOnCompletion)(void* userData, size_t arg);
+		void*  mUserData;
+		size_t mArg;
+	} OnCompletion;
+
+	template <class T, void (T::*callback)(size_t)>
+	static void methodCallback(void* userData, size_t arg)
+	{
+		T* pThis = static_cast<T*>(userData);
+		(pThis->*callback)(arg);
+	}
+
+	struct ResourceWait
+	{
+		SyncToken    mToken;
+		OnCompletion mCompletion;
+	};
+	eastl::vector<ResourceWait> mWaitQueue;
+	Mutex                         mQueueMutex;
+
+	void addToWaitQueue(ResourceWait wait)
+	{
+		mQueueMutex.Acquire();
+		mWaitQueue.push_back(wait);
+		mQueueMutex.Release();
+	}
+
+	void processWaitQueue()
+	{
+		const size_t MAX_COMPLETION_CHECKS = 16;
+		size_t       index = 0, count = MAX_COMPLETION_CHECKS;
+		mQueueMutex.Acquire();
+		while (index < count && index < mWaitQueue.size())
+		{
+			ResourceWait& resourceWait = mWaitQueue[index];
+			if (isTokenCompleted(resourceWait.mToken))
+			{
+				resourceWait.mCompletion.mOnCompletion(resourceWait.mCompletion.mUserData, resourceWait.mCompletion.mArg);
+				mWaitQueue.erase(mWaitQueue.begin() + index);
+
+				--count;
+			}
+			else
+			{
+				index++;
+			}
+		}
+		mQueueMutex.Release();
+	}
+
+	void onResourceLoaded(size_t resourceID)
+	{
+		uint64_t value = resourceID < 2 ? ModelTotalProgress : TextureTotalProgress;
+		mAtomicProgress += value;
 	}
 
 	bool Load()
@@ -1616,20 +1341,22 @@ public:
 		vertexLayoutSphere.mAttribs[2].mFormat = ImageFormat::RG32F;
 		vertexLayoutSphere.mAttribs[2].mLocation = 2;
 		vertexLayoutSphere.mAttribs[2].mBinding = 0;
-		vertexLayoutSphere.mAttribs[2].mOffset = 6 * sizeof(float); // first attribute contains 3 floats
+		vertexLayoutSphere.mAttribs[2].mOffset = 6 * sizeof(float);    // first attribute contains 3 floats
 
 		/************************************************************************/
 		// Setup the resources needed for the Deferred Pass Pipeline
 		/************************************************************************/
 		ImageFormat::Enum deferredFormats[DEFERRED_RT_COUNT] = {};
-		bool deferredSrgb[DEFERRED_RT_COUNT] = {};
+		bool              deferredSrgb[DEFERRED_RT_COUNT] = {};
 		for (uint32_t i = 0; i < DEFERRED_RT_COUNT; ++i)
 		{
 			deferredFormats[i] = pRenderTargetDeferredPass[i]->mDesc.mFormat;
 			deferredSrgb[i] = pRenderTargetDeferredPass[i]->mDesc.mSrgb;
 		}
 
-		GraphicsPipelineDesc deferredPassPipelineSettings = {};
+		PipelineDesc desc = {};
+		desc.mType = PIPELINE_TYPE_GRAPHICS;
+		GraphicsPipelineDesc& deferredPassPipelineSettings = desc.mGraphicsDesc;
 		deferredPassPipelineSettings.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		deferredPassPipelineSettings.mRenderTargetCount = DEFERRED_RT_COUNT;
 		deferredPassPipelineSettings.pDepthState = pDepth;
@@ -1645,7 +1372,7 @@ public:
 		deferredPassPipelineSettings.pShaderProgram = pShaderGbuffers;
 		deferredPassPipelineSettings.pVertexLayout = &vertexLayoutSphere;
 		deferredPassPipelineSettings.pRasterizerState = pRasterstateDefault;
-		addPipeline(pRenderer, &deferredPassPipelineSettings, &pPipelineGbuffers);
+		addPipeline(pRenderer, &desc, &pPipelineGbuffers);
 
 		//layout and pipeline for skybox draw
 		VertexLayout vertexLayoutSkybox = {};
@@ -1672,8 +1399,7 @@ public:
 		deferredPassPipelineSettings.pShaderProgram = pSkyboxShader;
 		deferredPassPipelineSettings.pVertexLayout = &vertexLayoutSkybox;
 		deferredPassPipelineSettings.pRasterizerState = pRasterstateDefault;
-		addPipeline(pRenderer, &deferredPassPipelineSettings, &pSkyboxPipeline);
-
+		addPipeline(pRenderer, &desc, &pSkyboxPipeline);
 
 		// BRDF
 		//Position
@@ -1691,10 +1417,10 @@ public:
 		vertexLayoutScreenQuad.mAttribs[1].mFormat = ImageFormat::RG32F;
 		vertexLayoutScreenQuad.mAttribs[1].mLocation = 1;
 		vertexLayoutScreenQuad.mAttribs[1].mBinding = 0;
-		vertexLayoutScreenQuad.mAttribs[1].mOffset = 3 * sizeof(float); // first attribute contains 3 floats
+		vertexLayoutScreenQuad.mAttribs[1].mOffset = 3 * sizeof(float);    // first attribute contains 3 floats
 
-
-		GraphicsPipelineDesc pipelineSettings = { 0 };
+		desc.mGraphicsDesc = {};
+		GraphicsPipelineDesc& pipelineSettings = desc.mGraphicsDesc;
 		pipelineSettings.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		pipelineSettings.mRenderTargetCount = 1;
 		pipelineSettings.pDepthState = NULL;
@@ -1710,13 +1436,15 @@ public:
 		pipelineSettings.pShaderProgram = pShaderBRDF;
 		pipelineSettings.pVertexLayout = &vertexLayoutScreenQuad;
 		pipelineSettings.pRasterizerState = pRasterstateDefault;
-		addPipeline(pRenderer, &pipelineSettings, &pPipelineBRDF);
+		addPipeline(pRenderer, &desc, &pPipelineBRDF);
 
 		//PPR_Projection
-		ComputePipelineDesc cpipelineSettings = { 0 };
+		PipelineDesc computeDesc = {};
+		computeDesc.mType = PIPELINE_TYPE_COMPUTE;
+		ComputePipelineDesc& cpipelineSettings = computeDesc.mComputeDesc;
 		cpipelineSettings.pShaderProgram = pPPR_ProjectionShader;
 		cpipelineSettings.pRootSignature = pPPR_ProjectionRootSignature;
-		addComputePipeline(pRenderer, &cpipelineSettings, &pPPR_ProjectionPipeline);
+		addPipeline(pRenderer, &computeDesc, &pPPR_ProjectionPipeline);
 
 		//PPR_Reflection
 		pipelineSettings = { 0 };
@@ -1734,7 +1462,7 @@ public:
 		pipelineSettings.pShaderProgram = pPPR_ReflectionShader;
 		pipelineSettings.pVertexLayout = &vertexLayoutScreenQuad;
 		pipelineSettings.pRasterizerState = pRasterstateDefault;
-		addPipeline(pRenderer, &pipelineSettings, &pPPR_ReflectionPipeline);
+		addPipeline(pRenderer, &desc, &pPPR_ReflectionPipeline);
 
 		//PPR_HolePatching -> Present
 		pipelineSettings = { 0 };
@@ -1752,7 +1480,7 @@ public:
 		pipelineSettings.pShaderProgram = pPPR_HolePatchingShader;
 		pipelineSettings.pVertexLayout = &vertexLayoutScreenQuad;
 		pipelineSettings.pRasterizerState = pRasterstateDefault;
-		addPipeline(pRenderer, &pipelineSettings, &pPPR_HolePatchingPipeline);
+		addPipeline(pRenderer, &desc, &pPPR_HolePatchingPipeline);
 
 #if defined(VULKAN)
 		transitionRenderTargets();
@@ -1763,7 +1491,7 @@ public:
 
 	void Unload()
 	{
-		waitForFences(pGraphicsQueue, 1, &pRenderCompleteFences[gFrameIndex], true);
+		waitQueueIdle(pGraphicsQueue);
 
 		gAppUI.Unload();
 
@@ -1791,6 +1519,7 @@ public:
 
 	void Update(float deltaTime)
 	{
+		processWaitQueue();
 
 #if !defined(TARGET_IOS) && !defined(_DURANGO)
 		if (pSwapChain->mDesc.mEnableVsync != gToggleVSync)
@@ -1799,7 +1528,7 @@ public:
 		}
 #endif
 
-		if (getKeyDown(KEY_BUTTON_X))
+		if (InputSystem::GetBoolInput(KEY_BUTTON_X_TRIGGERED))
 		{
 			RecenterCameraView(170.0f);
 		}
@@ -1807,10 +1536,10 @@ public:
 		pCameraController->update(deltaTime);
 
 		// Update camera
-		mat4 viewMat = pCameraController->getViewMatrix();
+		mat4        viewMat = pCameraController->getViewMatrix();
 		const float aspectInverse = (float)mSettings.mHeight / (float)mSettings.mWidth;
 		const float horizontal_fov = PI / 2.0f;
-		mat4 projMat = mat4::perspective(horizontal_fov, aspectInverse, 0.1f, 1000.0f);
+		mat4        projMat = mat4::perspective(horizontal_fov, aspectInverse, 0.1f, 1000.0f);
 
 		mat4 ViewProjMat = projMat * viewMat;
 
@@ -1827,7 +1556,8 @@ public:
 		pUniformDataExtenedCamera.mProjMat = projMat;
 		pUniformDataExtenedCamera.mViewProjMat = ViewProjMat;
 		pUniformDataExtenedCamera.mInvViewProjMat = inverse(ViewProjMat);
-		pUniformDataExtenedCamera.mViewPortSize = vec4(static_cast<float>(mSettings.mWidth), static_cast<float>(mSettings.mHeight), 0.0, 0.0);
+		pUniformDataExtenedCamera.mViewPortSize =
+			vec4(static_cast<float>(mSettings.mWidth), static_cast<float>(mSettings.mHeight), 0.0, 0.0);
 
 		//projection uniforms
 		pUniformPPRProData.renderMode = gRenderMode;
@@ -1836,7 +1566,6 @@ public:
 		pUniformPPRProData.useNormalMap = gUseNormalMap == true ? 1.0f : 0.0f;
 		pUniformPPRProData.useFadeEffect = gUseFadeEffect == true ? 1.0f : 0.0f;
 		pUniformPPRProData.intensity = gRRP_Intensity;
-
 
 		//Planes
 		pUniformDataPlaneInfo.numPlanes = gPlaneNumber;
@@ -1852,19 +1581,18 @@ public:
 		pUniformDataPlaneInfo.planeInfo[3].centerPoint = vec4(10.0, 1.0f, 0.9f, 0.0);
 		pUniformDataPlaneInfo.planeInfo[3].size = vec4(10.0f);
 
-
 		mat4 basicMat;
-		basicMat[0] = vec4(1.0, 0.0, 0.0, 0.0); //tan
-		basicMat[1] = vec4(0.0, 0.0, -1.0, 0.0); //bitan
-		basicMat[2] = vec4(0.0, 1.0, 0.0, 0.0); //normal
+		basicMat[0] = vec4(1.0, 0.0, 0.0, 0.0);     //tan
+		basicMat[1] = vec4(0.0, 0.0, -1.0, 0.0);    //bitan
+		basicMat[2] = vec4(0.0, 1.0, 0.0, 0.0);     //normal
 		basicMat[3] = vec4(0.0, 0.0, 0.0, 1.0);
-
 
 		pUniformDataPlaneInfo.planeInfo[0].rotMat = basicMat;
 
 		pUniformDataPlaneInfo.planeInfo[1].rotMat = basicMat.rotationX(0.01745329251994329576923690768489f * -80.0f);
 		pUniformDataPlaneInfo.planeInfo[2].rotMat = basicMat.rotationX(0.01745329251994329576923690768489f * -100.0f);
-		pUniformDataPlaneInfo.planeInfo[3].rotMat = basicMat.rotationX(0.01745329251994329576923690768489f * 90.0f);;
+		pUniformDataPlaneInfo.planeInfo[3].rotMat = basicMat.rotationX(0.01745329251994329576923690768489f * 90.0f);
+		;
 
 #if defined(DIRECT3D12) || defined(_DURANGO)
 
@@ -1878,6 +1606,21 @@ public:
 
 #endif
 
+		mPrevProgressBarValue = mProgressBarValue;
+		mProgressBarValue = mAtomicProgress;
+
+    // ProfileSetDisplayMode()
+    // TODO: need to change this better way 
+    if (bToggleMicroProfiler != bPrevToggleMicroProfiler)
+    {
+      Profile& S = *ProfileGet();
+      int nValue = bToggleMicroProfiler ? 1 : 0;
+      nValue = nValue >= 0 && nValue < P_DRAW_SIZE ? nValue : S.nDisplay;
+      S.nDisplay = nValue;
+
+      bPrevToggleMicroProfiler = bToggleMicroProfiler;
+    }
+
 		/************************************************************************/
 		// Update GUI
 		/************************************************************************/
@@ -1890,22 +1633,21 @@ public:
 		acquireNextImage(pRenderer, pSwapChain, pImageAcquiredSemaphore, NULL, &gFrameIndex);
 
 		Semaphore* pRenderCompleteSemaphore = pRenderCompleteSemaphores[gFrameIndex];
-		Fence* pRenderCompleteFence = pRenderCompleteFences[gFrameIndex];
+		Fence*     pRenderCompleteFence = pRenderCompleteFences[gFrameIndex];
 
 		// Stall if CPU is running "Swap Chain Buffer Count" frames ahead of GPU
 		FenceStatus fenceStatus;
 		getFenceStatus(pRenderer, pRenderCompleteFence, &fenceStatus);
 		if (fenceStatus == FENCE_STATUS_INCOMPLETE)
-			waitForFences(pGraphicsQueue, 1, &pRenderCompleteFence, false);
+			waitForFences(pRenderer, 1, &pRenderCompleteFence);
 
-		tinystl::vector<Cmd*> allCmds;
+		eastl::vector<Cmd*> allCmds;
 
 		BufferUpdateDesc camBuffUpdateDesc = { pBufferUniformCamera[gFrameIndex], &pUniformDataCamera };
 		updateResource(&camBuffUpdateDesc);
 
 		BufferUpdateDesc skyboxViewProjCbv = { pBufferUniformCameraSky[gFrameIndex], &gUniformDataSky };
 		updateResource(&skyboxViewProjCbv);
-
 
 		BufferUpdateDesc CbvExtendedCamera = { pBufferUniformExtendedCamera[gFrameIndex], &pUniformDataExtenedCamera };
 		updateResource(&CbvExtendedCamera);
@@ -1915,7 +1657,6 @@ public:
 
 		BufferUpdateDesc planeInfoBuffUpdateDesc = { pBufferUniformPlaneInfo[gFrameIndex], &pUniformDataPlaneInfo };
 		updateResource(&planeInfoBuffUpdateDesc);
-
 
 		// Draw G-buffers
 		Cmd* cmd = pPrepCmds[gFrameIndex];
@@ -1932,7 +1673,7 @@ public:
 		}
 
 		loadActions.mLoadActionDepth = LOAD_ACTION_CLEAR;
-		loadActions.mClearDepth = { 1.0f, 0.0f }; // Clear depth to the far plane and stencil to 0
+		loadActions.mClearDepth = { 1.0f, 0.0f };    // Clear depth to the far plane and stencil to 0
 
 		// Transfer G-buffers to render target state for each buffer
 		TextureBarrier barrier;
@@ -1942,16 +1683,15 @@ public:
 			cmdResourceBarrier(cmd, 0, NULL, 1, &barrier, false);
 		}
 
-
 		// Transfer DepthBuffer to a DephtWrite State
 		barrier = { pDepthBuffer->pTexture, RESOURCE_STATE_DEPTH_WRITE };
 		cmdResourceBarrier(cmd, 0, NULL, 1, &barrier, false);
 
-
 		cmdBindRenderTargets(cmd, 1, pRenderTargetDeferredPass, pDepthBuffer, &loadActions, NULL, NULL, -1, -1);
-		cmdSetViewport(cmd, 0.0f, 0.0f, (float)pRenderTargetDeferredPass[0]->mDesc.mWidth, (float)pRenderTargetDeferredPass[0]->mDesc.mHeight, 0.0f, 1.0f);
+		cmdSetViewport(
+			cmd, 0.0f, 0.0f, (float)pRenderTargetDeferredPass[0]->mDesc.mWidth, (float)pRenderTargetDeferredPass[0]->mDesc.mHeight, 0.0f,
+			1.0f);
 		cmdSetScissor(cmd, 0, 0, pRenderTargetDeferredPass[0]->mDesc.mWidth, pRenderTargetDeferredPass[0]->mDesc.mHeight);
-
 
 		// Draw the skybox.
 		cmdBeginGpuTimestampQuery(cmd, pGpuProfiler, "Render SkyBox", true);
@@ -1962,13 +1702,15 @@ public:
 		skyParams[0].ppBuffers = &pBufferUniformCameraSky[gFrameIndex];
 		skyParams[1].pName = "skyboxTex";
 		skyParams[1].ppTextures = &pSkybox;
-		cmdBindDescriptors(cmd, pSkyboxRootSignature, 2, skyParams);
+		cmdBindDescriptors(cmd, pDescriptorBinder, pSkyboxRootSignature, 2, skyParams);
 		cmdBindVertexBuffer(cmd, 1, &pSkyboxVertexBuffer, NULL);
 		cmdDraw(cmd, 36, 0);
 
-
+		loadActions.mLoadActionsColor[0] = LOAD_ACTION_LOAD;
 		cmdBindRenderTargets(cmd, DEFERRED_RT_COUNT, pRenderTargetDeferredPass, pDepthBuffer, &loadActions, NULL, NULL, -1, -1);
-		cmdSetViewport(cmd, 0.0f, 0.0f, (float)pRenderTargetDeferredPass[0]->mDesc.mWidth, (float)pRenderTargetDeferredPass[0]->mDesc.mHeight, 0.0f, 1.0f);
+		cmdSetViewport(
+			cmd, 0.0f, 0.0f, (float)pRenderTargetDeferredPass[0]->mDesc.mWidth, (float)pRenderTargetDeferredPass[0]->mDesc.mHeight, 0.0f,
+			1.0f);
 		cmdSetScissor(cmd, 0, 0, pRenderTargetDeferredPass[0]->mDesc.mWidth, pRenderTargetDeferredPass[0]->mDesc.mHeight);
 
 		cmdEndGpuTimestampQuery(cmd, pGpuProfiler);
@@ -1977,134 +1719,142 @@ public:
 		//The default code path we have if not iOS uses an array of texture of size 81
 		//iOS only supports 31 max texture units in a fragment shader for most devices.
 		//so fallback to binding every texture for every draw call (max of 5 textures)
-#ifdef TARGET_IOS
-		cmdBindPipeline(cmd, pPipelineGbuffers);
-		DescriptorData params[8] = {};
-		params[0].pName = "cbCamera";
-		params[0].ppBuffers = &pBufferUniformCamera[gFrameIndex];
 
-		for (int i = 0; i < pSponzaVertexBufferPosition.size(); i++)
+		bool dataLoaded = isThreadSystemIdle(pIOThreads) && isBatchCompleted();
+		if (dataLoaded)
 		{
-			Buffer* pSponzaVertexBuffers[] = { pSponzaVertexBufferPosition[i] };
+			Mesh& sponzaMesh = gModels[SPONZA_MODEL];
 
+			Buffer* pSponzaVertexBuffers[] = { sponzaMesh.pVertexBuffer };
 			cmdBindVertexBuffer(cmd, 1, pSponzaVertexBuffers, NULL);
-			cmdBindIndexBuffer(cmd, pSponzaIndexBuffer[i], NULL);
+			cmdBindIndexBuffer(cmd, sponzaMesh.pIndexBuffer, 0);
 
+#ifdef TARGET_IOS
+			cmdBindPipeline(cmd, pPipelineGbuffers);
+			DescriptorData params[8] = {};
+			params[0].pName = "cbCamera";
+			params[0].ppBuffers = &pBufferUniformCamera[gFrameIndex];
+
+			for (uint32_t i = 0; i < (uint32_t)sponzaMesh.cmdArray.size(); ++i)
+			{
+				int materialID = sponzaMesh.materialID[i];
+				materialID *= 5;    //because it uses 5 basic textures for redering BRDF
+
+				params[1].pName = "cbObject";
+				params[1].ppBuffers = &pSponzaBuffer;
+
+				for (int j = 0; j < 5; ++j)
+				{
+					//added
+					params[2 + j].pName = pTextureName[j];
+					params[2 + j].ppTextures = &pMaterialTextures[gSponzaTextureIndexforMaterial[materialID + j]];
+				}
+
+				cmdBindDescriptors(cmd, pDescriptorBinder, pRootSigGbuffers, 7, params);
+
+				Mesh::CmdParam& cmdData = sponzaMesh.cmdArray[i];
+				cmdDrawIndexed(cmd, cmdData.indexCount, cmdData.startIndex, cmdData.startVertex);
+			}
+
+#else
+
+			cmdBindPipeline(cmd, pPipelineGbuffers);
+			DescriptorData params[8] = {};
+			params[0].pName = "cbCamera";
+			params[0].ppBuffers = &pBufferUniformCamera[gFrameIndex];
 			params[1].pName = "cbObject";
 			params[1].ppBuffers = &pSponzaBuffer;
+			params[2].pName = "textureMaps";
+			params[2].ppTextures = pMaterialTextures;
+			params[2].mCount = TOTAL_IMGS;
+			cmdBindDescriptors(cmd, pDescriptorBinder, pRootSigGbuffers, 3, params);
 
-			int materialID = gSponzaMaterialID[i];
-			materialID *= 5; //because it uses 5 basic textures for redering BRDF
-
-			for (int j = 0; j <5; ++j) {
-				//added
-				params[2 + j].pName = pTextureName[j];
-				params[2 + j].ppTextures = &pMaterialTextures[gSponzaTextureIndexforMaterial[materialID + j]];
-			}
-
-			cmdBindDescriptors(cmd, pRootSigGbuffers, 7, params);
-
-			cmdDrawIndexed(cmd, gSponzaIndicesArray[i], 0, 0);
-
-		}
-
-#else
-
-		cmdBindPipeline(cmd, pPipelineGbuffers);
-		DescriptorData params[8] = {};
-		params[0].pName = "cbCamera";
-		params[0].ppBuffers = &pBufferUniformCamera[gFrameIndex];
-		params[1].pName = "cbObject";
-		params[1].ppBuffers = &pSponzaBuffer;
-		params[2].pName = "textureMaps";
-		params[2].ppTextures = pMaterialTextures;
-		params[2].mCount = TOTAL_IMGS;
-		cmdBindDescriptors(cmd, pRootSigGbuffers, 3, params);
-
-		struct MaterialMaps {
-			uint mapIDs[5];
-		} data;
-
-		for (uint32_t i = 0; i < (uint32_t)pSponzaVertexBufferPosition.size(); ++i)
-		{
-			Buffer* pSponzaVertexBuffers[] = { pSponzaVertexBufferPosition[i] };
-
-			cmdBindVertexBuffer(cmd, 1, pSponzaVertexBuffers, NULL);
-			cmdBindIndexBuffer(cmd, pSponzaIndexBuffer[i], 0);
-
-			int materialID = gSponzaMaterialID[i];
-			materialID *= 5; //because it uses 5 basic textures for redering BRDF
-
-			for (int j = 0; j < 5; ++j)
+			struct MaterialMaps
 			{
-				//added
-				data.mapIDs[j] = gSponzaTextureIndexforMaterial[materialID + j];
-			}
-			params[0].pName = "cbTextureRootConstants";
-			params[0].pRootConstant = &data;
-			cmdBindDescriptors(cmd, pRootSigGbuffers, 1, params);
+				uint mapIDs[5];
+			} data;
 
-			cmdDrawIndexed(cmd, gSponzaIndicesArray[i], 0, 0);
-		}
+			for (uint32_t i = 0; i < (uint32_t)sponzaMesh.cmdArray.size(); ++i)
+			{
+				int materialID = sponzaMesh.materialID[i];
+				materialID *= 5;    //because it uses 5 basic textures for redering BRDF
+
+				for (int j = 0; j < 5; ++j)
+				{
+					//added
+					data.mapIDs[j] = gSponzaTextureIndexforMaterial[materialID + j];
+				}
+				params[0].pName = "cbTextureRootConstants";
+				params[0].pRootConstant = &data;
+				cmdBindDescriptors(cmd, pDescriptorBinder, pRootSigGbuffers, 1, params);
+
+				Mesh::CmdParam& cmdData = sponzaMesh.cmdArray[i];
+				cmdDrawIndexed(cmd, cmdData.indexCount, cmdData.startIndex, cmdData.startVertex);
+			}
 #endif
 
-		//Draw Lion
-		cmdBindVertexBuffer(cmd, 1, &pLionVertexBufferPosition, NULL);
-		cmdBindIndexBuffer(cmd, pLionIndexBuffer, 0);
+			Mesh& lionMesh = gModels[LION_MODEL];
 
+			//Draw Lion
 #ifdef TARGET_IOS
-		params[0].pName = "cbCamera";
-		params[0].ppBuffers = &pBufferUniformCamera[gFrameIndex];
+			params[0].pName = "cbCamera";
+			params[0].ppBuffers = &pBufferUniformCamera[gFrameIndex];
 
-		params[1].pName = "cbObject";
-		params[1].ppBuffers = &pLionBuffer;
+			params[1].pName = "cbObject";
+			params[1].ppBuffers = &pLionBuffer;
 
-		params[2].pName = pTextureName[0];
-		params[2].ppTextures = &pMaterialTextures[81];
+			params[2].pName = pTextureName[0];
+			params[2].ppTextures = &pMaterialTextures[81];
 
-		params[3].pName = pTextureName[1];
-		params[3].ppTextures = &pMaterialTextures[83];
+			params[3].pName = pTextureName[1];
+			params[3].ppTextures = &pMaterialTextures[83];
 
-		params[4].pName = pTextureName[2];
-		params[4].ppTextures = &pMaterialTextures[6];
+			params[4].pName = pTextureName[2];
+			params[4].ppTextures = &pMaterialTextures[6];
 
-		params[5].pName = pTextureName[3];
-		params[5].ppTextures = &pMaterialTextures[6];
+			params[5].pName = pTextureName[3];
+			params[5].ppTextures = &pMaterialTextures[6];
 
-		params[6].pName = pTextureName[4];
-		params[6].ppTextures = &pMaterialTextures[0];
+			params[6].pName = pTextureName[4];
+			params[6].ppTextures = &pMaterialTextures[0];
 
-		cmdBindDescriptors(cmd, pRootSigGbuffers, 7, params);
+			cmdBindDescriptors(cmd, pDescriptorBinder, pRootSigGbuffers, 7, params);
 
 #else
-		data.mapIDs[0] = 81;
-		data.mapIDs[1] = 83;
-		data.mapIDs[2] = 6;
-		data.mapIDs[3] = 6;
-		data.mapIDs[4] = 0;
+			data.mapIDs[0] = 81;
+			data.mapIDs[1] = 83;
+			data.mapIDs[2] = 6;
+			data.mapIDs[3] = 6;
+			data.mapIDs[4] = 0;
 
-		params[0].pName = "cbObject";
-		params[0].ppBuffers = &pLionBuffer;
+			params[0].pName = "cbObject";
+			params[0].ppBuffers = &pLionBuffer;
 
-		params[1].pName = "cbTextureRootConstants";
-		params[1].pRootConstant = &data;
+			params[1].pName = "cbTextureRootConstants";
+			params[1].pRootConstant = &data;
 
-		cmdBindDescriptors(cmd, pRootSigGbuffers, 2, params);
+			cmdBindDescriptors(cmd, pDescriptorBinder, pRootSigGbuffers, 2, params);
 #endif
 
-		cmdDrawIndexed(cmd, gLionIndicesArray[0], 0, 0);
+			Buffer* pLionVertexBuffers[] = { lionMesh.pVertexBuffer };
+			cmdBindVertexBuffer(cmd, 1, pLionVertexBuffers, NULL);
+			cmdBindIndexBuffer(cmd, lionMesh.pIndexBuffer, 0);
 
+			for (uint32_t i = 0; i < (uint32_t)lionMesh.cmdArray.size(); ++i)
+			{
+				Mesh::CmdParam& cmdData = lionMesh.cmdArray[i];
+				cmdDrawIndexed(cmd, cmdData.indexCount, cmdData.startIndex, cmdData.startVertex);
+			}
+		}
 
 		cmdEndGpuTimestampQuery(cmd, pGpuProfiler);
 
 		endCmd(cmd);
 		allCmds.push_back(cmd);
 
-
 		// Render BRDF
 		cmd = pBrdfCmds[gFrameIndex];
 		beginCmd(cmd);
-
 
 		// Transfer G-buffers to a Shader resource state
 		for (uint32_t i = 0; i < DEFERRED_RT_COUNT; ++i)
@@ -2125,7 +1875,6 @@ public:
 
 		loadActions.mLoadActionsColor[0] = LOAD_ACTION_CLEAR;
 		loadActions.mClearColorValues[0] = pSceneBuffer->mDesc.mClearValue;
-
 
 		cmdBindRenderTargets(cmd, 1, &pSceneBuffer, NULL, &loadActions, NULL, NULL, -1, -1);
 		cmdSetViewport(cmd, 0.0f, 0.0f, (float)pSceneBuffer->mDesc.mWidth, (float)pSceneBuffer->mDesc.mHeight, 0.0f, 1.0f);
@@ -2168,7 +1917,7 @@ public:
 
 		cmdBindVertexBuffer(cmd, 1, &pScreenQuadVertexBuffer, NULL);
 
-		cmdBindDescriptors(cmd, pRootSigBRDF, 10, BRDFParams);
+		cmdBindDescriptors(cmd, pDescriptorBinder, pRootSigBRDF, 10, BRDFParams);
 
 		cmdDraw(cmd, 3, 0);
 
@@ -2192,7 +1941,6 @@ public:
 		PPR_ProjectionParams[0].pName = "cbExtendCamera";
 		PPR_ProjectionParams[0].ppBuffers = &pBufferUniformExtendedCamera[gFrameIndex];
 
-
 		PPR_ProjectionParams[1].pName = "IntermediateBuffer";
 		PPR_ProjectionParams[1].ppBuffers = &pIntermediateBuffer;
 
@@ -2202,7 +1950,7 @@ public:
 		PPR_ProjectionParams[3].pName = "planeInfoBuffer";
 		PPR_ProjectionParams[3].ppBuffers = &pBufferUniformPlaneInfo[gFrameIndex];
 
-		cmdBindDescriptors(cmd, pPPR_ProjectionRootSignature, 4, PPR_ProjectionParams);
+		cmdBindDescriptors(cmd, pDescriptorBinder, pPPR_ProjectionRootSignature, 4, PPR_ProjectionParams);
 
 		const uint32_t* pThreadGroupSize = pPPR_ProjectionShader->mReflection.mStageReflections[0].mNumThreadsPerGroup;
 		cmdDispatch(cmd, (mSettings.mWidth * mSettings.mHeight / pThreadGroupSize[0]) + 1, 1, 1);
@@ -2225,7 +1973,6 @@ public:
 		barrier = { pRenderTarget->pTexture, RESOURCE_STATE_RENDER_TARGET };
 		cmdResourceBarrier(cmd, 0, NULL, 1, &barrier, false);
 
-
 		loadActions = {};
 
 		loadActions.mLoadActionsColor[0] = LOAD_ACTION_CLEAR;
@@ -2234,7 +1981,6 @@ public:
 		cmdBindRenderTargets(cmd, 1, &pRenderTarget, NULL, &loadActions, NULL, NULL, -1, -1);
 		cmdSetViewport(cmd, 0.0f, 0.0f, (float)pRenderTarget->mDesc.mWidth, (float)pRenderTarget->mDesc.mHeight, 0.0f, 1.0f);
 		cmdSetScissor(cmd, 0, 0, pRenderTarget->mDesc.mWidth, pRenderTarget->mDesc.mHeight);
-
 
 		cmdBeginGpuTimestampQuery(cmd, pGpuProfiler, "ReflectionPass", true);
 		cmdBindPipeline(cmd, pPPR_ReflectionPipeline);
@@ -2258,7 +2004,7 @@ public:
 		PPR_ReflectionParams[5].pName = "cbProperties";
 		PPR_ReflectionParams[5].ppBuffers = &pBufferUniformPPRPro[gFrameIndex];
 
-		cmdBindDescriptors(cmd, pPPR_ReflectionRootSignature, 6, PPR_ReflectionParams);
+		cmdBindDescriptors(cmd, pDescriptorBinder, pPPR_ReflectionRootSignature, 6, PPR_ReflectionParams);
 		cmdBindVertexBuffer(cmd, 1, &pScreenQuadVertexBuffer, NULL);
 		cmdDraw(cmd, 3, 0);
 
@@ -2267,7 +2013,6 @@ public:
 
 		endCmd(cmd);
 		allCmds.push_back(cmd);
-
 
 		//Present
 		cmd = ppCmds[gFrameIndex];
@@ -2307,7 +2052,7 @@ public:
 		PPR_HolePatchingParams[3].pName = "cbProperties";
 		PPR_HolePatchingParams[3].ppBuffers = &pBufferUniformPPRPro[gFrameIndex];
 
-		cmdBindDescriptors(cmd, pPPR_HolePatchingRootSignature, 4, PPR_HolePatchingParams);
+		cmdBindDescriptors(cmd, pDescriptorBinder, pPPR_HolePatchingRootSignature, 4, PPR_HolePatchingParams);
 
 		cmdBindVertexBuffer(cmd, 1, &pScreenQuadVertexBuffer, NULL);
 		cmdDraw(cmd, 3, 0);
@@ -2321,20 +2066,27 @@ public:
 		gTimer.GetUSec(true);
 
 #ifdef TARGET_IOS
-		gVirtualJoystick.Draw(cmd, pCameraController, { 1.0f, 1.0f, 1.0f, 1.0f });
+		gVirtualJoystick.Draw(cmd, { 1.0f, 1.0f, 1.0f, 1.0f });
 #endif
 
-		drawDebugText(cmd, 8, 15, tinystl::string::format("CPU %f ms", gTimer.GetUSecAverage() / 1000.0f), &gFrameTimeDraw);
+		gAppUI.DrawText(
+			cmd, float2(8, 15), eastl::string().sprintf("CPU %f ms", gTimer.GetUSecAverage() / 1000.0f).c_str(), &gFrameTimeDraw);
 
-#ifndef METAL // Metal doesn't support GPU profilers
-		drawDebugText(cmd, 8, 40, tinystl::string::format("GPU %f ms", (float)pGpuProfiler->mCumulativeTime * 1000.0f), &gFrameTimeDraw);
+		gAppUI.DrawText(
+			cmd, float2(8, 40), eastl::string().sprintf("GPU %f ms", (float)pGpuProfiler->mCumulativeTime * 1000.0f).c_str(),
+			&gFrameTimeDraw);
 
-		drawDebugGpuProfile(cmd, 8, 65, pGpuProfiler, NULL);
-#endif
+		gAppUI.DrawDebugGpuProfile(cmd, float2(8, 65), pGpuProfiler, NULL);
 
+		if (!dataLoaded)
+			gAppUI.Gui(pLoadingGui);
 #ifndef TARGET_IOS
-		gAppUI.Gui(pGui);
+		else
+			gAppUI.Gui(pGui);
 #endif
+
+		cmdDrawProfiler(cmd, mSettings.mWidth, mSettings.mHeight);
+
 		gAppUI.Draw(cmd);
 
 		cmdBindRenderTargets(cmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
@@ -2346,14 +2098,14 @@ public:
 		endCmd(cmd);
 		allCmds.push_back(cmd);
 
-		queueSubmit(pGraphicsQueue, (uint32_t)allCmds.size(), allCmds.data(), pRenderCompleteFence, 1, &pImageAcquiredSemaphore, 1, &pRenderCompleteSemaphore);
+		queueSubmit(
+			pGraphicsQueue, (uint32_t)allCmds.size(), allCmds.data(), pRenderCompleteFence, 1, &pImageAcquiredSemaphore, 1,
+			&pRenderCompleteSemaphore);
 		queuePresent(pGraphicsQueue, pSwapChain, gFrameIndex, 1, &pRenderCompleteSemaphore);
+		flipProfiler();
 	}
 
-	tinystl::string GetName()
-	{
-		return "10_PixelProjectedReflections";
-	}
+	const char* GetName() { return "10_PixelProjectedReflections"; }
 
 	bool addSwapChain()
 	{
@@ -2374,7 +2126,6 @@ public:
 
 	bool addSceneBuffer()
 	{
-
 		RenderTargetDesc sceneRT = {};
 		sceneRT.mArraySize = 1;
 		sceneRT.mClearValue = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -2412,10 +2163,6 @@ public:
 
 		return pReflectionBuffer != NULL;
 	}
-
-
-
-
 
 	bool addGBuffers()
 	{
@@ -2477,11 +2224,11 @@ public:
 		IntermediateBufferDesc.mDesc.mElementCount = mSettings.mWidth * mSettings.mHeight;
 		IntermediateBufferDesc.mDesc.mStructStride = sizeof(uint32_t);
 		IntermediateBufferDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_GPU_ONLY;
-		
+
 #ifdef METAL
 		IntermediateBufferDesc.mDesc.mFlags = BUFFER_CREATION_FLAG_PERSISTENT_MAP_BIT | BUFFER_CREATION_FLAG_OWN_MEMORY_BIT;
 #endif
-		
+
 		IntermediateBufferDesc.mDesc.mSize = IntermediateBufferDesc.mDesc.mStructStride * IntermediateBufferDesc.mDesc.mElementCount;
 
 		gInitializeVal.clear();
@@ -2490,11 +2237,9 @@ public:
 			gInitializeVal.push_back(UINT32_MAX);
 		}
 
-
 		IntermediateBufferDesc.pData = gInitializeVal.data();
 		IntermediateBufferDesc.ppBuffer = &pIntermediateBuffer;
 		addResource(&IntermediateBufferDesc);
-
 
 		return pIntermediateBuffer != NULL;
 	}
@@ -2522,14 +2267,10 @@ public:
 	}
 };
 
-
-
-
 void assignSponzaTextures()
 {
 	int AO = 5;
 	int NoMetallic = 6;
-	int Metallic = 7;
 
 	//00 : leaf
 	gSponzaTextureIndexforMaterial.push_back(66);
@@ -2561,9 +2302,9 @@ void assignSponzaTextures()
 
 	// 04 : 16___Default (gi_flag)
 	gSponzaTextureIndexforMaterial.push_back(8);
-	gSponzaTextureIndexforMaterial.push_back(8); // !!!!!!
+	gSponzaTextureIndexforMaterial.push_back(8);    // !!!!!!
 	gSponzaTextureIndexforMaterial.push_back(NoMetallic);
-	gSponzaTextureIndexforMaterial.push_back(8); // !!!!!
+	gSponzaTextureIndexforMaterial.push_back(8);    // !!!!!
 	gSponzaTextureIndexforMaterial.push_back(AO);
 
 	// 05 : bricks

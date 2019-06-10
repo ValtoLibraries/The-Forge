@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -31,9 +31,35 @@
 
 DWORD WINAPI ThreadFunctionStatic(void* data)
 {
-	WorkItem* pItem = (WorkItem*)data;
-	pItem->pFunc(pItem->pData);
+	ThreadDesc* pDesc = (ThreadDesc*)data;
+	pDesc->pFunc(pDesc->pData);
 	return 0;
+}
+
+AtomicUint::AtomicUint()
+{
+	mAtomicInt = 0;
+}
+
+AtomicUint::~AtomicUint()
+{
+
+} 
+
+void AtomicUint::AtomicStore(unsigned int i) {
+	InterlockedExchange((volatile unsigned int*)&mAtomicInt, 0);
+}
+
+unsigned int AtomicUint::AtomicIncrement()
+{
+	// -1 because InterlockedIncrement returns incremented value. To match atomic::, we want to return the value before incrementation
+	return InterlockedIncrement((volatile unsigned int*)&mAtomicInt) - 1;
+}
+
+unsigned int AtomicUint::AtomicDecrement()
+{
+	// -1 because InterlockedIncrement returns incremented value. To match atomic::, we want to return the value before decrementation
+	return InterlockedDecrement((volatile unsigned int*)&mAtomicInt) - 1;
 }
 
 Mutex::Mutex()
@@ -50,15 +76,9 @@ Mutex::~Mutex()
 	pHandle = 0;
 }
 
-void Mutex::Acquire()
-{
-	EnterCriticalSection((CRITICAL_SECTION*)pHandle);
-}
+void Mutex::Acquire() { EnterCriticalSection((CRITICAL_SECTION*)pHandle); }
 
-void Mutex::Release()
-{
-	LeaveCriticalSection((CRITICAL_SECTION*)pHandle);
-}
+void Mutex::Release() { LeaveCriticalSection((CRITICAL_SECTION*)pHandle); }
 
 ConditionVariable::ConditionVariable()
 {
@@ -66,9 +86,11 @@ ConditionVariable::ConditionVariable()
 	InitializeConditionVariable((PCONDITION_VARIABLE)pHandle);
 }
 
-ConditionVariable::~ConditionVariable()
+ConditionVariable::~ConditionVariable() { conf_free(pHandle); }
+
+void ConditionVariable::Wait(const Mutex& mutex)
 {
-	conf_free(pHandle);
+	SleepConditionVariableCS((PCONDITION_VARIABLE)pHandle, (PCRITICAL_SECTION)mutex.pHandle, INFINITE);
 }
 
 void ConditionVariable::Wait(const Mutex& mutex, unsigned ms)
@@ -76,31 +98,37 @@ void ConditionVariable::Wait(const Mutex& mutex, unsigned ms)
 	SleepConditionVariableCS((PCONDITION_VARIABLE)pHandle, (PCRITICAL_SECTION)mutex.pHandle, ms);
 }
 
-void ConditionVariable::Set()
-{
-	WakeConditionVariable((PCONDITION_VARIABLE)pHandle);
-}
+void ConditionVariable::Set() { WakeConditionVariable((PCONDITION_VARIABLE)pHandle); }
+
+void ConditionVariable::SetAll() { WakeAllConditionVariable((PCONDITION_VARIABLE)pHandle); }
 
 ThreadID Thread::mainThreadID;
 
-void Thread::SetMainThread()
+void Thread::SetMainThread() { mainThreadID = GetCurrentThreadID(); }
+
+ThreadID Thread::GetCurrentThreadID() { return GetCurrentThreadId(); }
+
+char * thread_name()
 {
-	mainThreadID = GetCurrentThreadID();
+	__declspec(thread) static char name[MAX_THREAD_NAME_LENGTH + 1];
+	return name;
 }
 
-ThreadID Thread::GetCurrentThreadID()
+void Thread::GetCurrentThreadName(char * buffer, int size)
 {
-	return GetCurrentThreadId();
+	if (const char* name = thread_name())
+		snprintf(buffer, (size_t)size, "%s", name);
+	else
+		buffer[0] = 0;
 }
 
-bool Thread::IsMainThread()
-{
-	return GetCurrentThreadID() == mainThreadID;
-}
+void Thread::SetCurrentThreadName(const char * name) { strcpy_s(thread_name(), MAX_THREAD_NAME_LENGTH + 1, name); }
 
-ThreadHandle create_thread(WorkItem* pData)
+bool Thread::IsMainThread() { return GetCurrentThreadID() == mainThreadID; }
+
+ThreadHandle create_thread(ThreadDesc* pDesc)
 {
-	ThreadHandle handle = CreateThread(0, 0, ThreadFunctionStatic, pData, 0, 0);
+	ThreadHandle handle = CreateThread(0, 0, ThreadFunctionStatic, pDesc, 0, 0);
 	ASSERT(handle != NULL);
 	return handle;
 }
@@ -113,15 +141,9 @@ void destroy_thread(ThreadHandle handle)
 	handle = 0;
 }
 
-void join_thread(ThreadHandle handle)
-{
-	WaitForSingleObject((HANDLE)handle, INFINITE);
-}
+void join_thread(ThreadHandle handle) { WaitForSingleObject((HANDLE)handle, INFINITE); }
 
-void Thread::Sleep(unsigned mSec)
-{
-	::Sleep(mSec);
-}
+void Thread::Sleep(unsigned mSec) { ::Sleep(mSec); }
 
 // threading class (Static functions)
 unsigned int Thread::GetNumCPUCores(void)

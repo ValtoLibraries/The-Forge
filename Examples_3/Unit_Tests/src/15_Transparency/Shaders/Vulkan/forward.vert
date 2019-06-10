@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  * 
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -31,7 +31,7 @@ struct ObjectInfo
 	uint matID;
 };
 
-layout(set = 0, binding = 0) uniform ObjectUniformBlock
+layout(set = 3, binding = 0) uniform ObjectUniformBlock
 {
 	ObjectInfo	objectInfo[MAX_NUM_OBJECTS];
 };

@@ -21,12 +21,12 @@
   <ItemGroup>
     <ClCompile Include="..\..\..\Common_3\OS\Camera\FpsCameraController.cpp" />
     <ClCompile Include="..\..\..\Common_3\OS\Camera\GuiCameraController.cpp" />
-    <ClCompile Include="..\..\..\Common_3\OS\Core\DebugRenderer.cpp" />
     <ClCompile Include="..\..\..\Common_3\OS\Core\FileSystem.cpp" />
     <ClCompile Include="..\..\..\Common_3\OS\Core\PlatformEvents.cpp" />
     <ClCompile Include="..\..\..\Common_3\OS\Core\ThreadSystem.cpp" />
     <ClCompile Include="..\..\..\Common_3\OS\Core\Timer.cpp" />
     <ClCompile Include="..\..\..\Common_3\OS\Image\Image.cpp" />
+    <ClCompile Include="..\..\..\Common_3\OS\Input\InputSystem.cpp" />
     <ClCompile Include="..\..\..\Common_3\OS\Logging\LogManager.cpp" />
     <ClCompile Include="..\..\..\Common_3\OS\MemoryTracking\MemoryTrackingManager.cpp" />
     <ClCompile Include="..\..\..\Common_3\OS\Windows\WindowsBase.cpp" />
@@ -37,6 +37,7 @@
     <ClCompile Include="..\..\..\Common_3\Renderer\Direct3D12\Direct3D12.cpp" />
     <ClCompile Include="..\..\..\Common_3\Renderer\Direct3D12\Direct3D12Hooks.cpp" />
     <ClCompile Include="..\..\..\Common_3\Renderer\Direct3D12\Direct3D12MemoryAllocator.cpp" />
+    <ClCompile Include="..\..\..\Common_3\Renderer\Direct3D12\Direct3D12Raytracing.cpp" />
     <ClCompile Include="..\..\..\Common_3\Renderer\Direct3D12\Direct3D12ShaderReflection.cpp" />
     <ClCompile Include="..\..\..\Common_3\Renderer\GpuProfiler.cpp" />
     <ClCompile Include="..\..\..\Common_3\Renderer\Renderer.cpp" />
@@ -51,17 +52,16 @@
     <ClCompile Include="..\..\..\Common_3\ThirdParty\OpenSource\SPIRV_Cross\spirv_cross.cpp" />
     <ClCompile Include="..\..\..\Common_3\ThirdParty\OpenSource\TinyEXR\tinyexr.cpp" />
     <ClCompile Include="..\..\..\Common_3\Tools\SpirvTools\SpirvTools.cpp" />
-    <ClCompile Include="..\..\..\Middleware_3\Input\InputSystem.cpp" />
     <ClCompile Include="..\..\..\Middleware_3\Text\Fontstash.cpp" />
     <ClCompile Include="..\..\..\Middleware_3\UI\AppUI.cpp" />
     <ClCompile Include="..\..\..\Middleware_3\UI\ImguiGUIDriver.cpp" />
     <ClCompile Include="..\src\12_RendererRuntimeSwitch\12_RendererRuntimeSwitch.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\src\12_RendererRuntimeSwitch\Shaders\PCDX12\basic.frag" />
-    <None Include="..\src\12_RendererRuntimeSwitch\Shaders\PCDX12\basic.vert" />
-    <None Include="..\src\12_RendererRuntimeSwitch\Shaders\PCDX12\skybox.frag" />
-    <None Include="..\src\12_RendererRuntimeSwitch\Shaders\PCDX12\skybox.vert" />
+    <None Include="..\src\12_RendererRuntimeSwitch\Shaders\D3D12\basic.frag" />
+    <None Include="..\src\12_RendererRuntimeSwitch\Shaders\D3D12\basic.vert" />
+    <None Include="..\src\12_RendererRuntimeSwitch\Shaders\D3D12\skybox.frag" />
+    <None Include="..\src\12_RendererRuntimeSwitch\Shaders\D3D12\skybox.vert" />
     <None Include="..\src\12_RendererRuntimeSwitch\Shaders\Vulkan\basic.frag" />
     <None Include="..\src\12_RendererRuntimeSwitch\Shaders\Vulkan\basic.vert" />
     <None Include="..\src\12_RendererRuntimeSwitch\Shaders\Vulkan\skybox.frag" />
@@ -69,10 +69,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\Common_3\OS\Core\Compiler.h" />
-    <ClInclude Include="..\..\..\Common_3\OS\Core\DebugRenderer.h" />
     <ClInclude Include="..\..\..\Common_3\OS\Core\RingBuffer.h" />
     <ClInclude Include="..\..\..\Common_3\OS\Image\Image.h" />
     <ClInclude Include="..\..\..\Common_3\OS\Image\ImageEnums.h" />
+    <ClInclude Include="..\..\..\Common_3\OS\Input\InputMappings.h" />
+    <ClInclude Include="..\..\..\Common_3\OS\Input\InputSystem.h" />
     <ClInclude Include="..\..\..\Common_3\OS\Interfaces\IApp.h" />
     <ClInclude Include="..\..\..\Common_3\OS\Interfaces\ICameraController.h" />
     <ClInclude Include="..\..\..\Common_3\OS\Interfaces\IFileSystem.h" />
@@ -100,7 +101,6 @@
     <ClInclude Include="..\..\..\Common_3\ThirdParty\OpenSource\SPIRV_Cross\spirv_cross.hpp" />
     <ClInclude Include="..\..\..\Common_3\ThirdParty\OpenSource\VulkanMemoryAllocator\VulkanMemoryAllocator.h" />
     <ClInclude Include="..\..\..\Common_3\Tools\SpirvTools\SpirvTools.h" />
-    <ClInclude Include="..\..\..\Middleware_3\Input\InputSystem.h" />
     <ClInclude Include="..\..\..\Middleware_3\Text\Fontstash.h" />
     <ClInclude Include="..\..\..\Middleware_3\UI\AppUI.h" />
     <ClInclude Include="..\..\..\Middleware_3\UI\UIShaders.h" />
@@ -114,7 +114,7 @@
     <ProjectGuid>{42B9F7E1-3E3D-4BD0-9B97-8080A740E032}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Samples_GLFW</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
     <ProjectName>12_RendererRuntimeSwitch</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -200,6 +200,7 @@
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ShowIncludes>false</ShowIncludes>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

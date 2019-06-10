@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2018 Confetti Interactive Inc.
+* Copyright (c) 2018-2019 Confetti Interactive Inc.
 *
 * This file is part of The-Forge
 * (see https://github.com/ConfettiFX/The-Forge).
@@ -30,10 +30,19 @@
 
 #include "../../Common_3/OS/Interfaces/ILogManager.h"
 #include "../../Common_3/OS/Interfaces/IMemoryManager.h"
+
+namespace eastl
+{
+	template <>
+	struct has_equality<vec4> : eastl::false_type {};
+}
+
+FSRoot FSR_MIDDLEWARE_PANINI = FSR_Middleware2;
 /************************************************************************/
 /* HELPER FUNCTIONS
 ************************************************************************/
-void createTessellatedQuadBuffers(Renderer* pRenderer, Buffer** ppVertexBuffer, Buffer** ppIndexBuffer, unsigned tessellationX, unsigned tessellationY)
+void createTessellatedQuadBuffers(
+	Renderer* pRenderer, Buffer** ppVertexBuffer, Buffer** ppIndexBuffer, unsigned tessellationX, unsigned tessellationY)
 {
 	ASSERT(tessellationX >= 1);
 	ASSERT(tessellationY >= 1);
@@ -47,31 +56,34 @@ void createTessellatedQuadBuffers(Renderer* pRenderer, Buffer** ppVertexBuffer, 
 	const int numQuads = tessellationX * tessellationY;
 	const int numVertices = (tessellationX + 1) * (tessellationY + 1);
 
-	tinystl::vector<vec4> vertices(numVertices);
-	const unsigned m = tessellationX + 1;
-	const unsigned n = tessellationY + 1;
+	eastl::vector<vec4> vertices(numVertices);
+	const unsigned        m = tessellationX + 1;
+	const unsigned        n = tessellationY + 1;
 	for (unsigned i = 0; i < n; ++i)
 	{
-		const float y = i * dy - 1.0f;	  // offset w/ -1.0f :  [0,2]->[-1,1]
+		const float y = i * dy - 1.0f;    // offset w/ -1.0f :  [0,2]->[-1,1]
 		for (unsigned j = 0; j < m; ++j)
 		{
-			const float x = j * dx - 1.0f;  // offset w/ -1.0f :  [0,2]->[-1,1]
-			vertices[i*m + j] = vec4(x, y, 0, 1);
+			const float x = j * dx - 1.0f;    // offset w/ -1.0f :  [0,2]->[-1,1]
+			vertices[i * m + j] = vec4(x, y, 0, 1);
 		}
 	}
 
 	BufferLoadDesc vbDesc = {};
 	vbDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_VERTEX_BUFFER;
-	vbDesc.mDesc.mMemoryUsage = pRenderer->mSettings.mGpuMode == GPU_MODE_SINGLE ? RESOURCE_MEMORY_USAGE_GPU_ONLY : RESOURCE_MEMORY_USAGE_CPU_TO_GPU;
-	vbDesc.mDesc.mFlags = pRenderer->mSettings.mGpuMode == GPU_MODE_SINGLE ? BUFFER_CREATION_FLAG_NONE : BUFFER_CREATION_FLAG_PERSISTENT_MAP_BIT;
+	vbDesc.mDesc.mMemoryUsage =
+		pRenderer->mSettings.mGpuMode == GPU_MODE_SINGLE ? RESOURCE_MEMORY_USAGE_GPU_ONLY : RESOURCE_MEMORY_USAGE_CPU_TO_GPU;
+	vbDesc.mDesc.mFlags =
+		pRenderer->mSettings.mGpuMode == GPU_MODE_SINGLE ? BUFFER_CREATION_FLAG_NONE : BUFFER_CREATION_FLAG_PERSISTENT_MAP_BIT;
 	vbDesc.mDesc.mSize = vertices.size() * sizeof(vec4);
 	vbDesc.mDesc.mVertexStride = sizeof(vec4);
+	vbDesc.mDesc.mFlags = BUFFER_CREATION_FLAG_OWN_MEMORY_BIT;
 	vbDesc.pData = vertices.data();
 	vbDesc.ppBuffer = ppVertexBuffer;
 	addResource(&vbDesc);
 
 	// Tessellate the quad
-	tinystl::vector<uint16_t> indices(numQuads * 6);
+	eastl::vector<uint16_t> indices(numQuads * 6);
 	//	A +------+ B
 	//	  |    / |
 	//	  |   /  |
@@ -92,21 +104,24 @@ void createTessellatedQuadBuffers(Renderer* pRenderer, Buffer** ppVertexBuffer, 
 	{
 		for (unsigned j = 0; j < tessellationX; ++j)
 		{
-			indices[quad * 6 + 0] = (uint16_t)(i*m + j);
-			indices[quad * 6 + 1] = (uint16_t)(i*m + j + 1);
-			indices[quad * 6 + 2] = (uint16_t)((i + 1)*m + j);
-			indices[quad * 6 + 3] = (uint16_t)((i + 1)*m + j);
-			indices[quad * 6 + 4] = (uint16_t)(i*m + j + 1);
-			indices[quad * 6 + 5] = (uint16_t)((i + 1)*m + j + 1);
+			indices[quad * 6 + 0] = (uint16_t)(i * m + j);
+			indices[quad * 6 + 1] = (uint16_t)(i * m + j + 1);
+			indices[quad * 6 + 2] = (uint16_t)((i + 1) * m + j);
+			indices[quad * 6 + 3] = (uint16_t)((i + 1) * m + j);
+			indices[quad * 6 + 4] = (uint16_t)(i * m + j + 1);
+			indices[quad * 6 + 5] = (uint16_t)((i + 1) * m + j + 1);
 			quad++;
 		}
 	}
 
 	BufferLoadDesc ibDesc = {};
 	ibDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_INDEX_BUFFER;
-	ibDesc.mDesc.mMemoryUsage = pRenderer->mSettings.mGpuMode == GPU_MODE_SINGLE ? RESOURCE_MEMORY_USAGE_GPU_ONLY : RESOURCE_MEMORY_USAGE_CPU_TO_GPU;
-	ibDesc.mDesc.mFlags = pRenderer->mSettings.mGpuMode == GPU_MODE_SINGLE ? BUFFER_CREATION_FLAG_NONE : BUFFER_CREATION_FLAG_PERSISTENT_MAP_BIT;
+	ibDesc.mDesc.mMemoryUsage =
+		pRenderer->mSettings.mGpuMode == GPU_MODE_SINGLE ? RESOURCE_MEMORY_USAGE_GPU_ONLY : RESOURCE_MEMORY_USAGE_CPU_TO_GPU;
+	ibDesc.mDesc.mFlags =
+		pRenderer->mSettings.mGpuMode == GPU_MODE_SINGLE ? BUFFER_CREATION_FLAG_NONE : BUFFER_CREATION_FLAG_PERSISTENT_MAP_BIT;
 	ibDesc.mDesc.mSize = indices.size() * sizeof(uint16_t);
+	ibDesc.mDesc.mFlags = BUFFER_CREATION_FLAG_OWN_MEMORY_BIT;
 	ibDesc.mDesc.mIndexType = INDEX_TYPE_UINT16;
 	ibDesc.pData = indices.data();
 	ibDesc.ppBuffer = ppIndexBuffer;
@@ -118,19 +133,18 @@ void createTessellatedQuadBuffers(Renderer* pRenderer, Buffer** ppVertexBuffer, 
 bool Panini::Init(Renderer* renderer)
 {
 	pRenderer = renderer;
+
 	// SHADER
 	//----------------------------------------------------------------------------------------------------------------
 	ShaderLoadDesc paniniPass = {};
-	paniniPass.mStages[0] = { "panini_projection.vert", NULL, 0, FSR_SrcShaders_Common };
-	paniniPass.mStages[1] = { "panini_projection.frag", NULL, 0, FSR_SrcShaders_Common };
+	paniniPass.mStages[0] = { "panini_projection.vert", NULL, 0, FSR_MIDDLEWARE_PANINI };
+	paniniPass.mStages[1] = { "panini_projection.frag", NULL, 0, FSR_MIDDLEWARE_PANINI };
 	addShader(pRenderer, &paniniPass, &pShaderPanini);
 
 	// SAMPLERS & STATES
 	//----------------------------------------------------------------------------------------------------------------
-	SamplerDesc samplerDesc = {
-		FILTER_NEAREST, FILTER_NEAREST, MIPMAP_MODE_NEAREST,
-		ADDRESS_MODE_REPEAT, ADDRESS_MODE_REPEAT, ADDRESS_MODE_REPEAT
-	};
+	SamplerDesc samplerDesc = { FILTER_NEAREST,      FILTER_NEAREST,      MIPMAP_MODE_NEAREST,
+								ADDRESS_MODE_REPEAT, ADDRESS_MODE_REPEAT, ADDRESS_MODE_REPEAT };
 	addSampler(pRenderer, &samplerDesc, &pSamplerPointWrap);
 
 	RasterizerStateDesc rasterizerStateDesc = {};
@@ -143,14 +157,18 @@ bool Panini::Init(Renderer* renderer)
 
 	// ROOT SIGNATURE
 	//----------------------------------------------------------------------------------------------------------------
-	const char* pStaticSamplerName = "uSampler";
+	const char*       pStaticSamplerName = "uSampler";
 	RootSignatureDesc paninniRootDesc = { &pShaderPanini, 1 };
 	paninniRootDesc.mStaticSamplerCount = 1;
 	paninniRootDesc.ppStaticSamplerNames = &pStaticSamplerName;
 	paninniRootDesc.ppStaticSamplers = &pSamplerPointWrap;
 	addRootSignature(pRenderer, &paninniRootDesc, &pRootSignaturePaniniPostProcess);
 
-	createTessellatedQuadBuffers(pRenderer, &pVertexBufferTessellatedQuad, &pIndexBufferTessellatedQuad, mPaniniDistortionTessellation[0], mPaniniDistortionTessellation[1]);
+	SetDescriptorBinder(1); // Create descriptor binder space that allows for 1 texture per frame by default
+
+	createTessellatedQuadBuffers(
+		pRenderer, &pVertexBufferTessellatedQuad, &pIndexBufferTessellatedQuad, mPaniniDistortionTessellation[0],
+		mPaniniDistortionTessellation[1]);
 
 	return true;
 }
@@ -164,6 +182,8 @@ void Panini::Exit()
 	removeDepthState(pDepthStateDisable);
 
 	removeRootSignature(pRenderer, pRootSignaturePaniniPostProcess);
+	removeDescriptorBinder(pRenderer, pDescriptorBinderPaniniPostProcess);
+	pDescriptorBinderPaniniPostProcess = NULL;
 
 	removeResource(pVertexBufferTessellatedQuad);
 	removeResource(pIndexBufferTessellatedQuad);
@@ -180,7 +200,9 @@ bool Panini::Load(RenderTarget** rts)
 	vertexLayoutPanini.mAttribs[0].mLocation = 0;
 	vertexLayoutPanini.mAttribs[0].mOffset = 0;
 
-	GraphicsPipelineDesc pipelineSettings = { 0 };
+	PipelineDesc graphicsPipelineDesc = {};
+	graphicsPipelineDesc.mType = PIPELINE_TYPE_GRAPHICS;
+	GraphicsPipelineDesc& pipelineSettings = graphicsPipelineDesc.mGraphicsDesc;
 	pipelineSettings.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 	pipelineSettings.mRenderTargetCount = 1;
 	pipelineSettings.pDepthState = pDepthStateDisable;
@@ -192,7 +214,7 @@ bool Panini::Load(RenderTarget** rts)
 	pipelineSettings.pRootSignature = pRootSignaturePaniniPostProcess;
 	pipelineSettings.pShaderProgram = pShaderPanini;
 	pipelineSettings.pVertexLayout = &vertexLayoutPanini;
-	addPipeline(pRenderer, &pipelineSettings, &pPipelinePaniniPostProcess);
+	addPipeline(pRenderer, &graphicsPipelineDesc, &pPipelinePaniniPostProcess);
 
 	return true;
 }
@@ -207,6 +229,7 @@ void Panini::Draw(Cmd* cmd)
 {
 	ASSERT(cmd);
 	ASSERT(pSourceTexture);
+	ASSERT(pDescriptorBinderPaniniPostProcess);
 
 	//beginCmd(cmd);	// beginCmd() and endCmd() should be handled by the caller App
 
@@ -216,7 +239,7 @@ void Panini::Draw(Cmd* cmd)
 	params[0].ppTextures = &pSourceTexture;
 	params[1].pName = "PaniniRootConstants";
 	params[1].pRootConstant = &mParams;
-	cmdBindDescriptors(cmd, pRootSignaturePaniniPostProcess, 2, params);
+	cmdBindDescriptors(cmd, pDescriptorBinderPaniniPostProcess, pRootSignaturePaniniPostProcess, 2, params);
 	cmdBindPipeline(cmd, pPipelinePaniniPostProcess);
 
 	// draw
@@ -224,6 +247,15 @@ void Panini::Draw(Cmd* cmd)
 	cmdBindIndexBuffer(cmd, pIndexBufferTessellatedQuad, 0);
 	cmdBindVertexBuffer(cmd, 1, &pVertexBufferTessellatedQuad, NULL);
 	cmdDrawIndexed(cmd, numIndices, 0, 0);
+}
+
+void Panini::SetDescriptorBinder(uint32_t maxSourceTextureUpdatesPerFrame) 
+{
+	if (pDescriptorBinderPaniniPostProcess) {
+		removeDescriptorBinder(pRenderer, pDescriptorBinderPaniniPostProcess);
+	}
+	DescriptorBinderDesc paniniDescriptorBinderDesc = { pRootSignaturePaniniPostProcess, maxSourceTextureUpdatesPerFrame };
+	addDescriptorBinder(pRenderer, 0, 1, &paniniDescriptorBinderDesc, &pDescriptorBinderPaniniPostProcess);
 }
 
 void Panini::SetSourceTexture(Texture* pTex)

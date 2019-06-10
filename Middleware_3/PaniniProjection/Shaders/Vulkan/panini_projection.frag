@@ -1,7 +1,7 @@
 #version 450 core
 
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  * 
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -28,7 +28,7 @@
 layout(location = 0) in vec2 iTexcoord;
 layout(location = 0) out vec4 oColor;
 
-layout(set = 0, binding = 1) uniform texture2D uTex;
+layout(set = 2, binding = 1) uniform texture2D uTex;
 layout(set = 0, binding = 2) uniform sampler uSampler;
 
 void main()

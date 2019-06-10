@@ -1,27 +1,24 @@
-#pragma once
 #include "AssetPipeline.h"
-#include "../../ThirdParty/OpenSource/TinySTL/string.h"
+#include "../../ThirdParty/OpenSource/EASTL/string.h"
 #include "../../OS/Interfaces/ILogManager.h"
 
 #include <cstdio>
 #include <sys/stat.h>
 
-const char* pszBases[] =
-{
-	"",		// FSR_BinShaders
-	"",		// FSR_SrcShaders
-	"",		// FSR_BinShaders_Common
-	"",		// FSR_SrcShaders_Common
-	"",		// FSR_Textures
-	"",		// FSR_Meshes
-	"",		// FSR_Builtin_Fonts
-	"",		// FSR_GpuConfig
-	"",		// FSR_Animtion
-	"",		// FSR_OtherFiles
+const char* pszBases[] = {
+	"",    // FSR_BinShaders
+	"",    // FSR_SrcShaders
+	"",    // FSR_BinShaders_Common
+	"",    // FSR_SrcShaders_Common
+	"",    // FSR_Textures
+	"",    // FSR_Meshes
+	"",    // FSR_Builtin_Fonts
+	"",    // FSR_GpuConfig
+	"",    // FSR_Animtion
+	"",    // FSR_OtherFiles
 };
 
 const char* gApplicationName = NULL;
-LogManager gLogManager;
 
 void PrintHelp()
 {
@@ -48,7 +45,7 @@ size_t GetFileLastModifiedTime(const char* _fileName)
 	}
 }
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
 	uint appLastModified = 0;
 	if (argc > 0)
@@ -60,8 +57,8 @@ int main(int argc, char **argv)
 	if (argc == 1)
 		PrintHelp();
 
-	tinystl::string arg = argv[1];
-	arg = arg.to_lower();
+	eastl::string arg = argv[1];
+	arg.make_lower();
 
 	if (arg == "-h" || arg == "-help")
 		PrintHelp();
@@ -74,15 +71,15 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		tinystl::string animationDir = argv[2];
-		tinystl::string outputDir = argv[3];
+		eastl::string animationDir = argv[2];
+		eastl::string outputDir = argv[3];
 
 		bool quiet = false;
 		bool force = false;
 		for (int j = 4; j < argc; ++j)
 		{
 			arg = argv[j];
-			arg = arg.to_lower();
+			arg.make_lower();
 
 			if (arg == "--quiet")
 				quiet = true;

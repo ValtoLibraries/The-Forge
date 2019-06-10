@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -25,6 +25,7 @@
 #ifdef __APPLE__
 
 #import <Foundation/Foundation.h>
+#include <AppKit/NSOpenPanel.h>
 
 #include "../Interfaces/IFileSystem.h"
 #include "../Interfaces/ILogManager.h"
@@ -32,25 +33,22 @@
 #include "../Interfaces/IMemoryManager.h"
 
 #include <unistd.h>
-#include <limits.h>  // for UINT_MAX
-#include <sys/stat.h>  // for mkdir
-#include <sys/errno.h> // for errno
+#include <limits.h>       // for UINT_MAX
+#include <sys/stat.h>     // for mkdir
+#include <sys/errno.h>    // for errno
 #include <dirent.h>
 
-#define RESOURCE_DIR "Shaders/OSXMetal"
+#define RESOURCE_DIR "Shaders/Metal"
 
-const char* pszRoots[FSR_Count] =
-{
-	RESOURCE_DIR "/Binary/",			// FSR_BinShaders
-	RESOURCE_DIR "/",					// FSR_SrcShaders
-	RESOURCE_DIR "/Binary/",			// FSR_BinShaders_Common
-	RESOURCE_DIR "/",					// FSR_SrcShaders_Common
-	"Textures/",						// FSR_Textures
-	"Meshes/",							// FSR_Meshes
-	"Fonts/",							// FSR_Builtin_Fonts
-	"GPUCfg/",							// FSR_GpuConfig
-	"Animation/",						// FSR_Animation
-	"",									// FSR_OtherFiles
+const char* pszRoots[FSR_Count] = {
+	RESOURCE_DIR "/Binary/",    // FSR_BinShaders
+	RESOURCE_DIR "/",           // FSR_SrcShaders
+	"Textures/",                // FSR_Textures
+	"Meshes/",                  // FSR_Meshes
+	"Fonts/",                   // FSR_Builtin_Fonts
+	"GPUCfg/",                  // FSR_GpuConfig
+	"Animation/",               // FSR_Animation
+	"",                         // FSR_OtherFiles
 };
 
 FileHandle open_file(const char* filename, const char* flags)
@@ -59,152 +57,296 @@ FileHandle open_file(const char* filename, const char* flags)
 	return fp;
 }
 
-void close_file(FileHandle handle)
+bool close_file(FileHandle handle) { return (fclose((::FILE*)handle) == 0); }
+
+void flush_file(FileHandle handle) { fflush((::FILE*)handle); }
+
+size_t read_file(void* buffer, size_t byteCount, FileHandle handle) { return fread(buffer, 1, byteCount, (::FILE*)handle); }
+
+bool seek_file(FileHandle handle, long offset, int origin) { return fseek((::FILE*)handle, offset, origin) == 0; }
+
+long tell_file(FileHandle handle) { return ftell((::FILE*)handle); }
+
+size_t write_file(const void* buffer, size_t byteCount, FileHandle handle) { return fwrite(buffer, 1, byteCount, (::FILE*)handle); }
+
+time_t get_file_last_modified_time(const char* _fileName)
 {
-	fclose((::FILE*)handle);
+	struct stat fileInfo = {0};
+
+	stat(_fileName, &fileInfo);
+	return fileInfo.st_mtime;
 }
 
-void flush_file(FileHandle handle)
+time_t get_file_last_accessed_time(const char* _fileName)
 {
-	fflush((::FILE*)handle);
+	struct stat fileInfo = {0};
+
+	stat(_fileName, &fileInfo);
+	return fileInfo.st_atime;
 }
 
-size_t read_file(void *buffer, size_t byteCount, FileHandle handle)
+time_t get_file_creation_time(const char* _fileName)
 {
-	return fread(buffer, 1, byteCount, (::FILE*)handle);
+	struct stat fileInfo = {0};
+
+	stat(_fileName, &fileInfo);
+	return fileInfo.st_ctime;
 }
 
-bool seek_file(FileHandle handle, long offset, int origin)
+eastl::string get_current_dir()
 {
-	return fseek((::FILE*)handle, offset, origin) == 0;
-}
-
-long tell_file(FileHandle handle)
-{
-	return ftell((::FILE*)handle);
-}
-
-size_t write_file(const void *buffer, size_t byteCount, FileHandle handle)
-{
-	return fwrite(buffer, 1, byteCount, (::FILE*)handle);
-}
-
-size_t get_file_last_modified_time(const char* _fileName)
-{
-	struct stat fileInfo;
-
-	if (!stat(_fileName, &fileInfo))
-	{
-		return (size_t)fileInfo.st_mtime;
-	}
-	else
-	{
-		// return an impossible large mod time as the file doesn't exist
-		return ~0;
-	}
-}
-
-tinystl::string get_current_dir()
-{
-	char cwd[256]="";
+	char cwd[256] = "";
 	getcwd(cwd, sizeof(cwd));
-	tinystl::string str(cwd);
+	eastl::string str(cwd);
 	return str;
 }
 
-tinystl::string get_exe_path()
+eastl::string get_exe_path()
 {
-	const char* exeDir = [[[[NSBundle mainBundle] bundlePath] stringByDeletingLastPathComponent] cStringUsingEncoding:NSUTF8StringEncoding];
-	tinystl::string str(exeDir);
+	const char*     exePath = [[[[NSBundle mainBundle] bundlePath] stringByStandardizingPath] cStringUsingEncoding:NSUTF8StringEncoding];
+	eastl::string str(exePath);
 	return str;
 }
 
-tinystl::string get_app_prefs_dir(const char *org, const char *app)
+eastl::string get_app_prefs_dir(const char* org, const char* app)
 {
-	const char * rawUserPath = [[[[NSFileManager defaultManager] homeDirectoryForCurrentUser] absoluteString] UTF8String];
-	const char * path;
-	path = strstr(rawUserPath,"/Users/");
-	return tinystl::string(path) + tinystl::string("Library/") + tinystl::string(org) + tinystl::string("/") + tinystl::string(app);
+	const char* rawUserPath = [[[[NSFileManager defaultManager] homeDirectoryForCurrentUser] absoluteString] UTF8String];
+	const char* path;
+	path = strstr(rawUserPath, "/Users/");
+	return eastl::string(path) + eastl::string("Library/") + eastl::string(org) + eastl::string("/") + eastl::string(app);
 }
 
-tinystl::string get_user_documents_dir()
+eastl::string get_user_documents_dir()
 {
-	const char * rawUserPath = [[[[NSFileManager defaultManager] homeDirectoryForCurrentUser] absoluteString] UTF8String];
-	const char * path;
-	path = strstr(rawUserPath,"/Users/");
-	return tinystl::string(path);
+	const char* rawUserPath = [[[[NSFileManager defaultManager] homeDirectoryForCurrentUser] absoluteString] UTF8String];
+	const char* path;
+	path = strstr(rawUserPath, "/Users/");
+	return eastl::string(path);
 }
 
-void set_current_dir(const char* path)
-{
-	chdir(path);
-}
+void set_current_dir(const char* path) { chdir(path); }
 
-void get_files_with_extensions(const char* dir, const char* ext, tinystl::vector<tinystl::string>& filesOut)
+void get_files_with_extension(const char* dir, const char* ext, eastl::vector<eastl::string>& filesOut)
 {
-	tinystl::string path = FileSystem::GetNativePath(FileSystem::AddTrailingSlash(dir));
-	DIR* pDir = opendir(dir);
-	if(!pDir)
+	eastl::string path = FileSystem::GetNativePath(FileSystem::AddTrailingSlash(dir));
+	DIR*            pDir = opendir(dir);
+	if (!pDir)
 	{
-		LOGWARNINGF("Could not open directory: %s", dir);
+        LOGF(LogLevel::eWARNING, "Could not open directory: %s", dir);
 		return;
 	}
-	
+
 	// recursively search the directory for files with given extension
 	dirent* entry = NULL;
-	while((entry = readdir(pDir)) != NULL)
+	while ((entry = readdir(pDir)) != NULL)
 	{
-		if(FileSystem::GetExtension(entry->d_name) == ext)
+		if (FileSystem::GetExtension(entry->d_name) == ext)
 		{
 			filesOut.push_back(path + entry->d_name);
 		}
 	}
-	
+
 	closedir(pDir);
 }
 
-void get_sub_directories(const char* dir, tinystl::vector<tinystl::string>& subDirectoriesOut)
+void get_sub_directories(const char* dir, eastl::vector<eastl::string>& subDirectoriesOut)
 {
-	tinystl::string path = FileSystem::GetNativePath(FileSystem::AddTrailingSlash(dir));
-	DIR* pDir = opendir(dir);
-	if(!pDir)
+	eastl::string path = FileSystem::GetNativePath(FileSystem::AddTrailingSlash(dir));
+	DIR*            pDir = opendir(dir);
+	if (!pDir)
 	{
-		LOGWARNINGF("Could not open directory: %s", dir);
+		LOGF(LogLevel::eWARNING, "Could not open directory: %s", dir);
 		return;
 	}
-	
+
 	// recursively search the directory for files with given extension
 	dirent* entry = NULL;
-	while((entry = readdir(pDir)) != NULL)
+	while ((entry = readdir(pDir)) != NULL)
 	{
-		if(entry->d_type & DT_DIR)
+		if (entry->d_type & DT_DIR)
 		{
-			if(entry->d_name[0] != '.')
+			if (entry->d_name[0] != '.')
 			{
-				tinystl::string subDirectory = path + entry->d_name;
+				eastl::string subDirectory = path + entry->d_name;
 				subDirectoriesOut.push_back(subDirectory);
 			}
 		}
 	}
-	
+
 	closedir(pDir);
 }
 
-bool absolute_path(const char* fileFullPath)
-{
-	return (([NSString stringWithUTF8String:fileFullPath].absolutePath == YES) ? true : false);
-}
+bool absolute_path(const char* fileFullPath) { return (([NSString stringWithUTF8String:fileFullPath].absolutePath == YES) ? true : false); }
 
 bool copy_file(const char* src, const char* dst)
 {
 	NSError* error = nil;
-	if (NO == [[NSFileManager defaultManager] copyItemAtPath:[NSString stringWithUTF8String:src] toPath:[NSString stringWithUTF8String:dst] error:&error])
+	if (NO == [[NSFileManager defaultManager] copyItemAtPath:[NSString stringWithUTF8String:src]
+													  toPath:[NSString stringWithUTF8String:dst]
+													   error:&error])
 	{
-		LOGINFOF("Failed to copy file with error : %s", [[error localizedDescription] UTF8String]);
+        LOGF(LogLevel::eINFO, "Failed to copy file with error : %s", [[error localizedDescription] UTF8String]);
 		return false;
 	}
-	
+
 	return true;
 }
 
-#endif // __APPLE__
+static void FormatFileExtensionsFilter(
+	eastl::string const& fileDesc, eastl::vector<eastl::string> const& extFiltersIn, eastl::string& extFiltersOut)
+{
+	extFiltersOut = "";
+	for (size_t i = 0; i < extFiltersIn.size(); ++i)
+	{
+		extFiltersOut += extFiltersIn[i];
+		if (i != extFiltersIn.size() - 1)
+			extFiltersOut += ";";
+	}
+}
+
+void open_file_dialog(
+	const char* title, const char* dir, FileDialogCallbackFn callback, void* userData, const char* fileDesc,
+	const eastl::vector<eastl::string>& fileExtensions)
+{
+	eastl::string extFilter;
+	FormatFileExtensionsFilter(fileDesc, fileExtensions, extFilter);
+
+	// Create array of filtered extentions
+	NSString* extString = [NSString stringWithCString:extFilter.c_str() encoding:[NSString defaultCStringEncoding]];
+	NSArray*  extList = [extString componentsSeparatedByString:@";"];
+
+	NSString* objcString = [NSString stringWithCString:title encoding:[NSString defaultCStringEncoding]];
+	NSString* objcURL = [NSString stringWithCString:dir encoding:[NSString defaultCStringEncoding]];
+	NSURL*    nsURL = [NSURL URLWithString:objcURL];
+
+	// Create the File Open Dialog class.
+	NSOpenPanel* openDlg = [NSOpenPanel openPanel];
+
+	// Enable the selection of files in the dialog.
+	[openDlg setCanChooseFiles:YES];
+
+	// Multiple files not allowed
+	[openDlg setAllowsMultipleSelection:NO];
+
+	// Can't select a directory
+	[openDlg setCanChooseDirectories:NO];
+	[openDlg setMessage:objcString];
+	[openDlg setDirectoryURL:nsURL];
+
+	// Extention filtering
+	[openDlg setAllowedFileTypes:extList];
+
+	[openDlg beginSheetModalForWindow:[[NSApplication sharedApplication].windows objectAtIndex:0]
+					completionHandler:^(NSInteger result) {
+						if (result == NSModalResponseOK)
+						{
+							NSArray*  urls = [openDlg URLs];
+							NSString* url = [urls objectAtIndex:0];
+							callback(url.fileSystemRepresentation, userData);
+						}
+					}];
+}
+
+void save_file_dialog(
+	const char* title, const char* dir, FileDialogCallbackFn callback, void* userData, const char* fileDesc,
+	const eastl::vector<eastl::string>& fileExtensions)
+{
+	eastl::string extFilter;
+	FormatFileExtensionsFilter(fileDesc, fileExtensions, extFilter);
+
+	// Create array of filtered extentions
+	NSString* extString = [NSString stringWithCString:extFilter.c_str() encoding:[NSString defaultCStringEncoding]];
+	NSArray*  extList = [extString componentsSeparatedByString:@";"];
+
+	NSString* objcString = [NSString stringWithCString:title encoding:[NSString defaultCStringEncoding]];
+	NSString* objcURL = [NSString stringWithCString:dir encoding:[NSString defaultCStringEncoding]];
+	NSURL*    nsURL = [NSURL URLWithString:objcURL];
+
+	// Create the File Open Dialog class.
+	NSSavePanel* saveDlg = [NSSavePanel savePanel];
+
+	// Can't select a directory
+	[saveDlg setMessage:objcString];
+	[saveDlg setDirectoryURL:nsURL];
+
+	// Extention filtering
+	[saveDlg setAllowedFileTypes:extList];
+
+	[saveDlg beginSheetModalForWindow:[[NSApplication sharedApplication].windows objectAtIndex:0]
+					completionHandler:^(NSInteger result) {
+						if (result == NSModalResponseOK)
+						{
+							NSURL* url = [saveDlg URL];
+							callback(url.fileSystemRepresentation, userData);
+						}
+					}];
+}
+
+struct FileSystem::Watcher::Data
+{
+	Callback         mCallback;
+	uint32_t         mEventMask;
+	FSEventStreamRef mStream;
+};
+
+static void fswCbFunc(ConstFSEventStreamRef streamRef, void* data, size_t numEvents, void* eventPaths, const FSEventStreamEventFlags eventFlags[], const FSEventStreamEventId eventIds[])
+{
+	FileSystem::Watcher::Data* fswData = (FileSystem::Watcher::Data*)data;
+	const char** paths = (const char**)eventPaths;
+	
+	for (size_t i=0; i < numEvents; ++i)
+	{
+		if ((fswData->mEventMask & FileSystem::Watcher::EVENT_MODIFIED) && (eventFlags[i]&kFSEventStreamEventFlagItemModified))
+		{
+			fswData->mCallback(paths[i], FileSystem::Watcher::EVENT_MODIFIED);
+		}
+		if ((fswData->mEventMask & FileSystem::Watcher::EVENT_ACCESSED) && (eventFlags[i]&kFSEventStreamEventFlagItemInodeMetaMod))
+		{
+			fswData->mCallback(paths[i], FileSystem::Watcher::EVENT_ACCESSED);
+		}
+		if ((fswData->mEventMask & FileSystem::Watcher::EVENT_CREATED) && (eventFlags[i]&kFSEventStreamEventFlagItemCreated))
+		{
+			fswData->mCallback(paths[i], FileSystem::Watcher::EVENT_CREATED);
+		}
+		if ((fswData->mEventMask & FileSystem::Watcher::EVENT_DELETED) && (eventFlags[i]&kFSEventStreamEventFlagItemRemoved))
+		{
+			fswData->mCallback(paths[i], FileSystem::Watcher::EVENT_DELETED);
+		}
+	}
+};
+
+FileSystem::Watcher::Watcher(const char* pWatchPath, FSRoot root, uint32_t eventMask, Callback callback)
+{
+	pData = conf_new<FileSystem::Watcher::Data>();
+	pData->mEventMask = eventMask;
+	pData->mCallback = callback;
+	CFStringRef paths[] = {CFStringCreateWithCString(NULL, pWatchPath, kCFStringEncodingUTF8)};
+	CFArrayRef pathsToWatch = CFArrayCreate(NULL, (const void **)paths, 1, &kCFTypeArrayCallBacks);
+	CFAbsoluteTime latency = 0.125;   // in seconds
+	FSEventStreamContext context = {0, pData, NULL, NULL, NULL};
+	pData->mStream = FSEventStreamCreate(NULL, fswCbFunc, &context, pathsToWatch, kFSEventStreamEventIdSinceNow, latency, kFSEventStreamCreateFlagFileEvents);
+	CFRelease(pathsToWatch);
+	CFRelease(paths[0]);
+	if (pData->mStream)
+	{
+		FSEventStreamScheduleWithRunLoop(pData->mStream, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
+		if (!FSEventStreamStart(pData->mStream))
+		{
+			FSEventStreamInvalidate(pData->mStream);
+			FSEventStreamRelease(pData->mStream);
+		}
+	}
+}
+
+FileSystem::Watcher::~Watcher()
+{
+	if (pData->mStream)
+	{
+		FSEventStreamStop(pData->mStream);
+		FSEventStreamInvalidate(pData->mStream);
+		FSEventStreamRelease(pData->mStream);
+	}
+	conf_delete(pData);
+}
+
+#endif    // __APPLE__

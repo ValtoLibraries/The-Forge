@@ -1,7 +1,7 @@
 #version 450 core
 
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  * 
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -33,14 +33,25 @@ layout(location = 2) in vec2 UV;
 layout(set = 0, binding = 0) uniform cbCamera 
 {
 	mat4 projView;
+	mat4 invProjView;
 	vec3 camPos;
+	float _dumm;
+
+	float fAmbientLightIntensity;
+	int bUseEnvironmentLight;
+	float fEnvironmentLightIntensity;
+	float fAOIntensity;
+
+	int renderMode;
+	float fNormalMapIntensity;
 };
 
-layout(set = 0, binding = 1) uniform cbObject
+layout(set = 3, binding = 1) uniform cbObject
 {
 	mat4 worldMat;
 	vec3 albedo;
 	float roughness;
+	vec2 tiling;
 	float metalness;
 	int textureConfig;
 };

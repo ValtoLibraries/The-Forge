@@ -1,7 +1,7 @@
 #version 450 core
 
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  * 
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -29,7 +29,7 @@
 
 layout(location = 0) in vec4 vs_in_position;
 
-layout (std140, set=0, binding=0) uniform uniformBlock{
+layout (std140, set=3, binding=0) uniform uniformBlock{
 	uniform mat4 viewProject;
     uniform mat4 toWorld[MAX_PLANETS];
     uniform vec4 color[MAX_PLANETS];

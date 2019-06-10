@@ -105,7 +105,7 @@ inline Matrix4 makeShadowMatrix(const Vector4 & plane, const Vector4 & light)
 #include "../../../OS/Core/Compiler.h"
 
 /*
-* Copyright (c) 2018 Confetti Interactive Inc.
+* Copyright (c) 2018-2019 Confetti Interactive Inc.
 *
 * This file is part of The-Forge
 * (see https://github.com/ConfettiFX/The-Forge).
@@ -301,13 +301,15 @@ struct float2
 {
 	float2() = default;
 	float2(float x, float y)       : x(x), y(y) {}
-	float2(int x, int y)           : x((float)x), y((float)y) {}
-	float2(unsigned x, unsigned y) : x((float)x), y((float)y) {}
-	float2(size_t x, size_t y)     : x((float)x), y((float)y) {}
+	float2(int32_t x, int32_t y)   : x((float)x), y((float)y) {}
+	float2(uint32_t x, uint32_t y) : x((float)x), y((float)y) {}
+	float2(int64_t x, int64_t y)   : x((float)x), y((float)y) {}
+	float2(uint64_t x, uint64_t y) : x((float)x), y((float)y) {}
 	float2(float x)                : x(x), y(x) {}
-	float2(int x)                  : x((float)x), y((float)x) {}
-	float2(unsigned  x)            : x((float)x), y((float)x) {}
-	float2(size_t x)               : x((float)x), y((float)x) {}
+	float2(int32_t x)              : x((float)x), y((float)x) {}
+	float2(uint32_t  x)            : x((float)x), y((float)x) {}
+	float2(int64_t x)              : x((float)x), y((float)x) {}
+	float2(uint64_t  x)            : x((float)x), y((float)x) {}
 	float2(const float2& f)        : x(f.x), y(f.y) {}
 	float2(const float(&fv)[2])    : x(fv[0]), y(fv[1]){}
 
@@ -357,13 +359,15 @@ struct float3
 {
 	float3() = default;
 	float3(float x, float y, float z)          : x(x), y(y), z(z) {}
-	float3(int x, int y, int z)                : x((float)x), y((float)y), z((float)z) {}
-	float3(unsigned x, unsigned y, unsigned z) : x((float)x), y((float)y), z((float)z) {}
-	float3(size_t x, size_t y, size_t z)       : x((float)x), y((float)y), z((float)z) {}
+	float3(int32_t x, int32_t y, int32_t z)    : x((float)x), y((float)y), z((float)z) {}
+	float3(uint32_t x, uint32_t y, uint32_t z) : x((float)x), y((float)y), z((float)z) {}
+	float3(int64_t x, int64_t y, int64_t z)    : x((float)x), y((float)y), z((float)z) {}
+	float3(uint64_t x, uint64_t y, uint64_t z) : x((float)x), y((float)y), z((float)z) {}
 	float3(float x)                            : x(x), y(x), z(x) {}
-	float3(int x)                              : x((float)x), y((float)x), z((float)x) {}
-	float3(unsigned x)                         : x((float)x), y((float)x), z((float)x) {}
-	float3(size_t x)                           : x((float)x), y((float)x), z((float)x) {}
+	float3(int32_t x)                          : x((float)x), y((float)x), z((float)x) {}
+	float3(uint32_t x)                         : x((float)x), y((float)x), z((float)x) {}
+	float3(int64_t x)                          : x((float)x), y((float)x), z((float)x) {}
+	float3(uint64_t x)                         : x((float)x), y((float)x), z((float)x) {}
 	float3(const float3& f)                    : x(f.x), y(f.y), z(f.z) {}
 	float3(const float(&fv)[3])                : x(fv[0]), y(fv[1]), z(fv[2]) {}
 
@@ -408,13 +412,15 @@ struct float4
 {
 	float4() = default;
 	float4(float x, float y, float z, float w)             : x(x), y(y), z(z), w(w) {}
-	float4(int x, int y, int z, int w)                     : x((float)x), y((float)y), z((float)z), w((float)w) {}
-	float4(unsigned x, unsigned y, unsigned z, unsigned w) : x((float)x), y((float)y), z((float)z), w((float)w) {}
-	float4(size_t x, size_t y, size_t z, size_t w)         : x((float)x), y((float)y), z((float)z), w((float)w) {}
+	float4(int32_t x, int32_t y, int32_t z, int32_t w)     : x((float)x), y((float)y), z((float)z), w((float)w) {}
+	float4(uint32_t x, uint32_t y, uint32_t z, uint32_t w) : x((float)x), y((float)y), z((float)z), w((float)w) {}
+	float4(int64_t x, int64_t y, int64_t z, int64_t w)     : x((float)x), y((float)y), z((float)z), w((float)w) {}
+	float4(uint64_t x, uint64_t y, uint64_t z, uint64_t w) : x((float)x), y((float)y), z((float)z), w((float)w) {}
 	float4(float x)                                        : x(x), y(x), z(x), w(x) {}
-	float4(int x)                                          : x((float)x), y((float)x), z((float)x), w((float)x) {}
-	float4(unsigned x)                                     : x((float)x), y((float)x), z((float)x), w((float)x) {}
-	float4(size_t x)                                       : x((float)x), y((float)x), z((float)x), w((float)x) {}
+	float4(int32_t x)                                      : x((float)x), y((float)x), z((float)x), w((float)x) {}
+	float4(uint32_t x)                                     : x((float)x), y((float)x), z((float)x), w((float)x) {}
+	float4(int64_t x)                                      : x((float)x), y((float)x), z((float)x), w((float)x) {}
+	float4(uint64_t x)                                     : x((float)x), y((float)x), z((float)x), w((float)x) {}
 	float4(const float3& f, float w) : x(f.x), y(f.y), z(f.z), w(w) {}
 	float4(const float4& f) : x(f.x), y(f.y), z(f.z), w(f.w) {}
 	float4(const float(&fv)[4]) : x(fv[0]), y(fv[1]), z(fv[2]), w(fv[3]) {}
@@ -828,6 +834,10 @@ constexpr T min(const T &x, const T &y) { return (x < y) ? x : y; }
 template <class T>
 constexpr T max(const T &x, const T &y) { return (x > y) ? x : y; }
 
+inline uint2 min(const uint2 &x, const uint2& y) { return { min(x.x, y.x), min(x.y, y.y) }; }
+inline uint3 min(const uint3 &x, const uint3& y) { return { min(x.x, y.x), min(x.y, y.y), min(x.z, y.z) }; }
+inline uint4 min(const uint4 &x, const uint4& y) { return { min(x.x, y.x), min(x.y, y.y), min(x.z, y.z), min(x.w, y.w) }; }
+
 inline Vector3 min(const Vector3 &a, const Vector3 &b)
 {
 #if VECTORMATH_MODE_SCALAR
@@ -944,9 +954,11 @@ inline unsigned int getLowerPowerOfTwo(const unsigned int x)
 	return i >> 1;
 }
 
-static inline unsigned int round_up(unsigned int value, unsigned int multiple) { return ((value + multiple - 1) / multiple) * multiple; }
+static inline uint32_t round_up(uint32_t value, uint32_t multiple) { return ((value + multiple - 1) / multiple) * multiple; }
 static inline uint64_t round_up_64(uint64_t value, uint64_t multiple) { return ((value + multiple - 1) / multiple) * multiple; }
 
+static inline uint32_t round_down(uint32_t value, uint32_t multiple) { return value  - value % multiple; }
+static inline uint64_t round_down_64(uint64_t value, uint64_t multiple) { return value - value % multiple; }
 
 
 //----------------------------------------------------------------------------
@@ -1846,6 +1858,65 @@ inline void initNoise()
 #undef Noise_NM
 #undef setup
 
+//----------------------------------------------------------------------------
+// Matrix helpers
+//----------------------------------------------------------------------------
+inline const Vector3 eulerAngles(const Matrix3& rotationMatrix)
+{
+	float r11, r12, r13, r23, r33;
+	r11 = rotationMatrix.getCol0().getX();
+
+	r12 = rotationMatrix.getCol0().getY();
+
+	r13 = rotationMatrix.getCol0().getZ();
+	r23 = rotationMatrix.getCol1().getZ();
+	r33 = rotationMatrix.getCol2().getZ();
+
+	float angleX = atan2f(r23, r33);
+	float angleY = atan2f(-r13, sqrtf(r23 * r23 + r33 * r33));
+	float angleZ = atan2f(r12, r11);
+
+	return Vector3(angleX, angleY, angleZ);
+}
+
+inline const Vector4 calculateFrustumPlane(const Matrix4& invMvp,
+	const Vector3& csPlaneNormal, const Vector3& csPlaneTangent, const float csPlaneDistance)
+{
+	const Vector3 csPlaneBitangent = normalize(cross(csPlaneTangent, csPlaneNormal));
+	const Vector3 csNormalOffset = csPlaneNormal * csPlaneDistance;
+	//
+	Vector4 pointA = (invMvp * Vector4(csNormalOffset + csPlaneTangent, 1.0f));
+	Vector4 pointB = (invMvp * Vector4(csNormalOffset, 1.f));
+	Vector4 pointC = (invMvp * Vector4(csNormalOffset + csPlaneBitangent, 1.0f));
+	pointA /= pointA.getW();
+	pointB /= pointB.getW();
+	pointC /= pointC.getW();
+	//
+	Vector3 dir = normalize(cross(pointB.getXYZ() - pointA.getXYZ(), pointB.getXYZ() - pointC.getXYZ()));
+	const float distance = dot(dir, pointB.getXYZ());
+	const Vector4 plane = Vector4(dir, -distance);
+	return plane;
+}
+
+inline const Frustum calculateFrustumPlanesFromRect(Matrix4 const& mvp,
+	const float xMin, const float xMax,
+	const float yMin, const float yMax,
+	const float totalWidth, const float totalHeight)
+{
+	const Matrix4 invMvp = inverse(mvp);
+	Frustum f;
+	float fxMin = (((float)xMin / (float)totalWidth) * 2.0f) - 1.0f;
+	float fxMax = (((float)xMax / (float)totalWidth) * 2.0f) - 1.0f;
+	float fyMin = (((float)(totalHeight - yMax) / (float)totalHeight) * 2.0f) - 1.0f;
+	float fyMax = (((float)(totalHeight - yMin) / (float)totalHeight) * 2.0f) - 1.0f;
+	//
+	f.rightPlane = calculateFrustumPlane(invMvp, Vector3(1.0f, 0.0f, 0.0f), Vector3(0.0f, 0.0f, 1.0f), fxMax);
+	f.leftPlane = calculateFrustumPlane(invMvp, Vector3(-1.0f, 0.0f, 0.0f), Vector3(0.f, 0.f, 1.0f), -fxMin);
+	f.topPlane = calculateFrustumPlane(invMvp, Vector3(0.0f, 1.0f, 0.0f), Vector3(0.0f, 0.0f, -1.0f), fyMax);
+	f.bottomPlane = calculateFrustumPlane(invMvp, Vector3(0.0f, -1.0f, 0.0f), Vector3(0.0f, 0.0f, -1.0f), -fyMin);
+
+	return f;
+}
 } // namespace Vectormath
 //========================================= #ConfettiMathExtensionsEnd ================================================
 

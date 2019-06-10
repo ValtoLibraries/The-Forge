@@ -22,10 +22,10 @@
     <ClCompile Include="..\src\14_WaveIntrinsics\14_WaveIntrinsics.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\src\14_WaveIntrinsics\Shaders\PCDX12\magnify.frag" />
-    <None Include="..\src\14_WaveIntrinsics\Shaders\PCDX12\magnify.vert" />
-    <None Include="..\src\14_WaveIntrinsics\Shaders\PCDX12\wave.frag" />
-    <None Include="..\src\14_WaveIntrinsics\Shaders\PCDX12\wave.vert" />
+    <None Include="..\src\14_WaveIntrinsics\Shaders\D3D12\magnify.frag" />
+    <None Include="..\src\14_WaveIntrinsics\Shaders\D3D12\magnify.vert" />
+    <None Include="..\src\14_WaveIntrinsics\Shaders\D3D12\wave.frag" />
+    <None Include="..\src\14_WaveIntrinsics\Shaders\D3D12\wave.vert" />
     <None Include="..\src\14_WaveIntrinsics\Shaders\Vulkan\magnify.frag" />
     <None Include="..\src\14_WaveIntrinsics\Shaders\Vulkan\magnify.vert" />
     <None Include="..\src\14_WaveIntrinsics\Shaders\Vulkan\wave.frag" />
@@ -35,7 +35,7 @@
     <ProjectGuid>{A0DFEBA1-D274-4421-AE87-ABB303CD2516}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Samples_GLFW</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugVk|x64'" Label="Configuration">
@@ -172,8 +172,8 @@
       <AdditionalDependencies>Xinput9_1_0.lib;ws2_32.lib;gainputstatic.lib;RendererDX12.lib;OS.lib;%(AdditionalDependencies);</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy "$(WDKBinRoot_x64)\dxcompiler.dll" "$(TargetDir)dxcompiler.dll"* /Y
-xcopy "$(WDKBinRoot_x64)\dxil.dll" "$(TargetDir)dxil.dll"* /Y</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
     <Manifest>
       <EnableDpiAwareness>PerMonitorHighDPIAware</EnableDpiAwareness>
@@ -262,8 +262,8 @@ xcopy "$(WDKBinRoot_x64)\dxil.dll" "$(TargetDir)dxil.dll"* /Y</Command>
       <AdditionalDependencies>Xinput9_1_0.lib;ws2_32.lib;gainputstatic.lib;RendererDX12.lib;OS.lib;%(AdditionalDependencies);</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy "$(WDKBinRoot_x64)\dxcompiler.dll" "$(TargetDir)dxcompiler.dll"* /Y
-xcopy "$(WDKBinRoot_x64)\dxil.dll" "$(TargetDir)dxil.dll"* /Y</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
     <Manifest>
       <EnableDpiAwareness>PerMonitorHighDPIAware</EnableDpiAwareness>

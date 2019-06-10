@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -39,7 +39,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #pragma once
-#include "../../../../Common_3/OS/Image/Image.h"
+#include "../../../../Common_3/Renderer/ResourceLoader.h"
 #include <cstdint>
 
-void genTextures(uint32_t texture_count, Image* out_textures);
+void genTextures(uint32_t texture_count, RawImageData* out_data);

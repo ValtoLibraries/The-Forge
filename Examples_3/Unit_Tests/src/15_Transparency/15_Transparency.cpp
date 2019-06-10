@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2018 Confetti Interactive Inc.
+* Copyright (c) 2018-2019 Confetti Interactive Inc.
 *
 * This file is part of The-Forge
 * (see https://github.com/ConfettiFX/The-Forge).
@@ -23,12 +23,12 @@
 */
 
 #define MAX_NUM_OBJECTS 128
-#define MAX_NUM_PARTICLES 2048 // Per system
+#define MAX_NUM_PARTICLES 2048    // Per system
 #define CUBES_EACH_ROW 5
 #define CUBES_EACH_COL 5
-#define CUBE_NUM (CUBES_EACH_ROW*CUBES_EACH_COL + 1)
-#define DEBUG_OUTPUT 1//exclusively used for texture data visulization, such as rendering depth, shadow map etc.
-#define AOIT_NODE_COUNT 4   // 2, 4 or 8. Higher numbers give better results at the cost of performance
+#define CUBE_NUM (CUBES_EACH_ROW * CUBES_EACH_COL + 1)
+#define DEBUG_OUTPUT 1       //exclusively used for texture data visulization, such as rendering depth, shadow map etc.
+#define AOIT_NODE_COUNT 4    // 2, 4 or 8. Higher numbers give better results at the cost of performance
 #if AOIT_NODE_COUNT == 2
 #define AOIT_RT_COUNT 1
 #else
@@ -40,8 +40,9 @@
 #define PT_USE_CAUSTICS (0 & USE_SHADOWS)
 
 //tiny stl
-#include "../../../../Common_3/ThirdParty/OpenSource/TinySTL/string.h"
-#include "../../../../Common_3/ThirdParty/OpenSource/TinySTL/vector.h"
+#include "../../../../Common_3/ThirdParty/OpenSource/EASTL/sort.h"
+#include "../../../../Common_3/ThirdParty/OpenSource/EASTL/string.h"
+#include "../../../../Common_3/ThirdParty/OpenSource/EASTL/vector.h"
 
 //Interfaces
 #include "../../../../Common_3/OS/Interfaces/ICameraController.h"
@@ -49,25 +50,30 @@
 #include "../../../../Common_3/OS/Interfaces/ILogManager.h"
 #include "../../../../Common_3/OS/Interfaces/IFileSystem.h"
 #include "../../../../Common_3/OS/Interfaces/ITimeManager.h"
+#include "../../../../Common_3/OS/Interfaces/IProfiler.h"
 #include "../../../../Middleware_3/UI/AppUI.h"
-#include "../../../../Common_3/OS/Core/DebugRenderer.h"
 #include "../../../../Common_3/Renderer/IRenderer.h"
 #include "../../../../Common_3/Renderer/ResourceLoader.h"
 #include "../../../../Common_3/Tools/AssimpImporter/AssimpImporter.h"
-
-//GPU Profiler
-#include "../../../../Common_3/Renderer/GpuProfiler.h"
 
 //Math
 #include "../../../../Common_3/OS/Math/MathTypes.h"
 
 //input
-#include "../../../../Middleware_3/Input/InputSystem.h"
-#include "../../../../Middleware_3/Input/InputMappings.h"
+#include "../../../../Common_3/OS/Input/InputSystem.h"
+#include "../../../../Common_3/OS/Input/InputMappings.h"
 
 #include "../../../../Common_3/OS/Interfaces/IMemoryManager.h"
 
-const uint32_t		  gImageCount = 3;
+namespace eastl
+{
+	template <>
+	struct has_equality<vec3> : eastl::false_type {};
+}
+
+const uint32_t gImageCount = 3;
+bool           bToggleMicroProfiler = false;
+bool           bPrevToggleMicroProfiler = false;
 
 typedef struct Vertex
 {
@@ -80,15 +86,15 @@ typedef struct Material
 {
 	float4 mColor;
 	float4 mTransmission;
-	float mRefractionRatio;
-	float mCollimation;
+	float  mRefractionRatio;
+	float  mCollimation;
 	float2 mPadding;
-	uint mTextureFlags;
-	uint mAlbedoTexture;
-	uint mMetallicTexture;
-	uint mRoughnessTexture;
-	uint mEmissiveTexture;
-	uint mPadding2[3];
+	uint   mTextureFlags;
+	uint   mAlbedoTexture;
+	uint   mMetallicTexture;
+	uint   mRoughnessTexture;
+	uint   mEmissiveTexture;
+	uint   mPadding2[3];
 } Material;
 
 typedef enum MeshResource
@@ -105,74 +111,74 @@ typedef enum MeshResource
 typedef struct MeshData
 {
 	Buffer* pVertexBuffer = NULL;
-	uint	mVertexCount = 0;
+	uint    mVertexCount = 0;
 	Buffer* pIndexBuffer = NULL;
-	uint	mIndexCount = 0;
+	uint    mIndexCount = 0;
 } MeshData;
 
 typedef struct Object
 {
-	vec3			mPosition;
-	vec3			mScale;
-	vec3			mOrientation;
-	MeshResource	mMesh;
-	Material		mMaterial;
+	vec3         mPosition;
+	vec3         mScale;
+	vec3         mOrientation;
+	MeshResource mMesh;
+	Material     mMaterial;
 } Object;
 
 typedef struct ParticleSystem
 {
 	Buffer* pParticleBuffer;
-	Object mObject;
+	Object  mObject;
 
-	tinystl::vector<vec3> mParticlePositions;
-	tinystl::vector<vec3> mParticleVelocities;
-	tinystl::vector<float> mParticleLifetimes;
-	size_t mLifeParticleCount;
+	eastl::vector<vec3>  mParticlePositions;
+	eastl::vector<vec3>  mParticleVelocities;
+	eastl::vector<float> mParticleLifetimes;
+	size_t               mLifeParticleCount;
 } ParticleSystem;
 
 typedef struct Scene
 {
-	tinystl::vector<Object> mObjects;
-	tinystl::vector<ParticleSystem> mParticleSystems;
+	eastl::vector<Object>         mObjects;
+	eastl::vector<ParticleSystem> mParticleSystems;
 } Scene;
 
 typedef struct DrawCall
 {
-	uint			mIndex;
-	uint			mInstanceCount;
-	uint			mInstanceOffset;
-	MeshResource	mMesh;
+	uint         mIndex;
+	uint         mInstanceCount;
+	uint         mInstanceOffset;
+	MeshResource mMesh;
 } DrawCall;
 
 typedef struct ObjectInfoStruct
 {
-	mat4 mToWorldMat;
-	mat4 mNormalMat;
-	uint mMaterialIndex;
+	mat4   mToWorldMat;
+	mat4   mNormalMat;
+	uint   mMaterialIndex;
 	float3 mPadding;
-}ObjectInfoStruct;
+} ObjectInfoStruct;
 
 typedef struct MaterialUniformBlock
 {
 	Material mMaterials[MAX_NUM_OBJECTS];
-}MaterialUniformBlock;
+} MaterialUniformBlock;
 
 typedef struct ObjectInfoUniformBlock
 {
-	ObjectInfoStruct	mObjectInfo[MAX_NUM_OBJECTS];
-}ObjectInfoUniformBlock;
+	ObjectInfoStruct mObjectInfo[MAX_NUM_OBJECTS];
+} ObjectInfoUniformBlock;
 
 typedef struct SkyboxUniformBlock
 {
 	mat4 mViewProject;
-}SkyboxUniformBlock;
+} SkyboxUniformBlock;
 
 typedef struct LightUniformBlock
 {
 	mat4 mLightViewProj;
-	vec4 mLightDirection = {-1, -1, -1, 0};
-	vec4 mLightColor = {1, 0, 0, 1};
-}LightUniformBlock;
+	vec4 mLightDirection = { -1, -1, -1, 0 };
+	vec4 mLightColor = { 1, 0, 0, 1 };
+} LightUniformBlock;
 
 typedef struct CameraUniform
 {
@@ -180,7 +186,7 @@ typedef struct CameraUniform
 	mat4 mViewMat;
 	vec4 mClipInfo;
 	vec4 mPosition;
-}CameraUniform;
+} CameraUniform;
 
 typedef struct AlphaBlendSettings
 {
@@ -190,23 +196,28 @@ typedef struct AlphaBlendSettings
 
 typedef struct WBOITSettings
 {
-	float mColorResistance = 1.0f;  // Increase if low-coverage foreground transparents are affecting background transparent color.
-	float mRangeAdjustment = 0.3f;  // Change to avoid saturating at the clamp bounds.
-	float mDepthRange = 200.0f;	 // Decrease if high-opacity surfaces seem �too transparent�, increase if distant transparents are blending together too much.
-	float mOrderingStrength = 4.0f; // Increase if background is showing through foreground too much.
-	float mUnderflowLimit = 1e-2f;  // Increase to reduce underflow artifacts.
-	float mOverflowLimit = 3e3f;		// Decrease to reduce overflow artifacts.
+	float mColorResistance = 1.0f;    // Increase if low-coverage foreground transparents are affecting background transparent color.
+	float mRangeAdjustment = 0.3f;    // Change to avoid saturating at the clamp bounds.
+	float mDepthRange =
+		200.0f;    // Decrease if high-opacity surfaces seem �too transparent�, increase if distant transparents are blending together too much.
+	float mOrderingStrength = 4.0f;    // Increase if background is showing through foreground too much.
+	float mUnderflowLimit = 1e-2f;     // Increase to reduce underflow artifacts.
+	float mOverflowLimit = 3e3f;       // Decrease to reduce overflow artifacts.
 } WBOITSettings;
 
 typedef struct WBOITVolitionSettings
 {
-	float mOpacitySensitivity = 3.0f;	   // Should be greater than 1, so that we only downweight nearly transparent things. Otherwise, everything at the same depth should get equal weight. Can be artist controlled
-	float mWeightBias = 5.0f;			   // Must be greater than zero. Weight bias helps prevent distant things from getting hugely lower weight than near things, as well as preventing floating point underflow
-	float mPrecisionScalar = 10000.0f;	  // Adjusts where the weights fall in the floating point range, used to balance precision to combat both underflow and overflow
-	float mMaximumWeight = 20.0f;		   // Don't weight near things more than a certain amount to both combat overflow and reduce the "overpower" effect of very near vs. very far things
+	float mOpacitySensitivity =
+		3.0f;    // Should be greater than 1, so that we only downweight nearly transparent things. Otherwise, everything at the same depth should get equal weight. Can be artist controlled
+	float mWeightBias =
+		5.0f;    // Must be greater than zero. Weight bias helps prevent distant things from getting hugely lower weight than near things, as well as preventing floating point underflow
+	float mPrecisionScalar =
+		10000.0f;    // Adjusts where the weights fall in the floating point range, used to balance precision to combat both underflow and overflow
+	float mMaximumWeight =
+		20.0f;    // Don't weight near things more than a certain amount to both combat overflow and reduce the "overpower" effect of very near vs. very far things
 	float mMaximumColorValue = 1000.0f;
-	float mAdditiveSensitivity = 10.0f;	 // How much we amplify the emissive when deciding whether to consider this additively blended
-	float mEmissiveSensitivity = 0.5f;	  // Artist controlled value between 0.01 and 1
+	float mAdditiveSensitivity = 10.0f;    // How much we amplify the emissive when deciding whether to consider this additively blended
+	float mEmissiveSensitivity = 0.5f;     // Artist controlled value between 0.01 and 1
 } WBOITVolitionSettings;
 
 typedef enum WBOITRenderTargets
@@ -216,14 +227,11 @@ typedef enum WBOITRenderTargets
 	WBOIT_RT_COUNT
 } WBOITRenderTargets;
 
-ImageFormat::Enum gWBOITRenderTargetFormats[WBOIT_RT_COUNT] =
-{
-	ImageFormat::RGBA16F, ImageFormat::RGBA8
-};
+ImageFormat::Enum gWBOITRenderTargetFormats[WBOIT_RT_COUNT] = { ImageFormat::RGBA16F, ImageFormat::RGBA8 };
 
 typedef enum PTRenderTargets
 {
-	PT_RT_ACCUMULATION, // Shared with WBOIT
+	PT_RT_ACCUMULATION,    // Shared with WBOIT
 	PT_RT_MODULATION,
 #if PT_USE_REFRACTION != 0
 	PT_RT_REFRACTION,
@@ -231,10 +239,7 @@ typedef enum PTRenderTargets
 	PT_RT_COUNT
 } PTRenderTargets;
 
-ImageFormat::Enum gPTRenderTargetFormats[3] =
-{
-	ImageFormat::RGBA16F, ImageFormat::RGBA8, ImageFormat::RG16F
-};
+ImageFormat::Enum gPTRenderTargetFormats[3] = { ImageFormat::RGBA16F, ImageFormat::RGBA8, ImageFormat::RG16F };
 
 typedef enum TextureResource
 {
@@ -309,6 +314,11 @@ RootSignature* pRootSignatureAOITClear = NULL;
 #endif
 
 /************************************************************************/
+// Descriptor binder
+/************************************************************************/
+DescriptorBinder* pDescriptorBinder = NULL;
+
+/************************************************************************/
 // Pipelines
 /************************************************************************/
 Pipeline* pPipelineSkybox = NULL;
@@ -363,8 +373,8 @@ RenderTarget* pRenderTargetPTShadowFinal[2][3] = { NULL };
 /************************************************************************/
 #if defined(DIRECT3D12) && !defined(_DURANGO)
 Texture* pTextureAOITClearMask;
-Buffer* pBufferAOITDepthData;
-Buffer* pBufferAOITColorData;
+Buffer*  pBufferAOITDepthData;
+Buffer*  pBufferAOITColorData;
 #endif
 /************************************************************************/
 // Samplers
@@ -374,7 +384,7 @@ Sampler* pSamplerPointClamp = NULL;
 Sampler* pSamplerBilinear = NULL;
 Sampler* pSamplerTrilinearAniso = NULL;
 Sampler* pSamplerSkybox = NULL;
-Sampler* pSamplerShadow = NULL; // Only created when USE_SHADOWS != 0
+Sampler* pSamplerShadow = NULL;    // Only created when USE_SHADOWS != 0
 
 /************************************************************************/
 // Rasterizer states
@@ -411,9 +421,9 @@ VertexLayout* pVertexLayoutDefault = NULL;
 /************************************************************************/
 // Resources
 /************************************************************************/
-Buffer*	 pBufferSkyboxVertex = NULL;
-MeshData*   pMeshes[MESH_COUNT] = {};
-Texture*	pTextures[TEXTURE_COUNT] = {};
+Buffer*   pBufferSkyboxVertex = NULL;
+MeshData* pMeshes[MESH_COUNT] = {};
+Texture*  pTextures[TEXTURE_COUNT] = {};
 
 /************************************************************************/
 // Uniform buffers
@@ -438,100 +448,97 @@ typedef enum TransparencyType
 #endif
 } TransparencyType;
 
-
 struct
 {
-	float3 mLightPosition = { 0, 10, 10 };//light position, will be changed by GUI editor if not iOS
+	float3 mLightPosition = { 0, 10, 10 };    //light position, will be changed by GUI editor if not iOS
 } gLightCpuSettings;
 
 /************************************************************************/
 
 #ifdef TARGET_IOS
-VirtualJoystickUI   gVirtualJoystick;
+VirtualJoystickUI gVirtualJoystick;
 #endif
 
 // Constants
-uint32_t				gFrameIndex = 0;
-GpuProfiler*			pGpuProfiler = NULL;
-float				   gCurrentTime = 0.0f;
+uint32_t     gFrameIndex = 0;
+GpuProfiler* pGpuProfiler = NULL;
+float        gCurrentTime = 0.0f;
 
-MaterialUniformBlock	gMaterialUniformData;
-ObjectInfoUniformBlock  gObjectInfoUniformData;
-ObjectInfoUniformBlock  gTransparentObjectInfoUniformData;
-SkyboxUniformBlock	  gSkyboxUniformData;
-LightUniformBlock	   gLightUniformData;
-CameraUniform		   gCameraUniformData;
-CameraUniform		   gCameraLightUniformData;
-AlphaBlendSettings	  gAlphaBlendSettings;
-WBOITSettings		   gWBOITSettingsData;
-WBOITVolitionSettings   gWBOITVolitionSettingsData;
+MaterialUniformBlock   gMaterialUniformData;
+ObjectInfoUniformBlock gObjectInfoUniformData;
+ObjectInfoUniformBlock gTransparentObjectInfoUniformData;
+SkyboxUniformBlock     gSkyboxUniformData;
+LightUniformBlock      gLightUniformData;
+CameraUniform          gCameraUniformData;
+CameraUniform          gCameraLightUniformData;
+AlphaBlendSettings     gAlphaBlendSettings;
+WBOITSettings          gWBOITSettingsData;
+WBOITVolitionSettings  gWBOITVolitionSettingsData;
 
-Scene				   gScene;
-tinystl::vector<DrawCall> gOpaqueDrawCalls;
-tinystl::vector<DrawCall> gTransparentDrawCalls;
-vec3					gObjectsCenter = {0, 0, 0};
+Scene                     gScene;
+eastl::vector<DrawCall> gOpaqueDrawCalls;
+eastl::vector<DrawCall> gTransparentDrawCalls;
+vec3                      gObjectsCenter = { 0, 0, 0 };
 
-ICameraController*	  pCameraController = NULL;
-ICameraController*	  pLightView = NULL;
+ICameraController* pCameraController = NULL;
+ICameraController* pLightView = NULL;
 
 /// UI
-UIApp				   gAppUI;
-GuiComponent*		   pGuiWindow = NULL;
-TextDrawDesc			gFrameTimeDraw = TextDrawDesc(0, 0xff00ffff, 18);
-HiresTimer			  gCpuTimer;
+UIApp         gAppUI;
+GuiComponent* pGuiWindow = NULL;
+TextDrawDesc  gFrameTimeDraw = TextDrawDesc(0, 0xff00ffff, 18);
+HiresTimer    gCpuTimer;
 
-FileSystem			  gFileSystem;
-LogManager			  gLogManager;
+FileSystem gFileSystem;
 
-Renderer*			   pRenderer = NULL;
+Renderer* pRenderer = NULL;
 
-Queue*				  pGraphicsQueue = NULL;
-CmdPool*				pCmdPool = NULL;
-Cmd**				   ppCmds = NULL;
+Queue*   pGraphicsQueue = NULL;
+CmdPool* pCmdPool = NULL;
+Cmd**    ppCmds = NULL;
 
-SwapChain*			  pSwapChain = NULL;
-Fence*				  pRenderCompleteFences[gImageCount] = {NULL};
-Semaphore*			  pImageAcquiredSemaphore = NULL;
-Semaphore*			  pRenderCompleteSemaphores[gImageCount] = {NULL};
+SwapChain* pSwapChain = NULL;
+Fence*     pRenderCompleteFences[gImageCount] = { NULL };
+Semaphore* pImageAcquiredSemaphore = NULL;
+Semaphore* pRenderCompleteSemaphores[gImageCount] = { NULL };
 
-uint32_t				gTransparencyType = TRANSPARENCY_TYPE_PHENOMENOLOGICAL;
+uint32_t gTransparencyType = TRANSPARENCY_TYPE_PHENOMENOLOGICAL;
 
-const char* pSkyboxImageFileNames[] =
-{
-	"skybox/hw_sahara/sahara_rt.tga",
-	"skybox/hw_sahara/sahara_lf.tga",
-	"skybox/hw_sahara/sahara_up.tga",
-	"skybox/hw_sahara/sahara_dn.tga",
-	"skybox/hw_sahara/sahara_ft.tga",
-	"skybox/hw_sahara/sahara_bk.tga",
+const char* pSkyboxImageFileNames[] = {
+	"skybox/hw_sahara/sahara_rt.tga", "skybox/hw_sahara/sahara_lf.tga", "skybox/hw_sahara/sahara_up.tga",
+	"skybox/hw_sahara/sahara_dn.tga", "skybox/hw_sahara/sahara_ft.tga", "skybox/hw_sahara/sahara_bk.tga",
 };
 
-const char* pszBases[] =
-{
-	"../../../src/15_Transparency/",										// FSR_BinShaders
-	"../../../src/15_Transparency/",										// FSR_SrcShaders
-	"",																		// FSR_BinShaders_Common
-	"",																		// FSR_SrcShaders_Common
-	"../../../UnitTestResources/",											// FSR_Textures
-	"../../../UnitTestResources/",											// FSR_Meshes
-	"../../../UnitTestResources/",											// FSR_Builtin_Fonts
-	"../../../src/15_Transparency/",										// FSR_GpuConfig
-	"",																		// FSR_OtherFiles
+const char* pszBases[FSR_Count] = {
+	"../../../src/15_Transparency/",        // FSR_BinShaders
+	"../../../src/15_Transparency/",        // FSR_SrcShaders
+	"../../../UnitTestResources/",          // FSR_Textures
+	"../../../UnitTestResources/",          // FSR_Meshes
+	"../../../UnitTestResources/",          // FSR_Builtin_Fonts
+	"../../../src/15_Transparency/",        // FSR_GpuConfig
+	"",                                     // FSR_Animation
+	"",                                     // FSR_OtherFiles
+	"../../../../../Middleware_3/Text/",    // FSR_MIDDLEWARE_TEXT
+	"../../../../../Middleware_3/UI/",      // FSR_MIDDLEWARE_UI
 };
 
-void AddObject(MeshResource mesh, vec3 position, vec4 color, vec3 translucency = vec3(0.0f), float eta = 1.0f, float collimation = 0.0f, vec3 scale = vec3(1.0f), vec3 orientation = vec3(0.0f))
+void AddObject(
+	MeshResource mesh, vec3 position, vec4 color, vec3 translucency = vec3(0.0f), float eta = 1.0f, float collimation = 0.0f,
+	vec3 scale = vec3(1.0f), vec3 orientation = vec3(0.0f))
 {
-	gScene.mObjects.push_back({ position, scale, orientation, mesh, {v4ToF4(color), float4(v3ToF3(translucency), 0.0f), eta, collimation} });
+	gScene.mObjects.push_back(
+		{ position, scale, orientation, mesh, { v4ToF4(color), float4(v3ToF3(translucency), 0.0f), eta, collimation } });
 }
 
 void AddObject(MeshResource mesh, vec3 position, TextureResource texture, vec3 scale = vec3(1.0f), vec3 orientation = vec3(0.0f))
 {
-	gScene.mObjects.push_back({ position, scale, orientation, mesh, {float4(1.0f), float4(0.0f), 1.0f, 0.0f, float2(0.0f), 1, (uint)texture, 0, 0 } });
+	gScene.mObjects.push_back(
+		{ position, scale, orientation, mesh, { float4(1.0f), float4(0.0f), 1.0f, 0.0f, float2(0.0f), 1, (uint)texture, 0, 0 } });
 }
 
 void AddParticleSystem(vec3 position, vec4 color, vec3 translucency = vec3(0.0f), vec3 scale = vec3(1.0f), vec3 orientation = vec3(0.0f))
 {
-	Buffer* pParticleBuffer = NULL;
+	Buffer*        pParticleBuffer = NULL;
 	BufferLoadDesc particleBufferDesc = {};
 	particleBufferDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_VERTEX_BUFFER;
 	particleBufferDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_CPU_TO_GPU;
@@ -541,7 +548,10 @@ void AddParticleSystem(vec3 position, vec4 color, vec3 translucency = vec3(0.0f)
 	particleBufferDesc.ppBuffer = &pParticleBuffer;
 	addResource(&particleBufferDesc);
 
-	gScene.mParticleSystems.push_back({ pParticleBuffer, {position, scale, orientation, MESH_PARTICLE_SYSTEM, {v4ToF4(color), float4(v3ToF3(translucency), 0.0f), 1.0f, 1.0f}}, MAX_NUM_PARTICLES, MAX_NUM_PARTICLES, MAX_NUM_PARTICLES, 0 });
+	gScene.mParticleSystems.push_back(ParticleSystem{
+		pParticleBuffer,
+		Object{ position, scale, orientation, MESH_PARTICLE_SYSTEM, { v4ToF4(color), float4(v3ToF3(translucency), 0.0f), 1.0f, 1.0f } },
+		eastl::vector<vec3>(MAX_NUM_PARTICLES), eastl::vector<vec3>(MAX_NUM_PARTICLES), eastl::vector<float>(MAX_NUM_PARTICLES), 0 });
 }
 
 static void CreateScene()
@@ -551,7 +561,7 @@ static void CreateScene()
 
 	// Set cubes
 	const float cubeDist = 3.0f;
-	vec3 curTrans = { -cubeDist*(CUBES_EACH_ROW - 1)/2.f, 2.3f, -cubeDist*(CUBES_EACH_COL - 1)/2.f };
+	vec3        curTrans = { -cubeDist * (CUBES_EACH_ROW - 1) / 2.f, 2.3f, -cubeDist * (CUBES_EACH_COL - 1) / 2.f };
 
 	for (int i = 0; i < CUBES_EACH_ROW; ++i)
 	{
@@ -559,7 +569,10 @@ static void CreateScene()
 
 		for (int j = 0; j < CUBES_EACH_COL; j++)
 		{
-			AddObject(MESH_CUBE,  curTrans, vec4(float(i + 1) / CUBES_EACH_ROW, 1.0f - float(i + 1) / CUBES_EACH_ROW, 0.0f, float(j + 1) / CUBES_EACH_COL), vec3(0.0f), 1.0f, 1.0f, vec3(1.0f));
+			AddObject(
+				MESH_CUBE, curTrans,
+				vec4(float(i + 1) / CUBES_EACH_ROW, 1.0f - float(i + 1) / CUBES_EACH_ROW, 0.0f, float(j + 1) / CUBES_EACH_COL), vec3(0.0f),
+				1.0f, 1.0f, vec3(1.0f));
 			curTrans.setX(curTrans.getX() + cubeDist);
 		}
 
@@ -575,54 +588,56 @@ static void CreateScene()
 	AddObject(MESH_CUBE, vec3(-15.0f, 4.0f, -5.0f), vec4(0.0f, 0.0f, 1.0f, 0.5f), vec3(0.0f), 1.0f, 1.0f, vec3(4.0f, 4.0f, 0.1f));
 
 	for (int i = 0; i < 25; ++i)
-		AddObject(MESH_CUBE, vec3(i * 2.0f - 25.0f, 4.0f, 25.0f), vec4(3.0f, 3.0f, 10.0f, 0.1f), vec3(0.0f), 1.0f, 1.0f, vec3(0.1f, 4.0f, 4.0f));
+		AddObject(
+			MESH_CUBE, vec3(i * 2.0f - 25.0f, 4.0f, 25.0f), vec4(3.0f, 3.0f, 10.0f, 0.1f), vec3(0.0f), 1.0f, 1.0f, vec3(0.1f, 4.0f, 4.0f));
 
 	AddObject(MESH_CUBE, vec3(1.0f, 5.0f, -22.0f), vec4(1.0f, 0.0f, 0.0f, 1.0f), vec3(0.0f), 1.0f, 0.0f, vec3(0.5f, 0.5f, 0.01f));
 	AddObject(MESH_CUBE, vec3(-1.0f, 5.0f, -35.0f), vec4(0.0f, 1.0f, 0.0f, 1.0f), vec3(0.0f), 1.0f, 0.0f, vec3(1.0f, 1.0f, 0.005f));
 	AddObject(MESH_SPHERE, vec3(0.0f, 5.0f, -25.0f), vec4(0.3f, 0.3f, 1.0f, 0.9f), vec3(0.3f, 0.3f, 1.0f), 1.5f, 0.0f, vec3(4.0f));
 
 	AddObject(MESH_LION, vec3(10.0f, 0.0f, -25.0f), vec4(1.0f), vec3(0.0f), 1.0f, 0.0f, vec3(0.25f), vec3(0.0f, PI, 0.0f));
-	AddObject(MESH_CUBE, vec3(7.0f, 5.0f, -22.0f), vec4(1.0f, 0.3f, 0.3f, 0.9f), vec3(1.0f, 0.3f, 0.3f), 1.0f, 0.0f, vec3(1.5f, 4.0f, 0.005f));
-	AddObject(MESH_CUBE, vec3(10.0f, 5.0f, -22.0f), vec4(0.3f, 1.0f, 0.3f, 0.9f), vec3(0.3f, 1.0f, 0.3f), 1.0f, 0.5f, vec3(1.5f, 4.0f, 0.005f));
-	AddObject(MESH_CUBE, vec3(13.0f, 5.0f, -22.0f), vec4(0.3f, 0.3f, 1.0f, 0.9f), vec3(0.3f, 0.3f, 1.0f), 1.0f, 0.9f, vec3(1.5f, 4.0f, 0.005f));
+	AddObject(
+		MESH_CUBE, vec3(7.0f, 5.0f, -22.0f), vec4(1.0f, 0.3f, 0.3f, 0.9f), vec3(1.0f, 0.3f, 0.3f), 1.0f, 0.0f, vec3(1.5f, 4.0f, 0.005f));
+	AddObject(
+		MESH_CUBE, vec3(10.0f, 5.0f, -22.0f), vec4(0.3f, 1.0f, 0.3f, 0.9f), vec3(0.3f, 1.0f, 0.3f), 1.0f, 0.5f, vec3(1.5f, 4.0f, 0.005f));
+	AddObject(
+		MESH_CUBE, vec3(13.0f, 5.0f, -22.0f), vec4(0.3f, 0.3f, 1.0f, 0.9f), vec3(0.3f, 0.3f, 1.0f), 1.0f, 0.9f, vec3(1.5f, 4.0f, 0.005f));
 
 	AddParticleSystem(vec3(30.0f, 5.0f, 20.0f), vec4(1.0f, 0.0f, 0.0f, 0.5f));
 	AddParticleSystem(vec3(30.0f, 5.0f, 25.0f), vec4(1.0f, 1.0f, 0.0f, 0.5f));
 
-	AddObject(MESH_PLANE, vec3(-15.0f - 5.0f, 10.0f, -25.0f), TEXTURE_MEASURING_GRID, vec3(10.0f, 1.0f, 10.0f), vec3(-90.0f * (PI / 180.0f), PI, 0.0f));
-	AddObject(MESH_SPHERE, vec3(-17.5f - 5.0f, 5.0f, -20.0f), vec4(0.3f, 0.3f, 1.0f, 0.9f), vec3(0.3f, 0.3f, 1.0f), 1.001f, 1.0f, vec3(1.0f));
+	AddObject(
+		MESH_PLANE, vec3(-15.0f - 5.0f, 10.0f, -25.0f), TEXTURE_MEASURING_GRID, vec3(10.0f, 1.0f, 10.0f),
+		vec3(-90.0f * (PI / 180.0f), PI, 0.0f));
+	AddObject(
+		MESH_SPHERE, vec3(-17.5f - 5.0f, 5.0f, -20.0f), vec4(0.3f, 0.3f, 1.0f, 0.9f), vec3(0.3f, 0.3f, 1.0f), 1.001f, 1.0f, vec3(1.0f));
 	AddObject(MESH_SPHERE, vec3(-15.0f - 5.0f, 5.0f, -20.0f), vec4(0.3f, 0.3f, 1.0f, 0.9f), vec3(0.3f, 0.3f, 1.0f), 1.3f, 1.0f, vec3(1.0f));
 	AddObject(MESH_SPHERE, vec3(-12.5f - 5.0f, 5.0f, -20.0f), vec4(0.3f, 0.3f, 1.0f, 0.9f), vec3(0.3f, 0.3f, 1.0f), 1.5f, 1.0f, vec3(1.0f));
 }
 
-int DistanceCompare(const float3& a, const float3& b)
+bool DistanceCompare(const float3& a, const float3& b)
 {
 	if (a.getX() < b.getX())
-		return -1;
-	else if(a.getX() > b.getX())
-		return 1;
+		return false;
+	else if (a.getX() > b.getX())
+		return true;
 	if (a.getY() < b.getY())
-		return -1;
-	else if(a.getY() > b.getY())
-		return 1;
+		return false;
+	else if (a.getY() > b.getY())
+		return true;
 
-	return 0;
+	return false;
 }
 
-int MeshCompare(const float2& a, const float2& b)
+bool MeshCompare(const float2& a, const float2& b)
 {
-	if (a.getX() < b.getX())
-		return -1;
-	if (a.getX() == b.getX())
-		return 0;
-
-	return 1;
+	return a.getX() > b.getX();
 }
 
 void SwapParticles(ParticleSystem* pParticleSystem, size_t a, size_t b)
 {
-	vec3 pos = pParticleSystem->mParticlePositions[a];
-	vec3 vel = pParticleSystem->mParticleVelocities[a];
+	vec3  pos = pParticleSystem->mParticlePositions[a];
+	vec3  vel = pParticleSystem->mParticleVelocities[a];
 	float life = pParticleSystem->mParticleLifetimes[a];
 
 	pParticleSystem->mParticlePositions[a] = pParticleSystem->mParticlePositions[b];
@@ -641,24 +656,24 @@ struct GuiController
 	static void AddGui();
 	static void UpdateDynamicUI();
 
-	static DynamicUIControls alphaBlendDynamicWidgets;
-	static DynamicUIControls weightedBlendedOitDynamicWidgets;
-	static DynamicUIControls weightedBlendedOitVolitionDynamicWidgets;
+	static DynamicUIWidgets alphaBlendDynamicWidgets;
+	static DynamicUIWidgets weightedBlendedOitDynamicWidgets;
+	static DynamicUIWidgets weightedBlendedOitVolitionDynamicWidgets;
 
 	static TransparencyType currentTransparencyType;
 };
-DynamicUIControls   GuiController::alphaBlendDynamicWidgets;
-DynamicUIControls   GuiController::weightedBlendedOitDynamicWidgets;
-DynamicUIControls   GuiController::weightedBlendedOitVolitionDynamicWidgets;
-TransparencyType	GuiController::currentTransparencyType;
+DynamicUIWidgets GuiController::alphaBlendDynamicWidgets;
+DynamicUIWidgets GuiController::weightedBlendedOitDynamicWidgets;
+DynamicUIWidgets GuiController::weightedBlendedOitVolitionDynamicWidgets;
+TransparencyType  GuiController::currentTransparencyType;
 //////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////
-class Transparency : public IApp
+class Transparency: public IApp
 {
-public:
+	public:
 	bool Init() override
 	{
-		RendererDesc settings = {NULL};
+		RendererDesc settings = { NULL };
 		initRenderer(GetName(), &settings, &pRenderer);
 
 		QueueDesc queueDesc = {};
@@ -674,10 +689,7 @@ public:
 		}
 		addSemaphore(pRenderer, &pImageAcquiredSemaphore);
 
-
-		initResourceLoaderInterface(pRenderer, DEFAULT_MEMORY_BUDGET, true);
-		initDebugRendererInterface(pRenderer, "TitilliumText/TitilliumText-Bold.otf", FSR_Builtin_Fonts);
-
+		initResourceLoaderInterface(pRenderer);
 
 #ifdef TARGET_IOS
 		if (!gVirtualJoystick.Init(pRenderer, "circlepad.png", FSR_Absolute))
@@ -692,11 +704,14 @@ public:
 		CreateRootSignatures();
 		CreateResources();
 		CreateUniformBuffers();
+		CreateDescriptorBinders();
 
 		/************************************************************************/
 		// Add GPU profiler
 		/************************************************************************/
-		addGpuProfiler(pRenderer, pGraphicsQueue, &pGpuProfiler);
+		initProfiler(pRenderer, gImageCount);
+		profileRegisterInput();
+		addGpuProfiler(pRenderer, pGraphicsQueue, &pGpuProfiler, "GpuProfiler");
 
 		CreateScene();
 		finishResourceLoading();
@@ -706,18 +721,24 @@ public:
 		gAppUI.LoadFont("TitilliumText/TitilliumText-Bold.otf", FSR_Builtin_Fonts);
 
 		GuiDesc guiDesc = {};
-		guiDesc.mStartPosition = vec2(5, 200.0f);
-		guiDesc.mStartSize = vec2(450, 600);
+		float   dpiScale = getDpiScale().x;
+		guiDesc.mStartPosition = vec2(5, 200.0f) / dpiScale;
+		guiDesc.mStartSize = vec2(450, 600) / dpiScale;
+
 		pGuiWindow = gAppUI.AddGuiComponent(GetName(), &guiDesc);
 		GuiController::AddGui();
 
-
-		CameraMotionParameters cmp{16.0f, 60.0f, 20.0f};
-		vec3 camPos{0, 5, -15};
-		vec3 lookAt{0, 5, 0};
+		CameraMotionParameters cmp{ 16.0f, 60.0f, 20.0f };
+		vec3                   camPos{ 0, 5, -15 };
+		vec3                   lookAt{ 0, 5, 0 };
 
 		pLightView = createGuiCameraController(camPos, lookAt);
 		pCameraController = createFpsCameraController(camPos, lookAt);
+
+#if defined(TARGET_IOS) || defined(__ANDROID__)
+		gVirtualJoystick.InitLRSticks();
+		pCameraController->setVirtualJoystick(&gVirtualJoystick);
+#endif
 		requestMouseCapture(true);
 
 		pCameraController->setMotionParameters(cmp);
@@ -729,17 +750,16 @@ public:
 
 	void Exit() override
 	{
-		waitForFences(pGraphicsQueue, 1, &pRenderCompleteFences[gFrameIndex], true);
-		waitForFences(pGraphicsQueue, gImageCount, pRenderCompleteFences, true);
+		waitQueueIdle(pGraphicsQueue);
 		destroyCameraController(pCameraController);
 		destroyCameraController(pLightView);
 
+		exitProfiler(pRenderer);
+
 		gAppUI.Exit();
-		removeDebugRendererInterface();
 
 		for (size_t i = 0; i < gScene.mParticleSystems.size(); ++i)
 			removeResource(gScene.mParticleSystems[i].pParticleBuffer);
-
 
 #ifdef TARGET_IOS
 		gVirtualJoystick.Exit();
@@ -752,6 +772,7 @@ public:
 		DestroyBlendStates();
 		DestroyShaders();
 		DestroyRootSignatures();
+		DestroyDescriptorBinders();
 		DestroyResources();
 		DestroyUniformBuffers();
 
@@ -788,7 +809,7 @@ public:
 
 	void Unload() override
 	{
-		waitForFences(pGraphicsQueue, 1, &pRenderCompleteFences[gFrameIndex], true);
+		waitQueueIdle(pGraphicsQueue);
 
 #ifdef TARGET_IOS
 		gVirtualJoystick.Unload();
@@ -807,9 +828,8 @@ public:
 
 		gCurrentTime += deltaTime;
 
-		if (getKeyDown(KEY_BUTTON_X))
+		if (InputSystem::GetBoolInput(KEY_BUTTON_X_TRIGGERED))
 			RecenterCameraView(170.0f);
-
 
 		// Dynamic UI elements
 		GuiController::UpdateDynamicUI();
@@ -820,12 +840,12 @@ public:
 		const float zNear = 1.0f;
 		const float zFar = 4000.0f;
 		pCameraController->update(deltaTime);
-		mat4 viewMat = pCameraController->getViewMatrix();
+		mat4        viewMat = pCameraController->getViewMatrix();
 		const float aspectInverse = (float)mSettings.mHeight / (float)mSettings.mWidth;
 		const float horizontal_fov = PI / 2.0f;
-		mat4 projMat = mat4::perspective(horizontal_fov, aspectInverse, zNear, zFar);//view matrix
-		vec3 camPos = pCameraController->getViewPosition();
-		mat4 vpMatrix = projMat * viewMat;
+		mat4        projMat = mat4::perspective(horizontal_fov, aspectInverse, zNear, zFar);    //view matrix
+		vec3        camPos = pCameraController->getViewPosition();
+		mat4        vpMatrix = projMat * viewMat;
 
 		/************************************************************************/
 		// Light Update
@@ -860,7 +880,7 @@ public:
 		/************************************************************************/
 		// Update Skybox
 		/************************************************************************/
-		viewMat.setTranslation(vec3(0,0,0));
+		viewMat.setTranslation(vec3(0, 0, 0));
 		gSkyboxUniformData.mViewProject = projMat * viewMat;
 		/************************************************************************/
 		// Light Matrix Update
@@ -869,16 +889,30 @@ public:
 		gLightUniformData.mLightViewProj = lightVPMatrix;
 		gLightUniformData.mLightColor = vec4(1, 1, 1, 1);
 		/************************************************************************/
+
+
+    // ProfileSetDisplayMode()
+    // TODO: need to change this better way 
+    if (bToggleMicroProfiler != bPrevToggleMicroProfiler)
+    {
+      Profile& S = *ProfileGet();
+      int nValue = bToggleMicroProfiler ? 1 : 0;
+      nValue = nValue >= 0 && nValue < P_DRAW_SIZE ? nValue : S.nDisplay;
+      S.nDisplay = nValue;
+
+      bPrevToggleMicroProfiler = bToggleMicroProfiler;
+    }
+
 		////////////////////////////////////////////////////////////////
 		gAppUI.Update(deltaTime);
 	}
 
 	void UpdateParticleSystems(float deltaTime, mat4 viewMat, vec3 camPos)
 	{
-		tinystl::vector<Vertex> tempVertexBuffer(6 * MAX_NUM_PARTICLES);
-		const float particleSize = 0.2f;
-		const vec3 camRight = vec3(viewMat[0][0], viewMat[1][0], viewMat[2][0]) * particleSize;
-		const vec3 camUp = vec3(viewMat[0][1], viewMat[1][1], viewMat[2][1]) * particleSize;
+		eastl::vector<Vertex> tempVertexBuffer(6 * MAX_NUM_PARTICLES);
+		const float             particleSize = 0.2f;
+		const vec3              camRight = vec3(viewMat[0][0], viewMat[1][0], viewMat[2][0]) * particleSize;
+		const vec3              camUp = vec3(viewMat[0][1], viewMat[1][1], viewMat[2][1]) * particleSize;
 
 		for (size_t i = 0; i < gScene.mParticleSystems.size(); ++i)
 		{
@@ -904,7 +938,9 @@ public:
 			for (size_t j = 0; j < newParticleCount && pParticleSystem->mLifeParticleCount < MAX_NUM_PARTICLES; ++j)
 			{
 				size_t pi = pParticleSystem->mLifeParticleCount;
-				pParticleSystem->mParticleVelocities[pi] = normalize(vec3(sin(gCurrentTime + pi) * 0.97f, cos(gCurrentTime * gCurrentTime + pi), sin(gCurrentTime * pi)) * cos(gCurrentTime + deltaTime * pi));
+				pParticleSystem->mParticleVelocities[pi] = normalize(
+					vec3(sin(gCurrentTime + pi) * 0.97f, cos(gCurrentTime * gCurrentTime + pi), sin(gCurrentTime * pi)) *
+					cos(gCurrentTime + deltaTime * pi));
 				pParticleSystem->mParticlePositions[pi] = pParticleSystem->mParticleVelocities[pi];
 				pParticleSystem->mParticleLifetimes[pi] = (sin(gCurrentTime + pi) + 1.0f) * 3.0f + 10.0f;
 				++pParticleSystem->mLifeParticleCount;
@@ -920,12 +956,12 @@ public:
 			// Update vertex buffers
 			if (gTransparencyType == TRANSPARENCY_TYPE_ALPHA_BLEND && gAlphaBlendSettings.mSortParticles)
 			{
-				tinystl::vector<float2> sortedArray;
+				eastl::vector<float2> sortedArray;
 
 				for (size_t j = 0; j < pParticleSystem->mLifeParticleCount; ++j)
 					sortedArray.push_back({ (float)distSqr(Point3(camPos), Point3(pParticleSystem->mParticlePositions[j])), (float)j });
 
-				sortedArray.sort(MeshCompare);
+				eastl::quick_sort(sortedArray.begin(), sortedArray.end(), MeshCompare);
 
 				for (uint j = 0; j < sortedArray.size(); ++j)
 				{
@@ -958,26 +994,29 @@ public:
 		}
 	}
 
-	void CreateDrawCalls(float* pSortedObjects, uint objectCount, uint sizeOfObject, ObjectInfoUniformBlock* pObjectUniformBlock, MaterialUniformBlock* pMaterialUniformBlock, uint* pMaterialCount, tinystl::vector<DrawCall>* pDrawCalls)
+	void CreateDrawCalls(
+		float* pSortedObjects, uint objectCount, uint sizeOfObject, ObjectInfoUniformBlock* pObjectUniformBlock,
+		MaterialUniformBlock* pMaterialUniformBlock, uint* pMaterialCount, eastl::vector<DrawCall>* pDrawCalls)
 	{
 		const uint meshIndexOffset = sizeOfObject - 2;
 		const uint objectIndexOffset = sizeOfObject - 1;
 
-		uint instanceCount = 0;
-		uint instanceOffset = 0;
+		uint         instanceCount = 0;
+		uint         instanceOffset = 0;
 		MeshResource prevMesh = (MeshResource)0xFFFFFFFF;
 		for (uint i = 0; i < objectCount; ++i)
 		{
-			uint sortedObjectIndex = (objectCount - i - 1) * sizeOfObject;
+			uint          sortedObjectIndex = (objectCount - i - 1) * sizeOfObject;
 			const Object* pObj = NULL;
-			MeshResource mesh = (MeshResource)(int)pSortedObjects[sortedObjectIndex + meshIndexOffset];
-			int index = (int)pSortedObjects[sortedObjectIndex + objectIndexOffset];
+			MeshResource  mesh = (MeshResource)(int)pSortedObjects[sortedObjectIndex + meshIndexOffset];
+			int           index = (int)pSortedObjects[sortedObjectIndex + objectIndexOffset];
 			if (mesh < MESH_COUNT)
 				pObj = &gScene.mObjects[index];
 			else
 				pObj = &gScene.mParticleSystems[index].mObject;
 
-			pObjectUniformBlock->mObjectInfo[i].mToWorldMat = mat4::translation(pObj->mPosition) * mat4::rotationZYX(pObj->mOrientation) * mat4::scale(pObj->mScale);
+			pObjectUniformBlock->mObjectInfo[i].mToWorldMat =
+				mat4::translation(pObj->mPosition) * mat4::rotationZYX(pObj->mOrientation) * mat4::scale(pObj->mScale);
 			pObjectUniformBlock->mObjectInfo[i].mNormalMat = mat4::rotationZYX(pObj->mOrientation);
 			pObjectUniformBlock->mObjectInfo[i].mMaterialIndex = *pMaterialCount;
 			pMaterialUniformBlock->mMaterials[*pMaterialCount] = pObj->mMaterial;
@@ -1021,7 +1060,7 @@ public:
 		gOpaqueDrawCalls.clear();
 		uint opaqueObjectCount = 0;
 		{
-			tinystl::vector<float2> sortedArray = {};
+			eastl::vector<float2> sortedArray = {};
 
 			for (size_t i = 0; i < gScene.mObjects.size(); ++i)
 			{
@@ -1038,9 +1077,11 @@ public:
 
 			opaqueObjectCount = (int)sortedArray.size();
 			ASSERT(opaqueObjectCount < MAX_NUM_OBJECTS);
-			sortedArray.sort(MeshCompare);  // Sorts by mesh
+			eastl::quick_sort(sortedArray.begin(), sortedArray.end(), MeshCompare);    // Sorts by mesh
 
-			CreateDrawCalls((float*)sortedArray.data(), opaqueObjectCount, sizeof(sortedArray[0]) / sizeof(float), &gObjectInfoUniformData, &gMaterialUniformData, &materialCount, &gOpaqueDrawCalls);
+			CreateDrawCalls(
+				(float*)sortedArray.data(), opaqueObjectCount, sizeof(sortedArray[0]) / sizeof(float), &gObjectInfoUniformData,
+				&gMaterialUniformData, &materialCount, &gOpaqueDrawCalls);
 		}
 
 		// Create list of transparent objects
@@ -1048,30 +1089,34 @@ public:
 		uint transparentObjectCount = 0;
 		if (gTransparencyType == TRANSPARENCY_TYPE_ALPHA_BLEND && gAlphaBlendSettings.mSortObjects)
 		{
-			tinystl::vector<float3> sortedArray = {};
+			eastl::vector<float3> sortedArray = {};
 
 			for (size_t i = 0; i < gScene.mObjects.size(); ++i)
 			{
 				const Object* pObj = &gScene.mObjects[i];
 				if (pObj->mMaterial.mColor.getW() < 1.0f)
-					sortedArray.push_back({ (float)distSqr(Point3(camPos), Point3(pObj->mPosition)) - (float)pow(maxElem(pObj->mScale), 2), (float)pObj->mMesh, (float)i });
+					sortedArray.push_back({ (float)distSqr(Point3(camPos), Point3(pObj->mPosition)) - (float)pow(maxElem(pObj->mScale), 2),
+											(float)pObj->mMesh, (float)i });
 			}
 			for (size_t i = 0; i < gScene.mParticleSystems.size(); ++i)
 			{
 				const Object* pObj = &gScene.mParticleSystems[i].mObject;
 				if (pObj->mMaterial.mColor.getW() < 1.0f)
-					sortedArray.push_back({ (float)distSqr(Point3(camPos), Point3(pObj->mPosition)) - (float)pow(maxElem(pObj->mScale), 2), (float)pObj->mMesh, (float)i });
+					sortedArray.push_back({ (float)distSqr(Point3(camPos), Point3(pObj->mPosition)) - (float)pow(maxElem(pObj->mScale), 2),
+											(float)pObj->mMesh, (float)i });
 			}
 
 			transparentObjectCount = (int)sortedArray.size();
 			ASSERT(transparentObjectCount < MAX_NUM_OBJECTS);
-			sortedArray.sort(DistanceCompare);  // Sorts by distance first, then by mesh
+			eastl::quick_sort(sortedArray.begin(), sortedArray.end(), DistanceCompare);     // Sorts by distance first, then by mesh
 
-			CreateDrawCalls((float*)sortedArray.data(), transparentObjectCount, sizeof(sortedArray[0]) / sizeof(float), &gTransparentObjectInfoUniformData, &gMaterialUniformData, &materialCount, &gTransparentDrawCalls);
+			CreateDrawCalls(
+				(float*)sortedArray.data(), transparentObjectCount, sizeof(sortedArray[0]) / sizeof(float),
+				&gTransparentObjectInfoUniformData, &gMaterialUniformData, &materialCount, &gTransparentDrawCalls);
 		}
 		else
 		{
-			tinystl::vector<float2> sortedArray = {};
+			eastl::vector<float2> sortedArray = {};
 
 			for (size_t i = 0; i < gScene.mObjects.size(); ++i)
 			{
@@ -1088,9 +1133,11 @@ public:
 
 			transparentObjectCount = (int)sortedArray.size();
 			ASSERT(transparentObjectCount < MAX_NUM_OBJECTS);
-			sortedArray.sort(MeshCompare);  // Sorts by mesh
+			eastl::quick_sort(sortedArray.begin(), sortedArray.end(), MeshCompare);    // Sorts by mesh
 
-			CreateDrawCalls((float*)sortedArray.data(), transparentObjectCount, sizeof(sortedArray[0]) / sizeof(float), &gTransparentObjectInfoUniformData, &gMaterialUniformData, &materialCount, &gTransparentDrawCalls);
+			CreateDrawCalls(
+				(float*)sortedArray.data(), transparentObjectCount, sizeof(sortedArray[0]) / sizeof(float),
+				&gTransparentObjectInfoUniformData, &gMaterialUniformData, &materialCount, &gTransparentDrawCalls);
 		}
 	}
 
@@ -1134,7 +1181,7 @@ public:
 		params[5].ppTextures = &pTextures[TEXTURE_SKYBOX_FRONT];
 		params[6].pName = "BackText";
 		params[6].ppTextures = &pTextures[TEXTURE_SKYBOX_BACK];
-		cmdBindDescriptors(pCmd, pRootSignatureSkybox, 7, params);
+		cmdBindDescriptors(pCmd, pDescriptorBinder, pRootSignatureSkybox, 7, params);
 		cmdBindVertexBuffer(pCmd, 1, &pBufferSkyboxVertex, NULL);
 		cmdDraw(pCmd, 36, 0);
 		cmdBindRenderTargets(pCmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
@@ -1160,7 +1207,9 @@ public:
 
 		// Start render pass and apply load actions
 		cmdBindRenderTargets(pCmd, 1, &pRenderTargetShadowVariance[0], pRenderTargetShadowDepth, &loadActions, NULL, NULL, -1, -1);
-		cmdSetViewport(pCmd, 0.0f, 0.0f, (float)pRenderTargetShadowVariance[0]->mDesc.mWidth, (float)pRenderTargetShadowVariance[0]->mDesc.mHeight, 0.0f, 1.0f);
+		cmdSetViewport(
+			pCmd, 0.0f, 0.0f, (float)pRenderTargetShadowVariance[0]->mDesc.mWidth, (float)pRenderTargetShadowVariance[0]->mDesc.mHeight,
+			0.0f, 1.0f);
 		cmdSetScissor(pCmd, 0, 0, pRenderTargetShadowVariance[0]->mDesc.mWidth, pRenderTargetShadowVariance[0]->mDesc.mHeight);
 
 		// Draw the opaque objects.
@@ -1169,7 +1218,9 @@ public:
 
 		cmdBindPipeline(pCmd, pPipelineShadow);
 
-		DrawObjects(pCmd, &gOpaqueDrawCalls, pRootSignatureShadow, pBufferOpaqueObjectTransforms[gFrameIndex], pBufferCameraLightUniform[gFrameIndex], false, false);
+		DrawObjects(
+			pCmd, &gOpaqueDrawCalls, pRootSignatureShadow, pBufferOpaqueObjectTransforms[gFrameIndex],
+			pBufferCameraLightUniform[gFrameIndex], false, false);
 		cmdEndDebugMarker(pCmd);
 
 		// Blur shadow map
@@ -1192,12 +1243,12 @@ public:
 			cmdBindPipeline(pCmd, pPipelineGaussianBlur);
 
 			DescriptorData params[2] = {};
-			float axis = 0.0f;
+			float          axis = 0.0f;
 			params[0].pName = "RootConstant";
 			params[0].pRootConstant = &axis;
 			params[1].pName = "Source";
 			params[1].pRootConstant = &pRenderTargetShadowVariance[0]->pTexture;
-			cmdBindDescriptors(pCmd, pRootSignatureGaussianBlur, 2, params);
+			cmdBindDescriptors(pCmd, pDescriptorBinder, pRootSignatureGaussianBlur, 2, params);
 
 			cmdDraw(pCmd, 3, 0);
 
@@ -1217,7 +1268,7 @@ public:
 			params[0].pRootConstant = &axis;
 			params[1].pName = "Source";
 			params[1].pRootConstant = &pRenderTargetShadowVariance[1]->pTexture;
-			cmdBindDescriptors(pCmd, pRootSignatureGaussianBlur, 2, params);
+			cmdBindDescriptors(pCmd, pDescriptorBinder, pRootSignatureGaussianBlur, 2, params);
 
 			cmdDraw(pCmd, 3, 0);
 		}
@@ -1259,24 +1310,27 @@ public:
 		{
 			cmdBindRenderTargets(pCmd, 1, &pRenderTargetPTShadowVariance[w], NULL, &loadActions, NULL, NULL, -1, -1);
 			cmdBindPipeline(pCmd, pPipelinePTCopyShadowDepth);
-			cmdSetViewport(pCmd, 0.0f, 0.0f, (float)pRenderTargetPTShadowVariance[0]->mDesc.mWidth, (float)pRenderTargetPTShadowVariance[0]->mDesc.mHeight, 0.0f, 1.0f);
+			cmdSetViewport(
+				pCmd, 0.0f, 0.0f, (float)pRenderTargetPTShadowVariance[0]->mDesc.mWidth,
+				(float)pRenderTargetPTShadowVariance[0]->mDesc.mHeight, 0.0f, 1.0f);
 			cmdSetScissor(pCmd, 0, 0, pRenderTargetPTShadowVariance[0]->mDesc.mWidth, pRenderTargetPTShadowVariance[0]->mDesc.mHeight);
 
 			DescriptorData param = {};
 			param.pName = "Source";
 			param.ppTextures = &pRenderTargetShadowVariance[0]->pTexture;
-			cmdBindDescriptors(pCmd, pRootSignaturePTCopyShadowDepth, 1, &param);
+			cmdBindDescriptors(pCmd, pDescriptorBinderPTCopyShadowDepth, 1, &param);
 
 			cmdDraw(pCmd, 3, 0);
 		}
 		cmdEndDebugMarker(pCmd);
 
-
 		// Start render pass and apply load actions
 		for (int i = 0; i < 3; ++i)
 			loadActions.mLoadActionsColor[i] = LOAD_ACTION_LOAD;
 		cmdBindRenderTargets(pCmd, 3, pRenderTargetPTShadowVariance, NULL, &loadActions, NULL, NULL, -1, -1);
-		cmdSetViewport(pCmd, 0.0f, 0.0f, (float)pRenderTargetPTShadowVariance[0]->mDesc.mWidth, (float)pRenderTargetPTShadowVariance[0]->mDesc.mHeight, 0.0f, 1.0f);
+		cmdSetViewport(
+			pCmd, 0.0f, 0.0f, (float)pRenderTargetPTShadowVariance[0]->mDesc.mWidth, (float)pRenderTargetPTShadowVariance[0]->mDesc.mHeight,
+			0.0f, 1.0f);
 		cmdSetScissor(pCmd, 0, 0, pRenderTargetPTShadowVariance[0]->mDesc.mWidth, pRenderTargetPTShadowVariance[0]->mDesc.mHeight);
 
 		// Draw the opaque objects.
@@ -1284,7 +1338,9 @@ public:
 
 		cmdBindPipeline(pCmd, pPipelinePTShadow);
 
-		DrawObjects(pCmd, &gTransparentDrawCalls, pRootSignaturePTShadow, pBufferTransparentObjectTransforms[gFrameIndex], pBufferCameraLightUniform[gFrameIndex], true, false);
+		DrawObjects(
+			pCmd, &gTransparentDrawCalls, pDescriptorBinderPTShadow, pBufferTransparentObjectTransforms[gFrameIndex],
+			pBufferCameraLightUniform[gFrameIndex], true, false);
 		cmdEndDebugMarker(pCmd);
 
 		// Downsample shadow map
@@ -1303,7 +1359,9 @@ public:
 			cmdResourceBarrier(pCmd, 0, NULL, 2, barriers, false);
 
 			cmdBindRenderTargets(pCmd, 1, &pRenderTargetPTShadowFinal[0][w], NULL, &loadActions, NULL, NULL, -1, -1);
-			cmdSetViewport(pCmd, 0.0f, 0.0f, (float)pRenderTargetPTShadowFinal[0][w]->mDesc.mWidth, (float)pRenderTargetPTShadowFinal[0][w]->mDesc.mHeight, 0.0f, 1.0f);
+			cmdSetViewport(
+				pCmd, 0.0f, 0.0f, (float)pRenderTargetPTShadowFinal[0][w]->mDesc.mWidth,
+				(float)pRenderTargetPTShadowFinal[0][w]->mDesc.mHeight, 0.0f, 1.0f);
 			cmdSetScissor(pCmd, 0, 0, pRenderTargetPTShadowFinal[0][w]->mDesc.mWidth, pRenderTargetPTShadowFinal[0][w]->mDesc.mHeight);
 
 			cmdBindPipeline(pCmd, pPipelinePTDownsample);
@@ -1311,7 +1369,7 @@ public:
 			DescriptorData param = {};
 			param.pName = "Source";
 			param.pRootConstant = &pRenderTargetPTShadowVariance[w]->pTexture;
-			cmdBindDescriptors(pCmd, pRootSignaturePTDownsample, 1, &param);
+			cmdBindDescriptors(pCmd, pDescriptorBinderPTDownsample, 1, &param);
 
 			cmdDraw(pCmd, 3, 0);
 		}
@@ -1339,12 +1397,12 @@ public:
 				cmdBindPipeline(pCmd, pPipelineGaussianBlur);
 
 				DescriptorData params[2] = {};
-				float axis = 0.0f;
+				float          axis = 0.0f;
 				params[0].pName = "RootConstant";
 				params[0].pRootConstant = &axis;
 				params[1].pName = "Source";
 				params[1].ppTextures = &pRenderTargetPTShadowFinal[0][w]->pTexture;
-				cmdBindDescriptors(pCmd, pRootSignatureGaussianBlur, 2, params);
+				cmdBindDescriptors(pCmd, pDescriptorBinderGaussianBlur, 2, params);
 
 				cmdDraw(pCmd, 3, 0);
 
@@ -1364,7 +1422,7 @@ public:
 				params[0].pRootConstant = &axis;
 				params[1].pName = "Source";
 				params[1].ppTextures = &pRenderTargetPTShadowFinal[1][w]->pTexture;
-				cmdBindDescriptors(pCmd, pRootSignatureGaussianBlur, 2, params);
+				cmdBindDescriptors(pCmd, pDescriptorBinderGaussianBlur, 2, params);
 
 				cmdDraw(pCmd, 3, 0);
 			}
@@ -1384,13 +1442,15 @@ public:
 #endif
 	}
 
-	void DrawObjects(Cmd* pCmd, tinystl::vector<DrawCall>* pDrawCalls, RootSignature* pRootSignature, Buffer* pObjectTransforms, Buffer* cameraBuffer, bool bindMaterials = true, bool bindLights = true)
+	void DrawObjects(
+		Cmd* pCmd, eastl::vector<DrawCall>* pDrawCalls, RootSignature* pRootSignature, Buffer* pObjectTransforms, Buffer* cameraBuffer,
+		bool bindMaterials = true, bool bindLights = true)
 	{
 		static MeshResource boundMesh = (MeshResource)0xFFFFFFFF;
-		static uint vertexCount = 0;
-		static uint indexCount = 0;
+		static uint         vertexCount = 0;
+		static uint         indexCount = 0;
 
-		uint descriptorCount = 2;
+		uint           descriptorCount = 2;
 		DescriptorData params[9] = {};
 		params[0].pName = "ObjectUniformBlock";
 		params[0].ppBuffers = &pObjectTransforms;
@@ -1426,14 +1486,14 @@ public:
 #endif
 		}
 
-		cmdBindDescriptors(pCmd, pRootSignature, descriptorCount, params);
+		cmdBindDescriptors(pCmd, pDescriptorBinder, pRootSignature, descriptorCount, params);
 
 		for (size_t i = 0; i < pDrawCalls->size(); ++i)
 		{
 			DrawCall* dc = &(*pDrawCalls)[i];
 			params[0].pName = "DrawInfoRootConstant";
 			params[0].pRootConstant = &dc->mInstanceOffset;
-			cmdBindDescriptors(pCmd, pRootSignature, 1, params);
+			cmdBindDescriptors(pCmd, pDescriptorBinder, pRootSignature, 1, params);
 
 			if (dc->mMesh != boundMesh || dc->mMesh > MESH_COUNT)
 			{
@@ -1447,7 +1507,7 @@ public:
 				else
 				{
 					cmdBindVertexBuffer(pCmd, 1, &pMeshes[dc->mMesh]->pVertexBuffer, NULL);
-					if(pMeshes[dc->mMesh]->pIndexBuffer)
+					if (pMeshes[dc->mMesh]->pIndexBuffer)
 						cmdBindIndexBuffer(pCmd, pMeshes[dc->mMesh]->pIndexBuffer, NULL);
 					vertexCount = pMeshes[dc->mMesh]->mVertexCount;
 					indexCount = pMeshes[dc->mMesh]->mIndexCount;
@@ -1483,7 +1543,8 @@ public:
 
 		cmdBindPipeline(pCmd, pPipelineForward);
 
-		DrawObjects(pCmd, &gOpaqueDrawCalls, pRootSignatureForward, pBufferOpaqueObjectTransforms[gFrameIndex], pBufferCameraUniform[gFrameIndex]);
+		DrawObjects(
+			pCmd, &gOpaqueDrawCalls, pRootSignatureForward, pBufferOpaqueObjectTransforms[gFrameIndex], pBufferCameraUniform[gFrameIndex]);
 		cmdBindRenderTargets(pCmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
 
 #if PT_USE_DIFFUSION != 0
@@ -1512,12 +1573,14 @@ public:
 				params[1].mUAVMipSlice = i;
 				params[2].pName = "RootConstant";
 				params[2].pRootConstant = mipSize;
-				cmdBindDescriptors(pCmd, pRootSignaturePTGenMips, 3, params);
+				cmdBindDescriptors(pCmd, pDescriptorBinder, pRootSignaturePTGenMips, 3, params);
 
 				uint groupCountX = mipSizeX / 16;
 				uint groupCountY = mipSizeY / 16;
-				if (groupCountX == 0) groupCountX = 1;
-				if (groupCountY == 0) groupCountY = 1;
+				if (groupCountX == 0)
+					groupCountX = 1;
+				if (groupCountY == 0)
+					groupCountY = 1;
 				cmdDispatch(pCmd, groupCountX, groupCountY, 1);
 			}
 
@@ -1548,7 +1611,9 @@ public:
 
 		cmdBindPipeline(pCmd, pPipelineTransparentForward);
 
-		DrawObjects(pCmd, &gTransparentDrawCalls, pRootSignatureForward, pBufferTransparentObjectTransforms[gFrameIndex], pBufferCameraUniform[gFrameIndex]);
+		DrawObjects(
+			pCmd, &gTransparentDrawCalls, pRootSignatureForward, pBufferTransparentObjectTransforms[gFrameIndex],
+			pBufferCameraUniform[gFrameIndex]);
 
 		cmdBindRenderTargets(pCmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
 		cmdEndGpuTimestampQuery(pCmd, pGpuProfiler);
@@ -1557,8 +1622,8 @@ public:
 
 	void WeightedBlendedOrderIndependentTransparencyPass(Cmd* pCmd, bool volition)
 	{
-		Pipeline* pShadePipeline = volition ? pPipelineWBOITVShade : pPipelineWBOITShade;
-		Pipeline* pCompositePipeline = volition ? pPipelineWBOITVComposite : pPipelineWBOITComposite;
+		Pipeline*      pShadePipeline = volition ? pPipelineWBOITVShade : pPipelineWBOITShade;
+		Pipeline*      pCompositePipeline = volition ? pPipelineWBOITVComposite : pPipelineWBOITComposite;
 		RootSignature* pShadeRootSignature = volition ? pRootSignatureWBOITVShade : pRootSignatureWBOITShade;
 		RootSignature* pCompositeRootSignature = volition ? pRootSignatureWBOITVComposite : pRootSignatureWBOITComposite;
 
@@ -1568,7 +1633,7 @@ public:
 			textureBarriers[i].pTexture = pRenderTargetWBOIT[i]->pTexture;
 			textureBarriers[i].mNewState = RESOURCE_STATE_RENDER_TARGET;
 		}
-		cmdResourceBarrier(pCmd, 0, nullptr, WBOIT_RT_COUNT, textureBarriers, false);
+		cmdResourceBarrier(pCmd, 0, NULL, WBOIT_RT_COUNT, textureBarriers, false);
 
 		LoadActionsDesc loadActions = {};
 		loadActions.mLoadActionsColor[0] = LOAD_ACTION_CLEAR;
@@ -1579,7 +1644,8 @@ public:
 
 		// Start render pass and apply load actions
 		cmdBindRenderTargets(pCmd, WBOIT_RT_COUNT, pRenderTargetWBOIT, pRenderTargetDepth, &loadActions, NULL, NULL, -1, -1);
-		cmdSetViewport(pCmd, 0.0f, 0.0f, (float)pRenderTargetWBOIT[0]->mDesc.mWidth, (float)pRenderTargetWBOIT[0]->mDesc.mHeight, 0.0f, 1.0f);
+		cmdSetViewport(
+			pCmd, 0.0f, 0.0f, (float)pRenderTargetWBOIT[0]->mDesc.mWidth, (float)pRenderTargetWBOIT[0]->mDesc.mHeight, 0.0f, 1.0f);
 		cmdSetScissor(pCmd, 0, 0, pRenderTargetWBOIT[0]->mDesc.mWidth, pRenderTargetWBOIT[0]->mDesc.mHeight);
 
 		// Draw the transparent geometry.
@@ -1591,9 +1657,11 @@ public:
 		DescriptorData shadeParam = {};
 		shadeParam.pName = "WBOITSettings";
 		shadeParam.ppBuffers = &pBufferWBOITSettings[gFrameIndex];
-		cmdBindDescriptors(pCmd, pShadeRootSignature, 1, &shadeParam);
+		cmdBindDescriptors(pCmd, pDescriptorBinder, pShadeRootSignature, 1, &shadeParam);
 
-		DrawObjects(pCmd, &gTransparentDrawCalls, pShadeRootSignature, pBufferTransparentObjectTransforms[gFrameIndex], pBufferCameraUniform[gFrameIndex]);
+		DrawObjects(
+			pCmd, &gTransparentDrawCalls, pShadeRootSignature, pBufferTransparentObjectTransforms[gFrameIndex],
+			pBufferCameraUniform[gFrameIndex]);
 
 		cmdBindRenderTargets(pCmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
 		cmdEndGpuTimestampQuery(pCmd, pGpuProfiler);
@@ -1605,13 +1673,13 @@ public:
 			textureBarriers[i].pTexture = pRenderTargetWBOIT[i]->pTexture;
 			textureBarriers[i].mNewState = RESOURCE_STATE_SHADER_RESOURCE;
 		}
-		cmdResourceBarrier(pCmd, 0, nullptr, WBOIT_RT_COUNT, textureBarriers, false);
+		cmdResourceBarrier(pCmd, 0, NULL, WBOIT_RT_COUNT, textureBarriers, false);
 
 		loadActions.mLoadActionsColor[0] = LOAD_ACTION_LOAD;
 		loadActions.mLoadActionDepth = LOAD_ACTION_LOAD;
 
 		// Start render pass and apply load actions
-		cmdBindRenderTargets(pCmd, 1, &pRenderTargetScreen, nullptr, &loadActions, NULL, NULL, -1, -1);
+		cmdBindRenderTargets(pCmd, 1, &pRenderTargetScreen, NULL, &loadActions, NULL, NULL, -1, -1);
 		cmdSetViewport(pCmd, 0.0f, 0.0f, (float)pRenderTargetScreen->mDesc.mWidth, (float)pRenderTargetScreen->mDesc.mHeight, 0.0f, 1.0f);
 		cmdSetScissor(pCmd, 0, 0, pRenderTargetScreen->mDesc.mWidth, pRenderTargetScreen->mDesc.mHeight);
 
@@ -1627,7 +1695,7 @@ public:
 		compositeParams[1].pName = "RevealageTexture";
 		compositeParams[1].ppTextures = &pRenderTargetWBOIT[WBOIT_RT_REVEALAGE]->pTexture;
 
-		cmdBindDescriptors(pCmd, pCompositeRootSignature, 2, compositeParams);
+		cmdBindDescriptors(pCmd, pDescriptorBinder, pCompositeRootSignature, 2, compositeParams);
 		cmdDraw(pCmd, 3, 0);
 		cmdBindRenderTargets(pCmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
 		cmdEndGpuTimestampQuery(pCmd, pGpuProfiler);
@@ -1636,7 +1704,7 @@ public:
 
 	void PhenomenologicalTransparencyPass(Cmd* pCmd)
 	{
-		TextureBarrier textureBarriers[PT_RT_COUNT + 1] = {};
+		TextureBarrier  textureBarriers[PT_RT_COUNT + 1] = {};
 		LoadActionsDesc loadActions = {};
 
 #if PT_USE_DIFFUSION != 0
@@ -1645,14 +1713,15 @@ public:
 		textureBarriers[0].mNewState = RESOURCE_STATE_SHADER_RESOURCE;
 		textureBarriers[1].pTexture = pRenderTargetPTDepthCopy->pTexture;
 		textureBarriers[1].mNewState = RESOURCE_STATE_RENDER_TARGET;
-		cmdResourceBarrier(pCmd, 0, nullptr, 2, textureBarriers, false);
+		cmdResourceBarrier(pCmd, 0, NULL, 2, textureBarriers, false);
 
 		loadActions.mLoadActionsColor[0] = LOAD_ACTION_DONTCARE;
 		loadActions.mClearColorValues[0] = pRenderTargetPTDepthCopy->pTexture->mDesc.mClearValue;
 
 		// Start render pass and apply load actions
 		cmdBindRenderTargets(pCmd, 1, &pRenderTargetPTDepthCopy, NULL, &loadActions, NULL, NULL, -1, -1);
-		cmdSetViewport(pCmd, 0.0f, 0.0f, (float)pRenderTargetPTDepthCopy->mDesc.mWidth, (float)pRenderTargetPTDepthCopy->mDesc.mHeight, 0.0f, 1.0f);
+		cmdSetViewport(
+			pCmd, 0.0f, 0.0f, (float)pRenderTargetPTDepthCopy->mDesc.mWidth, (float)pRenderTargetPTDepthCopy->mDesc.mHeight, 0.0f, 1.0f);
 		cmdSetScissor(pCmd, 0, 0, pRenderTargetPTDepthCopy->mDesc.mWidth, pRenderTargetPTDepthCopy->mDesc.mHeight);
 
 		// Draw the transparent geometry.
@@ -1664,7 +1733,7 @@ public:
 		DescriptorData copyParam = {};
 		copyParam.pName = "Source";
 		copyParam.ppTextures = &pRenderTargetDepth->pTexture;
-		cmdBindDescriptors(pCmd, pRootSignaturePTCopyDepth, 1, &copyParam);
+		cmdBindDescriptors(pCmd, pDescriptorBinder, pRootSignaturePTCopyDepth, 1, &copyParam);
 
 		cmdDraw(pCmd, 3, 0);
 		cmdBindRenderTargets(pCmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
@@ -1675,7 +1744,7 @@ public:
 		textureBarriers[0].mNewState = RESOURCE_STATE_DEPTH_WRITE;
 		textureBarriers[1].pTexture = pRenderTargetPTDepthCopy->pTexture;
 		textureBarriers[1].mNewState = RESOURCE_STATE_SHADER_RESOURCE;
-		cmdResourceBarrier(pCmd, 0, nullptr, 2, textureBarriers, false);
+		cmdResourceBarrier(pCmd, 0, NULL, 2, textureBarriers, false);
 #endif
 
 		for (int i = 0; i < PT_RT_COUNT; ++i)
@@ -1708,10 +1777,12 @@ public:
 		DescriptorData shadeParam = {};
 		shadeParam.pName = "DepthTexture";
 		shadeParam.ppTextures = &pRenderTargetPTDepthCopy->pTexture;
-		cmdBindDescriptors(pCmd, pRootSignaturePTShade, 1, &shadeParam);
+		cmdBindDescriptors(pCmd, pDescriptorBinder, pRootSignaturePTShade, 1, &shadeParam);
 #endif
 
-		DrawObjects(pCmd, &gTransparentDrawCalls, pRootSignaturePTShade, pBufferTransparentObjectTransforms[gFrameIndex], pBufferCameraUniform[gFrameIndex]);
+		DrawObjects(
+			pCmd, &gTransparentDrawCalls, pRootSignaturePTShade, pBufferTransparentObjectTransforms[gFrameIndex],
+			pBufferCameraUniform[gFrameIndex]);
 
 		cmdBindRenderTargets(pCmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
 		cmdEndGpuTimestampQuery(pCmd, pGpuProfiler);
@@ -1725,7 +1796,7 @@ public:
 		}
 		textureBarriers[PT_RT_COUNT].pTexture = pRenderTargetPTBackground->pTexture;
 		textureBarriers[PT_RT_COUNT].mNewState = RESOURCE_STATE_SHADER_RESOURCE;
-		cmdResourceBarrier(pCmd, 0, nullptr, PT_RT_COUNT + 1, textureBarriers, false);
+		cmdResourceBarrier(pCmd, 0, NULL, PT_RT_COUNT + 1, textureBarriers, false);
 
 		loadActions.mLoadActionsColor[0] = LOAD_ACTION_LOAD;
 		loadActions.mLoadActionDepth = LOAD_ACTION_LOAD;
@@ -1741,7 +1812,7 @@ public:
 
 		cmdBindPipeline(pCmd, pPipelinePTComposite);
 
-		uint compositeParamCount = 3;
+		uint           compositeParamCount = 3;
 		DescriptorData compositeParams[4] = {};
 		compositeParams[0].pName = "AccumulationTexture";
 		compositeParams[0].ppTextures = &pRenderTargetPT[PT_RT_ACCUMULATION]->pTexture;
@@ -1754,7 +1825,7 @@ public:
 		compositeParams[3].pName = "RefractionTexture";
 		compositeParams[3].ppTextures = &pRenderTargetPT[PT_RT_REFRACTION]->pTexture;
 #endif
-		cmdBindDescriptors(pCmd, pRootSignaturePTComposite, compositeParamCount, compositeParams);
+		cmdBindDescriptors(pCmd, pDescriptorBinder, pRootSignaturePTComposite, compositeParamCount, compositeParams);
 		cmdDraw(pCmd, 3, 0);
 		cmdBindRenderTargets(pCmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
 		cmdEndGpuTimestampQuery(pCmd, pGpuProfiler);
@@ -1783,7 +1854,7 @@ public:
 		clearParams[0].pName = "AOITClearMaskUAV";
 		clearParams[0].ppTextures = &pTextureAOITClearMask;
 
-		cmdBindDescriptors(pCmd, pRootSignatureAOITClear, 1, clearParams);
+		cmdBindDescriptors(pCmd, pDescriptorBinder, pRootSignatureAOITClear, 1, clearParams);
 		cmdDraw(pCmd, 3, 0);
 		cmdBindRenderTargets(pCmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
 		cmdEndGpuTimestampQuery(pCmd, pGpuProfiler);
@@ -1798,8 +1869,11 @@ public:
 
 		// Start render pass and apply load actions
 		cmdBindRenderTargets(pCmd, 0, NULL, pRenderTargetDepth, &loadActions, NULL, NULL, -1, -1);
-		cmdSetViewport(pCmd, 0.0f, 0.0f, (float)pSwapChain->ppSwapchainRenderTargets[0]->mDesc.mWidth, (float)pSwapChain->ppSwapchainRenderTargets[0]->mDesc.mHeight, 0.0f, 1.0f);
-		cmdSetScissor(pCmd, 0, 0, pSwapChain->ppSwapchainRenderTargets[0]->mDesc.mWidth, pSwapChain->ppSwapchainRenderTargets[0]->mDesc.mHeight);
+		cmdSetViewport(
+			pCmd, 0.0f, 0.0f, (float)pSwapChain->ppSwapchainRenderTargets[0]->mDesc.mWidth,
+			(float)pSwapChain->ppSwapchainRenderTargets[0]->mDesc.mHeight, 0.0f, 1.0f);
+		cmdSetScissor(
+			pCmd, 0, 0, pSwapChain->ppSwapchainRenderTargets[0]->mDesc.mWidth, pSwapChain->ppSwapchainRenderTargets[0]->mDesc.mHeight);
 
 		// Draw the transparent geometry.
 		cmdBeginDebugMarker(pCmd, 1, 0, 1, "Draw transparent geometry (AOIT)");
@@ -1807,7 +1881,7 @@ public:
 
 		cmdBindPipeline(pCmd, pPipelineAOITShade);
 
-		int shadeParamsCount = 2;
+		int            shadeParamsCount = 2;
 		DescriptorData shadeParams[3] = {};
 		shadeParams[0].pName = "AOITClearMaskUAV";
 		shadeParams[0].ppTextures = &pTextureAOITClearMask;
@@ -1818,16 +1892,18 @@ public:
 		shadeParams[2].ppBuffers = &pBufferAOITDepthData;
 		shadeParamsCount = 3;
 #endif
-		cmdBindDescriptors(pCmd, pRootSignatureAOITShade, shadeParamsCount, shadeParams);
+		cmdBindDescriptors(pCmd, pDescriptorBinder, pRootSignatureAOITShade, shadeParamsCount, shadeParams);
 
-		DrawObjects(pCmd, &gTransparentDrawCalls, pRootSignatureAOITShade, pBufferTransparentObjectTransforms[gFrameIndex], pBufferCameraUniform[gFrameIndex]);
+		DrawObjects(
+			pCmd, &gTransparentDrawCalls, pRootSignatureAOITShade, pBufferTransparentObjectTransforms[gFrameIndex],
+			pBufferCameraUniform[gFrameIndex]);
 
 		cmdBindRenderTargets(pCmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
 		cmdEndGpuTimestampQuery(pCmd, pGpuProfiler);
 		cmdEndDebugMarker(pCmd);
 
 		// Composite AOIT buffers
-		int bufferBarrierCount = 1;
+		int           bufferBarrierCount = 1;
 		BufferBarrier bufferBarriers[2] = {};
 		bufferBarriers[0].pBuffer = pBufferAOITColorData;
 #if AOIT_NODE_COUNT != 2
@@ -1840,7 +1916,7 @@ public:
 		loadActions.mLoadActionDepth = LOAD_ACTION_LOAD;
 
 		// Start render pass and apply load actions
-		cmdBindRenderTargets(pCmd, 1, &pRenderTargetScreen, nullptr, &loadActions, NULL, NULL, -1, -1);
+		cmdBindRenderTargets(pCmd, 1, &pRenderTargetScreen, NULL, &loadActions, NULL, NULL, -1, -1);
 		cmdSetViewport(pCmd, 0.0f, 0.0f, (float)pRenderTargetScreen->mDesc.mWidth, (float)pRenderTargetScreen->mDesc.mHeight, 0.0f, 1.0f);
 		cmdSetScissor(pCmd, 0, 0, pRenderTargetScreen->mDesc.mWidth, pRenderTargetScreen->mDesc.mHeight);
 
@@ -1856,7 +1932,7 @@ public:
 		compositeParams[1].pName = "AOITColorDataSRV";
 		compositeParams[1].ppBuffers = &pBufferAOITColorData;
 
-		cmdBindDescriptors(pCmd, pRootSignatureAOITComposite, 2, compositeParams);
+		cmdBindDescriptors(pCmd, pDescriptorBinder, pRootSignatureAOITComposite, 2, compositeParams);
 		cmdDraw(pCmd, 3, 0);
 		cmdBindRenderTargets(pCmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
 		cmdEndGpuTimestampQuery(pCmd, pGpuProfiler);
@@ -1869,13 +1945,13 @@ public:
 		acquireNextImage(pRenderer, pSwapChain, pImageAcquiredSemaphore, NULL, &gFrameIndex);
 
 		Semaphore* pRenderCompleteSemaphore = pRenderCompleteSemaphores[gFrameIndex];
-		Fence* pRenderCompleteFence = pRenderCompleteFences[gFrameIndex];
+		Fence*     pRenderCompleteFence = pRenderCompleteFences[gFrameIndex];
 
 		// Stall if CPU is running "Swap Chain Buffer Count" frames ahead of GPU
 		FenceStatus fenceStatus;
 		getFenceStatus(pRenderer, pRenderCompleteFence, &fenceStatus);
 		if (fenceStatus == FENCE_STATUS_INCOMPLETE)
-			waitForFences(pGraphicsQueue, 1, &pRenderCompleteFence, false);
+			waitForFences(pRenderer, 1, &pRenderCompleteFence);
 
 		gCpuTimer.GetUSec(true);
 		/************************************************************************/
@@ -1885,7 +1961,8 @@ public:
 		updateResource(&materialBufferUpdateDesc);
 		BufferUpdateDesc opaqueBufferUpdateDesc = { pBufferOpaqueObjectTransforms[gFrameIndex], &gObjectInfoUniformData };
 		updateResource(&opaqueBufferUpdateDesc);
-		BufferUpdateDesc transparentBufferUpdateDesc = { pBufferTransparentObjectTransforms[gFrameIndex], &gTransparentObjectInfoUniformData };
+		BufferUpdateDesc transparentBufferUpdateDesc = { pBufferTransparentObjectTransforms[gFrameIndex],
+														 &gTransparentObjectInfoUniformData };
 		updateResource(&transparentBufferUpdateDesc);
 
 		BufferUpdateDesc cameraCbv = { pBufferCameraUniform[gFrameIndex], &gCameraUniformData };
@@ -1924,8 +2001,8 @@ public:
 		beginCmd(pCmd);
 		cmdBeginGpuFrameProfile(pCmd, pGpuProfiler);
 		TextureBarrier barriers1[] = {
-			{pRenderTargetScreen->pTexture, RESOURCE_STATE_RENDER_TARGET},
-			{pRenderTargetDepth->pTexture, RESOURCE_STATE_DEPTH_WRITE},
+			{ pRenderTargetScreen->pTexture, RESOURCE_STATE_RENDER_TARGET },
+			{ pRenderTargetDepth->pTexture, RESOURCE_STATE_DEPTH_WRITE },
 		};
 		cmdResourceBarrier(pCmd, 0, NULL, 2, barriers1, false);
 
@@ -1959,40 +2036,44 @@ public:
 		static HiresTimer gTimer;
 		gTimer.GetUSec(true);
 
-#ifndef TARGET_IOS
-		drawDebugText(pCmd, 8.0f, 15.0f, tinystl::string::format("CPU Time: %f ms", gCpuTimer.GetUSecAverage() / 1000.0f), &gFrameTimeDraw);
-		drawDebugText(pCmd, 8.0f, 40.0f, tinystl::string::format("GPU %f ms", (float)pGpuProfiler->mCumulativeTime * 1000.0f), &gFrameTimeDraw);
-		drawDebugText(pCmd, 8.0f, 65.0f, tinystl::string::format("Frame Time: %f ms", gTimer.GetUSecAverage() / 1000.0f), &gFrameTimeDraw);
 
-		drawDebugGpuProfile(pCmd, 8.0f, 90.0f, pGpuProfiler, NULL);
-#else
+		gAppUI.DrawText(
+			pCmd, float2(8.0f, 15.0f), eastl::string().sprintf("CPU Time: %f ms", gCpuTimer.GetUSecAverage() / 1000.0f).c_str(),
+			&gFrameTimeDraw);
+		gAppUI.DrawText(
+			pCmd, float2(8.0f, 40.0f), eastl::string().sprintf("GPU %f ms", (float)pGpuProfiler->mCumulativeTime * 1000.0f).c_str(),
+			&gFrameTimeDraw);
+		gAppUI.DrawText(
+			pCmd, float2(8.0f, 65.0f), eastl::string().sprintf("Frame Time: %f ms", gTimer.GetUSecAverage() / 1000.0f).c_str(),
+			&gFrameTimeDraw);
+
+		gAppUI.DrawDebugGpuProfile(pCmd, float2(8.0f, 90.0f), pGpuProfiler, NULL);
+
+#ifdef TARGET_IOS
 		gVirtualJoystick.Draw(pCmd, pCameraController, { 1.0f, 1.0f, 1.0f, 1.0f });
 #endif
 
-#ifndef TARGET_IOS
+		cmdDrawProfiler(pCmd, mSettings.mWidth, mSettings.mHeight);
+
 		gAppUI.Gui(pGuiWindow);
-#endif
 		gAppUI.Draw(pCmd);
 		cmdBindRenderTargets(pCmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
 
 		cmdEndDebugMarker(pCmd);
 		////////////////////////////////////////////////////////
 
-		barriers1[0] = {pRenderTargetScreen->pTexture, RESOURCE_STATE_PRESENT};
+		barriers1[0] = { pRenderTargetScreen->pTexture, RESOURCE_STATE_PRESENT };
 		cmdResourceBarrier(pCmd, 0, NULL, 1, barriers1, true);
 
 		cmdEndGpuFrameProfile(pCmd, pGpuProfiler);
 		endCmd(pCmd);
 
-		queueSubmit(pGraphicsQueue, 1, &pCmd, pRenderCompleteFence, 1, &pImageAcquiredSemaphore, 1,
-					&pRenderCompleteSemaphore);
+		queueSubmit(pGraphicsQueue, 1, &pCmd, pRenderCompleteFence, 1, &pImageAcquiredSemaphore, 1, &pRenderCompleteSemaphore);
 		queuePresent(pGraphicsQueue, pSwapChain, gFrameIndex, 1, &pRenderCompleteSemaphore);
+		flipProfiler();
 	}
 
-	tinystl::string GetName() override
-	{
-		return "15_Transparency";
-	}
+	const char* GetName() override { return "15_Transparency"; }
 
 	void RecenterCameraView(float maxDistance, vec3 lookAt = vec3(0)) const
 	{
@@ -2015,7 +2096,6 @@ public:
 		pCameraController->onInputEvent(data);
 		return true;
 	}
-
 
 	/************************************************************************/
 	// Init and Exit functions
@@ -2263,16 +2343,17 @@ public:
 	void CreateShaders()
 	{
 		// Define shader macros
-		ShaderMacro maxNumObjectsMacro = { "MAX_NUM_OBJECTS", tinystl::string::format("%i", MAX_NUM_OBJECTS) };
-		ShaderMacro maxNumTexturesMacro = { "MAX_NUM_TEXTURES", tinystl::string::format("%i", TEXTURE_COUNT) };
-		ShaderMacro aoitNodeCountMacro = { "AOIT_NODE_COUNT", tinystl::string::format("%i", AOIT_NODE_COUNT) };
-		ShaderMacro useShadowsMacro = { "USE_SHADOWS", tinystl::string::format("%i", USE_SHADOWS) };
-		ShaderMacro useRefractionMacro = { "PT_USE_REFRACTION", tinystl::string::format("%i", PT_USE_REFRACTION) };
-		ShaderMacro useDiffusionMacro = { "PT_USE_DIFFUSION", tinystl::string::format("%i", PT_USE_DIFFUSION) };
-		ShaderMacro useCausticsMacro = { "PT_USE_CAUSTICS", tinystl::string::format("%i", PT_USE_CAUSTICS) };
+		ShaderMacro maxNumObjectsMacro = { "MAX_NUM_OBJECTS", eastl::string().sprintf("%i", MAX_NUM_OBJECTS) };
+		ShaderMacro maxNumTexturesMacro = { "MAX_NUM_TEXTURES", eastl::string().sprintf("%i", TEXTURE_COUNT) };
+		ShaderMacro aoitNodeCountMacro = { "AOIT_NODE_COUNT", eastl::string().sprintf("%i", AOIT_NODE_COUNT) };
+		ShaderMacro useShadowsMacro = { "USE_SHADOWS", eastl::string().sprintf("%i", USE_SHADOWS) };
+		ShaderMacro useRefractionMacro = { "PT_USE_REFRACTION", eastl::string().sprintf("%i", PT_USE_REFRACTION) };
+		ShaderMacro useDiffusionMacro = { "PT_USE_DIFFUSION", eastl::string().sprintf("%i", PT_USE_DIFFUSION) };
+		ShaderMacro useCausticsMacro = { "PT_USE_CAUSTICS", eastl::string().sprintf("%i", PT_USE_CAUSTICS) };
 
-		ShaderMacro shaderMacros[] = { maxNumObjectsMacro, maxNumTexturesMacro, aoitNodeCountMacro, useShadowsMacro, useRefractionMacro, useDiffusionMacro, useCausticsMacro };
-		const uint numShaderMacros = sizeof(shaderMacros) / sizeof(shaderMacros[0]);
+		ShaderMacro shaderMacros[] = { maxNumObjectsMacro, maxNumTexturesMacro, aoitNodeCountMacro, useShadowsMacro,
+									   useRefractionMacro, useDiffusionMacro,   useCausticsMacro };
+		const uint  numShaderMacros = sizeof(shaderMacros) / sizeof(shaderMacros[0]);
 
 		// Skybox shader
 		ShaderLoadDesc skyboxShaderDesc = {};
@@ -2341,7 +2422,8 @@ public:
 		// WBOIT Volition composite shader
 		ShaderLoadDesc wboitVolitionCompositeShaderDesc = {};
 		wboitVolitionCompositeShaderDesc.mStages[0] = { "fullscreen.vert", shaderMacros, numShaderMacros, FSR_SrcShaders };
-		wboitVolitionCompositeShaderDesc.mStages[1] = { "weightedBlendedOITVolitionComposite.frag", shaderMacros, numShaderMacros, FSR_SrcShaders };
+		wboitVolitionCompositeShaderDesc.mStages[1] = { "weightedBlendedOITVolitionComposite.frag", shaderMacros, numShaderMacros,
+														FSR_SrcShaders };
 		addShader(pRenderer, &wboitVolitionCompositeShaderDesc, &pShaderWBOITVComposite);
 
 		// PT shade shader
@@ -2393,7 +2475,6 @@ public:
 			aoitClearShaderDesc.mStages[0] = { "fullscreen.vert", shaderMacros, numShaderMacros, FSR_SrcShaders };
 			aoitClearShaderDesc.mStages[1] = { "adaptiveOITClear.frag", shaderMacros, numShaderMacros, FSR_SrcShaders };
 			addShader(pRenderer, &aoitClearShaderDesc, &pShaderAOITClear);
-
 		}
 #endif
 	}
@@ -2422,9 +2503,12 @@ public:
 		removeShader(pRenderer, pShaderPTGenMips);
 #endif
 #if defined(DIRECT3D12) && !defined(_DURANGO)
-		removeShader(pRenderer, pShaderAOITShade);
-		removeShader(pRenderer, pShaderAOITComposite);
-		removeShader(pRenderer, pShaderAOITClear);
+		if (pRenderer->pActiveGpuSettings->mROVsSupported)
+		{
+			removeShader(pRenderer, pShaderAOITShade);
+			removeShader(pRenderer, pShaderAOITComposite);
+			removeShader(pRenderer, pShaderAOITClear);
+		}
 #endif
 	}
 
@@ -2436,9 +2520,9 @@ public:
 		const char* linearSamplerName = "LinearSampler";
 		const char* shadowSamplerName = USE_SHADOWS ? "VSMSampler" : 0;
 
-		Sampler* staticSamplers[] = { pSamplerSkybox, pSamplerPoint, pSamplerBilinear, pSamplerShadow };
+		Sampler*    staticSamplers[] = { pSamplerSkybox, pSamplerPoint, pSamplerBilinear, pSamplerShadow };
 		const char* staticSamplerNames[] = { skyboxSamplerName, pointSamplerName, linearSamplerName, shadowSamplerName };
-		const uint numStaticSamplers = sizeof(staticSamplers) / sizeof(staticSamplers[0]);
+		const uint  numStaticSamplers = sizeof(staticSamplers) / sizeof(staticSamplers[0]);
 
 		// Skybox root signature
 		RootSignatureDesc skyboxRootSignatureDesc = {};
@@ -2627,9 +2711,47 @@ public:
 			aoitClearRootSignatureDesc.ppStaticSamplerNames = staticSamplerNames;
 			aoitClearRootSignatureDesc.mMaxBindlessTextures = TEXTURE_COUNT;
 			addRootSignature(pRenderer, &aoitClearRootSignatureDesc, &pRootSignatureAOITClear);
-
 		}
 #endif
+	}
+
+	void CreateDescriptorBinders()
+	{
+		eastl::vector<DescriptorBinderDesc> descriptorBinderDesc;
+		descriptorBinderDesc.push_back({ pRootSignatureSkybox });
+#if USE_SHADOWS != 0
+		descriptorBinderDesc.push_back({ pRootSignatureShadow });
+		descriptorBinderDesc.push_back({ pRootSignatureGaussianBlur, 0, 2 });
+#if PT_USE_CAUSTICS != 0
+		descriptorBinderDesc.push_back({ pRootSignaturePTShadow });
+		descriptorBinderDesc.push_back({ pRootSignaturePTDownsample });
+		descriptorBinderDesc.push_back({ pRootSignaturePTCopyShadowDepth });
+#endif
+#endif
+		// Allocate enough space descriptor space for all passes 
+		descriptorBinderDesc.push_back({ pRootSignatureForward, 0, 10 });
+		descriptorBinderDesc.push_back({ pRootSignatureWBOITShade, 0, 10 });
+		descriptorBinderDesc.push_back({ pRootSignatureWBOITComposite, 0, 10 });
+		descriptorBinderDesc.push_back({ pRootSignatureWBOITVShade, 0, 10 });
+		descriptorBinderDesc.push_back({ pRootSignatureWBOITVComposite, 0, 10 });
+		descriptorBinderDesc.push_back({ pRootSignaturePTShade, 0, 10 });
+		descriptorBinderDesc.push_back({ pRootSignaturePTComposite, 0, 10 });
+
+#if PT_USE_DIFFUSION != 0
+		descriptorBinderDesc.push_back({ pRootSignaturePTCopyDepth, 0, 0 });
+		descriptorBinderDesc.push_back({ pRootSignaturePTGenMips, 0, 20 }); // enougth updates to update all mip levels
+#endif
+
+#if defined(DIRECT3D12) && !defined(_DURANGO)
+		if (pRenderer->pActiveGpuSettings->mROVsSupported)
+		{
+			descriptorBinderDesc.push_back({ pRootSignatureAOITShade, 0, 10 });
+			descriptorBinderDesc.push_back({ pRootSignatureAOITComposite, 0, 10 });
+			descriptorBinderDesc.push_back({ pRootSignatureAOITClear, 0, 10 });
+		}
+#endif
+
+		addDescriptorBinder(pRenderer, 0, (uint32_t)descriptorBinderDesc.size(), descriptorBinderDesc.data(), &pDescriptorBinder);
 	}
 
 	void DestroyRootSignatures()
@@ -2665,57 +2787,43 @@ public:
 #endif
 	}
 
+	void DestroyDescriptorBinders()
+	{
+		removeDescriptorBinder(pRenderer, pDescriptorBinder);
+	}
+
 	void CreateResources()
 	{
 		LoadModels();
 		LoadTextures();
 
-		const float gSkyboxPointArray[] =
-		{
-			10.0f,  -10.0f, -10.0f,6.0f, // -z
-			-10.0f, -10.0f, -10.0f,6.0f,
-			-10.0f, 10.0f, -10.0f,6.0f,
-			-10.0f, 10.0f, -10.0f,6.0f,
-			10.0f,  10.0f, -10.0f,6.0f,
-			10.0f,  -10.0f, -10.0f,6.0f,
+		const float gSkyboxPointArray[] = {
+			10.0f,  -10.0f, -10.0f, 6.0f,    // -z
+			-10.0f, -10.0f, -10.0f, 6.0f,   -10.0f, 10.0f,  -10.0f, 6.0f,   -10.0f, 10.0f,
+			-10.0f, 6.0f,   10.0f,  10.0f,  -10.0f, 6.0f,   10.0f,  -10.0f, -10.0f, 6.0f,
 
-			-10.0f, -10.0f,  10.0f,2.0f,  //-x
-			-10.0f, -10.0f, -10.0f,2.0f,
-			-10.0f,  10.0f, -10.0f,2.0f,
-			-10.0f,  10.0f, -10.0f,2.0f,
-			-10.0f,  10.0f,  10.0f,2.0f,
-			-10.0f, -10.0f,  10.0f,2.0f,
+			-10.0f, -10.0f, 10.0f,  2.0f,    //-x
+			-10.0f, -10.0f, -10.0f, 2.0f,   -10.0f, 10.0f,  -10.0f, 2.0f,   -10.0f, 10.0f,
+			-10.0f, 2.0f,   -10.0f, 10.0f,  10.0f,  2.0f,   -10.0f, -10.0f, 10.0f,  2.0f,
 
-			10.0f, -10.0f, -10.0f,1.0f, //+x
-			10.0f, -10.0f,  10.0f,1.0f,
-			10.0f,  10.0f,  10.0f,1.0f,
-			10.0f,  10.0f,  10.0f,1.0f,
-			10.0f,  10.0f, -10.0f,1.0f,
-			10.0f, -10.0f, -10.0f,1.0f,
+			10.0f,  -10.0f, -10.0f, 1.0f,    //+x
+			10.0f,  -10.0f, 10.0f,  1.0f,   10.0f,  10.0f,  10.0f,  1.0f,   10.0f,  10.0f,
+			10.0f,  1.0f,   10.0f,  10.0f,  -10.0f, 1.0f,   10.0f,  -10.0f, -10.0f, 1.0f,
 
-			-10.0f, -10.0f,  10.0f,5.0f,  // +z
-			-10.0f,  10.0f,  10.0f,5.0f,
-			10.0f,  10.0f,  10.0f,5.0f,
-			10.0f,  10.0f,  10.0f,5.0f,
-			10.0f, -10.0f,  10.0f,5.0f,
-			-10.0f, -10.0f,  10.0f,5.0f,
+			-10.0f, -10.0f, 10.0f,  5.0f,    // +z
+			-10.0f, 10.0f,  10.0f,  5.0f,   10.0f,  10.0f,  10.0f,  5.0f,   10.0f,  10.0f,
+			10.0f,  5.0f,   10.0f,  -10.0f, 10.0f,  5.0f,   -10.0f, -10.0f, 10.0f,  5.0f,
 
-			-10.0f,  10.0f, -10.0f, 3.0f,  //+y
-			10.0f,  10.0f, -10.0f,3.0f,
-			10.0f,  10.0f,  10.0f,3.0f,
-			10.0f,  10.0f,  10.0f,3.0f,
-			-10.0f,  10.0f,  10.0f,3.0f,
-			-10.0f,  10.0f, -10.0f,3.0f,
+			-10.0f, 10.0f,  -10.0f, 3.0f,    //+y
+			10.0f,  10.0f,  -10.0f, 3.0f,   10.0f,  10.0f,  10.0f,  3.0f,   10.0f,  10.0f,
+			10.0f,  3.0f,   -10.0f, 10.0f,  10.0f,  3.0f,   -10.0f, 10.0f,  -10.0f, 3.0f,
 
-			10.0f,  -10.0f, 10.0f, 4.0f,  //-y
-			10.0f,  -10.0f, -10.0f,4.0f,
-			-10.0f,  -10.0f,  -10.0f,4.0f,
-			-10.0f,  -10.0f,  -10.0f,4.0f,
-			-10.0f,  -10.0f,  10.0f,4.0f,
-			10.0f,  -10.0f, 10.0f,4.0f,
+			10.0f,  -10.0f, 10.0f,  4.0f,    //-y
+			10.0f,  -10.0f, -10.0f, 4.0f,   -10.0f, -10.0f, -10.0f, 4.0f,   -10.0f, -10.0f,
+			-10.0f, 4.0f,   -10.0f, -10.0f, 10.0f,  4.0f,   10.0f,  -10.0f, 10.0f,  4.0f,
 		};
 
-		uint64_t skyBoxDataSize = 4 * 6 * 6 * sizeof(float);
+		uint64_t       skyBoxDataSize = 4 * 6 * 6 * sizeof(float);
 		BufferLoadDesc skyboxVbDesc = {};
 		skyboxVbDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_VERTEX_BUFFER;
 		skyboxVbDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_GPU_ONLY;
@@ -2738,7 +2846,7 @@ public:
 		renderTargetDesc.mSampleCount = SAMPLE_COUNT_1;
 		renderTargetDesc.mSampleQuality = 0;
 		renderTargetDesc.pDebugName = L"Shadow variance RT";
-		for(int i = 0; i < 2; ++i)
+		for (int i = 0; i < 2; ++i)
 			addRenderTarget(pRenderer, &renderTargetDesc, &pRenderTargetShadowVariance[i]);
 
 		RenderTargetDesc shadowRT = {};
@@ -2791,7 +2899,7 @@ public:
 	{
 		removeResource(pBufferSkyboxVertex);
 #if USE_SHADOWS != 0
-		for(int i = 0; i < 2; ++i)
+		for (int i = 0; i < 2; ++i)
 			removeRenderTarget(pRenderer, pRenderTargetShadowVariance[i]);
 		removeRenderTarget(pRenderer, pRenderTargetShadowDepth);
 #if PT_USE_CAUSTICS != 0
@@ -2810,22 +2918,23 @@ public:
 
 	void LoadModels()
 	{
-		tinystl::vector<Vertex> vertices = {};
-		tinystl::vector<uint> indices = {};
+		AssimpImporter          importer;
+		eastl::vector<Vertex> vertices = {};
+		eastl::vector<uint>   indices = {};
 
 		const char* modelNames[MESH_COUNT] = { "cube.obj", "sphere.obj", "plane.obj", "lion.obj" };
 
 		for (int m = 0; m < MESH_COUNT; ++m)
 		{
-			Model model;
-			if (AssimpImporter::ImportModel(FileSystem::FixPath(modelNames[m], FSR_Meshes).c_str(), &model))
+			AssimpImporter::Model model;
+			if (importer.ImportModel(FileSystem::FixPath(modelNames[m], FSR_Meshes).c_str(), &model))
 			{
 				vertices.clear();
 				indices.clear();
 
 				for (size_t i = 0; i < model.mMeshArray.size(); ++i)
 				{
-					Mesh* mesh = &model.mMeshArray[i];
+					AssimpImporter::Mesh* mesh = &model.mMeshArray[i];
 					vertices.reserve(vertices.size() + mesh->mPositions.size());
 					indices.reserve(indices.size() + mesh->mIndices.size());
 
@@ -2880,7 +2989,7 @@ public:
 		for (int i = 0; i < MESH_COUNT; ++i)
 		{
 			removeResource(pMeshes[i]->pVertexBuffer);
-			if(pMeshes[i]->pIndexBuffer)
+			if (pMeshes[i]->pIndexBuffer)
 				removeResource(pMeshes[i]->pIndexBuffer);
 			conf_free(pMeshes[i]);
 		}
@@ -2888,8 +2997,7 @@ public:
 
 	void LoadTextures()
 	{
-		const char* textureNames[TEXTURE_COUNT] =
-		{
+		const char* textureNames[TEXTURE_COUNT] = {
 			"skybox/hw_sahara/sahara_rt.tga",
 			"skybox/hw_sahara/sahara_lf.tga",
 			"skybox/hw_sahara/sahara_up.tga",
@@ -2946,7 +3054,6 @@ public:
 			ubDesc.ppBuffer = &pBufferTransparentObjectTransforms[i];
 			addResource(&ubDesc);
 		}
-
 
 		BufferLoadDesc skyboxDesc = {};
 		skyboxDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -3062,7 +3169,7 @@ public:
 		{
 			const uint32_t width = mSettings.mWidth;
 			const uint32_t height = mSettings.mHeight;
-			SwapChainDesc swapChainDesc = {};
+			SwapChainDesc  swapChainDesc = {};
 			swapChainDesc.pWindow = pWindow;
 			swapChainDesc.mPresentQueueCount = 1;
 			swapChainDesc.ppPresentQueues = &pGraphicsQueue;
@@ -3084,7 +3191,7 @@ public:
 		/************************************************************************/
 		// WBOIT render targets
 		/************************************************************************/
-		ClearValue wboitClearValues[] = { colorClearBlack, colorClearWhite };
+		ClearValue     wboitClearValues[] = { colorClearBlack, colorClearWhite };
 		const wchar_t* wboitNames[] = { L"Accumulation RT", L"Revealage RT" };
 		for (int i = 0; i < WBOIT_RT_COUNT; ++i)
 		{
@@ -3104,7 +3211,7 @@ public:
 		/************************************************************************/
 		// PT render targets
 		/************************************************************************/
-		ClearValue ptClearValues[] = { colorClearBlack, colorClearTransparentWhite, colorClearBlack };
+		ClearValue     ptClearValues[] = { colorClearBlack, colorClearTransparentWhite, colorClearBlack };
 		const wchar_t* ptNames[] = { L"Accumulation RT", L"Modulation RT", L"Refraction RT" };
 		for (int i = 0; i < PT_RT_COUNT; ++i)
 		{
@@ -3217,7 +3324,7 @@ public:
 		for (int i = 0; i < PT_RT_COUNT; ++i)
 		{
 			if (i == PT_RT_ACCUMULATION)
-				continue;   // Acculuation RT is shared with WBOIT and has already been removed
+				continue;    // Acculuation RT is shared with WBOIT and has already been removed
 			removeRenderTarget(pRenderer, pRenderTargetPT[i]);
 		}
 		removeRenderTarget(pRenderer, pRenderTargetPTBackground);
@@ -3257,7 +3364,9 @@ public:
 		bool srgbDisabled[] = { false, false, false, false, false, false, false, false };
 
 		// Skybox pipeline
-		GraphicsPipelineDesc skyboxPipelineDesc = {};
+		PipelineDesc desc = {};
+		desc.mType = PIPELINE_TYPE_GRAPHICS;
+		GraphicsPipelineDesc& skyboxPipelineDesc = desc.mGraphicsDesc;
 		skyboxPipelineDesc.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		skyboxPipelineDesc.pShaderProgram = pShaderSkybox;
 		skyboxPipelineDesc.pRootSignature = pRootSignatureSkybox;
@@ -3271,11 +3380,12 @@ public:
 		skyboxPipelineDesc.pRasterizerState = pRasterizerStateCullNone;
 		skyboxPipelineDesc.pDepthState = pDepthStateDisable;
 		skyboxPipelineDesc.pBlendState = NULL;
-		addPipeline(pRenderer, &skyboxPipelineDesc, &pPipelineSkybox);
+		addPipeline(pRenderer, &desc, &pPipelineSkybox);
 
 #if USE_SHADOWS != 0
 		// Shadow pipeline
-		GraphicsPipelineDesc shadowPipelineDesc = {};
+		desc.mGraphicsDesc = {};
+		GraphicsPipelineDesc& shadowPipelineDesc = desc.mGraphicsDesc;
 		shadowPipelineDesc.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		shadowPipelineDesc.pShaderProgram = pShaderShadow;
 		shadowPipelineDesc.pRootSignature = pRootSignatureShadow;
@@ -3289,10 +3399,11 @@ public:
 		shadowPipelineDesc.pRasterizerState = pRasterizerStateCullFront;
 		shadowPipelineDesc.pDepthState = pDepthStateEnable;
 		shadowPipelineDesc.pBlendState = NULL;
-		addPipeline(pRenderer, &shadowPipelineDesc, &pPipelineShadow);
+		addPipeline(pRenderer, &desc, &pPipelineShadow);
 
 		// Gaussian blur pipeline
-		GraphicsPipelineDesc blurPipelineDesc = {};
+		desc.mGraphicsDesc = {};
+		GraphicsPipelineDesc& blurPipelineDesc = desc.mGraphicsDesc;
 		blurPipelineDesc.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		blurPipelineDesc.pShaderProgram = pShaderGaussianBlur;
 		blurPipelineDesc.pRootSignature = pRootSignatureGaussianBlur;
@@ -3306,13 +3417,16 @@ public:
 		blurPipelineDesc.pRasterizerState = pRasterizerStateCullNone;
 		blurPipelineDesc.pDepthState = pDepthStateDisable;
 		blurPipelineDesc.pBlendState = NULL;
-		addPipeline(pRenderer, &blurPipelineDesc, &pPipelineGaussianBlur);
+		addPipeline(pRenderer, &desc, &pPipelineGaussianBlur);
 
 #if PT_USE_CAUSTICS != 0
-		ImageFormat::Enum stochasticShadowColorFormats[] = { pRenderTargetPTShadowVariance[0]->mDesc.mFormat, pRenderTargetPTShadowVariance[1]->mDesc.mFormat, pRenderTargetPTShadowVariance[2]->mDesc.mFormat };
+		ImageFormat::Enum stochasticShadowColorFormats[] = { pRenderTargetPTShadowVariance[0]->mDesc.mFormat,
+															 pRenderTargetPTShadowVariance[1]->mDesc.mFormat,
+															 pRenderTargetPTShadowVariance[2]->mDesc.mFormat };
 
 		// Stochastic shadow pipeline
-		GraphicsPipelineDesc stochasticShadowPipelineDesc = {};
+		desc.mGraphicsDesc = {};
+		GraphicsPipelineDesc& stochasticShadowPipelineDesc = desc.mGraphicsDesc;
 		stochasticShadowPipelineDesc.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		stochasticShadowPipelineDesc.pShaderProgram = pShaderPTShadow;
 		stochasticShadowPipelineDesc.pRootSignature = pRootSignaturePTShadow;
@@ -3326,10 +3440,11 @@ public:
 		stochasticShadowPipelineDesc.pRasterizerState = pRasterizerStateCullFront;
 		stochasticShadowPipelineDesc.pDepthState = pDepthStateDisable;
 		stochasticShadowPipelineDesc.pBlendState = pBlendStatePTMinBlend;
-		addPipeline(pRenderer, &stochasticShadowPipelineDesc, &pPipelinePTShadow);
+		addPipeline(pRenderer, &desc, &pPipelinePTShadow);
 
 		// Downsample shadow pipeline
-		GraphicsPipelineDesc downsampleShadowPipelineDesc = {};
+		desc.mGraphicsDesc = {};
+		GraphicsPipelineDesc& downsampleShadowPipelineDesc = desc.mGraphicsDesc;
 		downsampleShadowPipelineDesc.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		downsampleShadowPipelineDesc.pShaderProgram = pShaderPTDownsample;
 		downsampleShadowPipelineDesc.pRootSignature = pRootSignaturePTDownsample;
@@ -3343,10 +3458,11 @@ public:
 		downsampleShadowPipelineDesc.pRasterizerState = pRasterizerStateCullNone;
 		downsampleShadowPipelineDesc.pDepthState = pDepthStateDisable;
 		downsampleShadowPipelineDesc.pBlendState = NULL;
-		addPipeline(pRenderer, &downsampleShadowPipelineDesc, &pPipelinePTDownsample);
+		addPipeline(pRenderer, &desc, &pPipelinePTDownsample);
 
 		// Copy shadow map pipeline
-		GraphicsPipelineDesc copyShadowDepthPipelineDesc = {};
+		desc.mGraphicsDesc = {};
+		GraphicsPipelineDesc& copyShadowDepthPipelineDesc = desc.mGraphicsDesc;
 		copyShadowDepthPipelineDesc.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		copyShadowDepthPipelineDesc.pShaderProgram = pShaderPTCopyShadowDepth;
 		copyShadowDepthPipelineDesc.pRootSignature = pRootSignaturePTCopyShadowDepth;
@@ -3360,13 +3476,14 @@ public:
 		copyShadowDepthPipelineDesc.pRasterizerState = pRasterizerStateCullNone;
 		copyShadowDepthPipelineDesc.pDepthState = pDepthStateDisable;
 		copyShadowDepthPipelineDesc.pBlendState = NULL;
-		addPipeline(pRenderer, &copyShadowDepthPipelineDesc, &pPipelinePTCopyShadowDepth);
+		addPipeline(pRenderer, &desc, &pPipelinePTCopyShadowDepth);
 
 #endif
 #endif
 
 		// Forward shading pipeline
-		GraphicsPipelineDesc forwardPipelineDesc = {};
+		desc.mGraphicsDesc = {};
+		GraphicsPipelineDesc& forwardPipelineDesc = desc.mGraphicsDesc;
 		forwardPipelineDesc.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		forwardPipelineDesc.pShaderProgram = pShaderForward;
 		forwardPipelineDesc.pRootSignature = pRootSignatureForward;
@@ -3380,10 +3497,11 @@ public:
 		forwardPipelineDesc.pRasterizerState = pRasterizerStateCullFront;
 		forwardPipelineDesc.pDepthState = pDepthStateEnable;
 		forwardPipelineDesc.pBlendState = NULL;
-		addPipeline(pRenderer, &forwardPipelineDesc, &pPipelineForward);
+		addPipeline(pRenderer, &desc, &pPipelineForward);
 
 		// Transparent forward shading pipeline
-		GraphicsPipelineDesc transparentForwardPipelineDesc = {};
+		desc.mGraphicsDesc = {};
+		GraphicsPipelineDesc& transparentForwardPipelineDesc = desc.mGraphicsDesc;
 		transparentForwardPipelineDesc.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		transparentForwardPipelineDesc.pShaderProgram = pShaderForward;
 		transparentForwardPipelineDesc.pRootSignature = pRootSignatureForward;
@@ -3397,10 +3515,11 @@ public:
 		transparentForwardPipelineDesc.pRasterizerState = pRasterizerStateCullNone;
 		transparentForwardPipelineDesc.pDepthState = pDepthStateNoWrite;
 		transparentForwardPipelineDesc.pBlendState = pBlendStateAlphaBlend;
-		addPipeline(pRenderer, &transparentForwardPipelineDesc, &pPipelineTransparentForward);
+		addPipeline(pRenderer, &desc, &pPipelineTransparentForward);
 
 		// WBOIT shading pipeline
-		GraphicsPipelineDesc wboitShadePipelineDesc = {};
+		desc.mGraphicsDesc = {};
+		GraphicsPipelineDesc& wboitShadePipelineDesc = desc.mGraphicsDesc;
 		wboitShadePipelineDesc.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		wboitShadePipelineDesc.pShaderProgram = pShaderWBOITShade;
 		wboitShadePipelineDesc.pRootSignature = pRootSignatureWBOITShade;
@@ -3414,10 +3533,11 @@ public:
 		wboitShadePipelineDesc.pRasterizerState = pRasterizerStateCullNone;
 		wboitShadePipelineDesc.pDepthState = pDepthStateNoWrite;
 		wboitShadePipelineDesc.pBlendState = pBlendStateWBOITShade;
-		addPipeline(pRenderer, &wboitShadePipelineDesc, &pPipelineWBOITShade);
+		addPipeline(pRenderer, &desc, &pPipelineWBOITShade);
 
 		// WBOIT composite pipeline
-		GraphicsPipelineDesc wboitCompositePipelineDesc = {};
+		desc.mGraphicsDesc = {};
+		GraphicsPipelineDesc& wboitCompositePipelineDesc = desc.mGraphicsDesc;
 		wboitCompositePipelineDesc.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		wboitCompositePipelineDesc.pShaderProgram = pShaderWBOITComposite;
 		wboitCompositePipelineDesc.pRootSignature = pRootSignatureWBOITComposite;
@@ -3431,10 +3551,11 @@ public:
 		wboitCompositePipelineDesc.pRasterizerState = pRasterizerStateCullNone;
 		wboitCompositePipelineDesc.pDepthState = pDepthStateDisable;
 		wboitCompositePipelineDesc.pBlendState = pBlendStateAlphaBlend;
-		addPipeline(pRenderer, &wboitCompositePipelineDesc, &pPipelineWBOITComposite);
+		addPipeline(pRenderer, &desc, &pPipelineWBOITComposite);
 
 		// WBOIT Volition shading pipeline
-		GraphicsPipelineDesc wboitVolitionShadePipelineDesc = {};
+		desc.mGraphicsDesc = {};
+		GraphicsPipelineDesc& wboitVolitionShadePipelineDesc = desc.mGraphicsDesc;
 		wboitVolitionShadePipelineDesc.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		wboitVolitionShadePipelineDesc.pShaderProgram = pShaderWBOITVShade;
 		wboitVolitionShadePipelineDesc.pRootSignature = pRootSignatureWBOITVShade;
@@ -3448,10 +3569,11 @@ public:
 		wboitVolitionShadePipelineDesc.pRasterizerState = pRasterizerStateCullNone;
 		wboitVolitionShadePipelineDesc.pDepthState = pDepthStateNoWrite;
 		wboitVolitionShadePipelineDesc.pBlendState = pBlendStateWBOITVolitionShade;
-		addPipeline(pRenderer, &wboitVolitionShadePipelineDesc, &pPipelineWBOITVShade);
+		addPipeline(pRenderer, &desc, &pPipelineWBOITVShade);
 
 		// WBOIT Volition composite pipeline
-		GraphicsPipelineDesc wboitVolitionCompositePipelineDesc = {};
+		desc.mGraphicsDesc = {};
+		GraphicsPipelineDesc& wboitVolitionCompositePipelineDesc = desc.mGraphicsDesc;
 		wboitVolitionCompositePipelineDesc.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		wboitVolitionCompositePipelineDesc.pShaderProgram = pShaderWBOITVComposite;
 		wboitVolitionCompositePipelineDesc.pRootSignature = pRootSignatureWBOITVComposite;
@@ -3465,10 +3587,11 @@ public:
 		wboitVolitionCompositePipelineDesc.pRasterizerState = pRasterizerStateCullNone;
 		wboitVolitionCompositePipelineDesc.pDepthState = pDepthStateDisable;
 		wboitVolitionCompositePipelineDesc.pBlendState = pBlendStateAlphaBlend;
-		addPipeline(pRenderer, &wboitVolitionCompositePipelineDesc, &pPipelineWBOITVComposite);
+		addPipeline(pRenderer, &desc, &pPipelineWBOITVComposite);
 
 		// PT shading pipeline
-		GraphicsPipelineDesc ptShadePipelineDesc = {};
+		desc.mGraphicsDesc = {};
+		GraphicsPipelineDesc& ptShadePipelineDesc = desc.mGraphicsDesc;
 		ptShadePipelineDesc.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		ptShadePipelineDesc.pShaderProgram = pShaderPTShade;
 		ptShadePipelineDesc.pRootSignature = pRootSignaturePTShade;
@@ -3482,10 +3605,11 @@ public:
 		ptShadePipelineDesc.pRasterizerState = pRasterizerStateCullFront;
 		ptShadePipelineDesc.pDepthState = pDepthStateNoWrite;
 		ptShadePipelineDesc.pBlendState = pBlendStatePTShade;
-		addPipeline(pRenderer, &ptShadePipelineDesc, &pPipelinePTShade);
+		addPipeline(pRenderer, &desc, &pPipelinePTShade);
 
 		// PT composite pipeline
-		GraphicsPipelineDesc ptCompositePipelineDesc = {};
+		desc.mGraphicsDesc = {};
+		GraphicsPipelineDesc& ptCompositePipelineDesc = desc.mGraphicsDesc;
 		ptCompositePipelineDesc.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		ptCompositePipelineDesc.pShaderProgram = pShaderPTComposite;
 		ptCompositePipelineDesc.pRootSignature = pRootSignaturePTComposite;
@@ -3499,13 +3623,14 @@ public:
 		ptCompositePipelineDesc.pRasterizerState = pRasterizerStateCullNone;
 		ptCompositePipelineDesc.pDepthState = pDepthStateDisable;
 		ptCompositePipelineDesc.pBlendState = NULL;
-		addPipeline(pRenderer, &ptCompositePipelineDesc, &pPipelinePTComposite);
+		addPipeline(pRenderer, &desc, &pPipelinePTComposite);
 
 #if PT_USE_DIFFUSION != 0
 		ImageFormat::Enum ptCopyDepthFormat = ImageFormat::R32F;
 
 		// PT copy depth pipeline
-		GraphicsPipelineDesc ptCopyDepthPipelineDesc = {};
+		desc.mGraphicsDesc = {};
+		GraphicsPipelineDesc& ptCopyDepthPipelineDesc = desc.mGraphicsDesc;
 		ptCopyDepthPipelineDesc.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		ptCopyDepthPipelineDesc.pShaderProgram = pShaderPTCopyDepth;
 		ptCopyDepthPipelineDesc.pRootSignature = pRootSignaturePTCopyDepth;
@@ -3519,19 +3644,23 @@ public:
 		ptCopyDepthPipelineDesc.pRasterizerState = pRasterizerStateCullNone;
 		ptCopyDepthPipelineDesc.pDepthState = pDepthStateDisable;
 		ptCopyDepthPipelineDesc.pBlendState = NULL;
-		addPipeline(pRenderer, &ptCopyDepthPipelineDesc, &pPipelinePTCopyDepth);
+		addPipeline(pRenderer, &desc, &pPipelinePTCopyDepth);
 
 		// PT generate mips pipeline
-		ComputePipelineDesc ptGenMipsPipelineDesc = {};
+		desc.mType = PIPELINE_TYPE_COMPUTE;
+		desc.mComputeDesc = {};
+		ComputePipelineDesc& ptGenMipsPipelineDesc = desc.mComputeDesc;
 		ptGenMipsPipelineDesc.pShaderProgram = pShaderPTGenMips;
 		ptGenMipsPipelineDesc.pRootSignature = pRootSignaturePTGenMips;
-		addComputePipeline(pRenderer, &ptGenMipsPipelineDesc, &pPipelinePTGenMips);
+		addPipeline(pRenderer, &desc, &pPipelinePTGenMips);
 #endif
 #if defined(DIRECT3D12) && !defined(_DURANGO)
 		if (pRenderer->pActiveGpuSettings->mROVsSupported)
 		{
 			// AOIT shading pipeline
-			GraphicsPipelineDesc aoitShadePipelineDesc = {};
+			desc.mType = PIPELINE_TYPE_GRAPHICS;
+			desc.mGraphicsDesc = {};
+			GraphicsPipelineDesc& aoitShadePipelineDesc = desc.mGraphicsDesc;
 			aoitShadePipelineDesc.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 			aoitShadePipelineDesc.pShaderProgram = pShaderAOITShade;
 			aoitShadePipelineDesc.pRootSignature = pRootSignatureAOITShade;
@@ -3545,10 +3674,11 @@ public:
 			aoitShadePipelineDesc.pRasterizerState = pRasterizerStateCullNone;
 			aoitShadePipelineDesc.pDepthState = pDepthStateNoWrite;
 			aoitShadePipelineDesc.pBlendState = NULL;
-			addPipeline(pRenderer, &aoitShadePipelineDesc, &pPipelineAOITShade);
+			addPipeline(pRenderer, &desc, &pPipelineAOITShade);
 
 			// AOIT composite pipeline
-			GraphicsPipelineDesc aoitCompositePipelineDesc = {};
+			desc.mGraphicsDesc = {};
+			GraphicsPipelineDesc& aoitCompositePipelineDesc = desc.mGraphicsDesc;
 			aoitCompositePipelineDesc.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 			aoitCompositePipelineDesc.pShaderProgram = pShaderAOITComposite;
 			aoitCompositePipelineDesc.pRootSignature = pRootSignatureAOITComposite;
@@ -3562,10 +3692,11 @@ public:
 			aoitCompositePipelineDesc.pRasterizerState = pRasterizerStateCullNone;
 			aoitCompositePipelineDesc.pDepthState = pDepthStateDisable;
 			aoitCompositePipelineDesc.pBlendState = pBlendStateAOITComposite;
-			addPipeline(pRenderer, &aoitCompositePipelineDesc, &pPipelineAOITComposite);
+			addPipeline(pRenderer, &desc, &pPipelineAOITComposite);
 
 			// AOIT clear pipeline
-			GraphicsPipelineDesc aoitClearPipelineDesc = {};
+			desc.mGraphicsDesc = {};
+			GraphicsPipelineDesc& aoitClearPipelineDesc = desc.mGraphicsDesc;
 			aoitClearPipelineDesc.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 			aoitClearPipelineDesc.pShaderProgram = pShaderAOITClear;
 			aoitClearPipelineDesc.pRootSignature = pRootSignatureAOITClear;
@@ -3579,7 +3710,7 @@ public:
 			aoitClearPipelineDesc.pRasterizerState = pRasterizerStateCullNone;
 			aoitClearPipelineDesc.pDepthState = pDepthStateDisable;
 			aoitClearPipelineDesc.pBlendState = NULL;
-			addPipeline(pRenderer, &aoitClearPipelineDesc, &pPipelineAOITClear);
+			addPipeline(pRenderer, &desc, &pPipelineAOITClear);
 		}
 #endif
 	}
@@ -3609,9 +3740,12 @@ public:
 		removePipeline(pRenderer, pPipelinePTGenMips);
 #endif
 #if defined(DIRECT3D12) && !defined(_DURANGO)
-		removePipeline(pRenderer, pPipelineAOITShade);
-		removePipeline(pRenderer, pPipelineAOITComposite);
-		removePipeline(pRenderer, pPipelineAOITClear);
+		if (pRenderer->pActiveGpuSettings->mROVsSupported)
+		{
+			removePipeline(pRenderer, pPipelineAOITShade);
+			removePipeline(pRenderer, pPipelineAOITComposite);
+			removePipeline(pRenderer, pPipelineAOITClear);
+		}
 #endif
 	}
 };
@@ -3621,18 +3755,18 @@ void GuiController::UpdateDynamicUI()
 	if (gTransparencyType != GuiController::currentTransparencyType)
 	{
 		if (GuiController::currentTransparencyType == TRANSPARENCY_TYPE_ALPHA_BLEND)
-			GuiController::alphaBlendDynamicWidgets.HideDynamicProperties(pGuiWindow);
+			GuiController::alphaBlendDynamicWidgets.HideWidgets(pGuiWindow);
 		else if (GuiController::currentTransparencyType == TRANSPARENCY_TYPE_WEIGHTED_BLENDED_OIT)
-			GuiController::weightedBlendedOitDynamicWidgets.HideDynamicProperties(pGuiWindow);
+			GuiController::weightedBlendedOitDynamicWidgets.HideWidgets(pGuiWindow);
 		else if (GuiController::currentTransparencyType == TRANSPARENCY_TYPE_WEIGHTED_BLENDED_OIT_VOLITION)
-			GuiController::weightedBlendedOitVolitionDynamicWidgets.HideDynamicProperties(pGuiWindow);
+			GuiController::weightedBlendedOitVolitionDynamicWidgets.HideWidgets(pGuiWindow);
 
 		if (gTransparencyType == TRANSPARENCY_TYPE_ALPHA_BLEND)
-			GuiController::alphaBlendDynamicWidgets.ShowDynamicProperties(pGuiWindow);
+			GuiController::alphaBlendDynamicWidgets.ShowWidgets(pGuiWindow);
 		else if (gTransparencyType == TRANSPARENCY_TYPE_WEIGHTED_BLENDED_OIT)
-			GuiController::weightedBlendedOitDynamicWidgets.ShowDynamicProperties(pGuiWindow);
+			GuiController::weightedBlendedOitDynamicWidgets.ShowWidgets(pGuiWindow);
 		else if (gTransparencyType == TRANSPARENCY_TYPE_WEIGHTED_BLENDED_OIT_VOLITION)
-			GuiController::weightedBlendedOitVolitionDynamicWidgets.ShowDynamicProperties(pGuiWindow);
+			GuiController::weightedBlendedOitVolitionDynamicWidgets.ShowWidgets(pGuiWindow);
 
 		GuiController::currentTransparencyType = (TransparencyType)gTransparencyType;
 	}
@@ -3640,8 +3774,7 @@ void GuiController::UpdateDynamicUI()
 
 void GuiController::AddGui()
 {
-	static const char* transparencyTypeNames[] =
-	{
+	static const char* transparencyTypeNames[] = {
 		"Alpha blended",
 		"(WBOIT) Weighted blended order independent transparency",
 		"(WBOIT) Weighted blended order independent transparency - Volition",
@@ -3649,11 +3782,10 @@ void GuiController::AddGui()
 #if defined(DIRECT3D12) && !defined(_DURANGO)
 		"(AOIT) Adaptive order independent transparency",
 #endif
-		NULL//needed for unix
+		NULL    //needed for unix
 	};
 
-	static const uint32_t transparencyTypeValues[] =
-	{
+	static const uint32_t transparencyTypeValues[] = {
 		TRANSPARENCY_TYPE_ALPHA_BLEND,
 		TRANSPARENCY_TYPE_WEIGHTED_BLENDED_OIT,
 		TRANSPARENCY_TYPE_WEIGHTED_BLENDED_OIT_VOLITION,
@@ -3661,7 +3793,7 @@ void GuiController::AddGui()
 #if defined(DIRECT3D12) && !defined(_DURANGO)
 		TRANSPARENCY_TYPE_ADAPTIVE_OIT,
 #endif
-		0//needed for unix
+		0    //needed for unix
 	};
 
 	uint32_t dropDownCount = 4;
@@ -3670,75 +3802,78 @@ void GuiController::AddGui()
 		dropDownCount = 5;
 #endif
 
-	pGuiWindow->AddWidget(DropdownWidget("Transparency Type", &gTransparencyType, transparencyTypeNames, transparencyTypeValues, dropDownCount));
+  pGuiWindow->AddWidget(CheckboxWidget("Toggle Micro Profiler", &bToggleMicroProfiler));
+
+	pGuiWindow->AddWidget(
+		DropdownWidget("Transparency Type", &gTransparencyType, transparencyTypeNames, transparencyTypeValues, dropDownCount));
 
 	// TRANSPARENCY_TYPE_ALPHA_BLEND Widgets
 	{
-		static LabelWidget blendSettings("Blend Settings");
-		GuiController::alphaBlendDynamicWidgets.mDynamicProperties.emplace_back(&blendSettings);
+		GuiController::alphaBlendDynamicWidgets.AddWidget(
+			LabelWidget("Blend Settings"));
 
-		static CheckboxWidget sortObjects("Sort Objects", &gAlphaBlendSettings.mSortObjects);
-		GuiController::alphaBlendDynamicWidgets.mDynamicProperties.emplace_back(&sortObjects);
+		GuiController::alphaBlendDynamicWidgets.AddWidget(
+			CheckboxWidget("Sort Objects", &gAlphaBlendSettings.mSortObjects));
 
-		static CheckboxWidget sortParticles("Sort Particles", &gAlphaBlendSettings.mSortParticles);
-		GuiController::alphaBlendDynamicWidgets.mDynamicProperties.emplace_back(&sortParticles);
+		GuiController::alphaBlendDynamicWidgets.AddWidget(
+			CheckboxWidget("Sort Particles", &gAlphaBlendSettings.mSortParticles));
 	}
 	// TRANSPARENCY_TYPE_WEIGHTED_BLENDED_OIT Widgets
 	{
-		static LabelWidget blendSettings("Blend Settings");
-		GuiController::weightedBlendedOitDynamicWidgets.mDynamicProperties.emplace_back(&blendSettings);
+		GuiController::weightedBlendedOitDynamicWidgets.AddWidget(
+			LabelWidget("Blend Settings"));
 
-		static SliderFloatWidget colorResistance("Color Resistance", &gWBOITSettingsData.mColorResistance, 1.0f, 25.0f);
-		GuiController::weightedBlendedOitDynamicWidgets.mDynamicProperties.emplace_back(&colorResistance);
+		GuiController::weightedBlendedOitDynamicWidgets.AddWidget(
+			SliderFloatWidget("Color Resistance", &gWBOITSettingsData.mColorResistance, 1.0f, 25.0f));
 
-		static SliderFloatWidget rangeAdjustment("Range Adjustment", &gWBOITSettingsData.mRangeAdjustment, 0.0f, 1.0f);
-		GuiController::weightedBlendedOitDynamicWidgets.mDynamicProperties.emplace_back(&rangeAdjustment);
+		GuiController::weightedBlendedOitDynamicWidgets.AddWidget(
+			SliderFloatWidget("Range Adjustment", &gWBOITSettingsData.mRangeAdjustment, 0.0f, 1.0f));
 
-		static SliderFloatWidget depthRange("Depth Range", &gWBOITSettingsData.mDepthRange, 0.1f, 500.0f);
-		GuiController::weightedBlendedOitDynamicWidgets.mDynamicProperties.emplace_back(&depthRange);
+		GuiController::weightedBlendedOitDynamicWidgets.AddWidget(
+			SliderFloatWidget("Depth Range", &gWBOITSettingsData.mDepthRange, 0.1f, 500.0f));
 
-		static SliderFloatWidget orderingStrength("Ordering Strength", &gWBOITSettingsData.mOrderingStrength, 0.1f, 25.0f);
-		GuiController::weightedBlendedOitDynamicWidgets.mDynamicProperties.emplace_back(&orderingStrength);
+		GuiController::weightedBlendedOitDynamicWidgets.AddWidget(
+			SliderFloatWidget("Ordering Strength", &gWBOITSettingsData.mOrderingStrength, 0.1f, 25.0f));
 
-		static SliderFloatWidget underflowLimit("Underflow Limit", &gWBOITSettingsData.mUnderflowLimit, 1e-4f, 1e-1f, 1e-4f);
-		GuiController::weightedBlendedOitDynamicWidgets.mDynamicProperties.emplace_back(&underflowLimit);
+		GuiController::weightedBlendedOitDynamicWidgets.AddWidget(
+			SliderFloatWidget("Underflow Limit", &gWBOITSettingsData.mUnderflowLimit, 1e-4f, 1e-1f, 1e-4f));
 
-		static SliderFloatWidget overflowLimit("Overflow Limit", &gWBOITSettingsData.mOverflowLimit, 3e1f, 3e4f);
-		GuiController::weightedBlendedOitDynamicWidgets.mDynamicProperties.emplace_back(&overflowLimit);
+		GuiController::weightedBlendedOitDynamicWidgets.AddWidget(
+			SliderFloatWidget("Overflow Limit", &gWBOITSettingsData.mOverflowLimit, 3e1f, 3e4f));
 
-		static ButtonWidget resetButton("Reset");
+		ButtonWidget resetButton("Reset");
 		resetButton.pOnDeactivatedAfterEdit = ([]() { gWBOITSettingsData = WBOITSettings(); });
-		GuiController::weightedBlendedOitDynamicWidgets.mDynamicProperties.emplace_back(&resetButton);
+		GuiController::weightedBlendedOitDynamicWidgets.AddWidget(resetButton);
 	}
 	// TRANSPARENCY_TYPE_WEIGHTED_BLENDED_OIT_VOLITION Widgets
 	{
-		static LabelWidget blendSettings("Blend Settings");
-		GuiController::weightedBlendedOitVolitionDynamicWidgets.mDynamicProperties.emplace_back(&blendSettings);
+		GuiController::weightedBlendedOitVolitionDynamicWidgets.AddWidget(
+			LabelWidget("Blend Settings"));
 
-		static SliderFloatWidget opacitySensitivity("Opacity Sensitivity", &gWBOITVolitionSettingsData.mOpacitySensitivity, 1.0f, 25.0f);
-		GuiController::weightedBlendedOitVolitionDynamicWidgets.mDynamicProperties.emplace_back(&opacitySensitivity);
+		GuiController::weightedBlendedOitVolitionDynamicWidgets.AddWidget(
+			SliderFloatWidget("Opacity Sensitivity", &gWBOITVolitionSettingsData.mOpacitySensitivity, 1.0f, 25.0f));
 
-		static SliderFloatWidget weightBias("Weight Bias", &gWBOITVolitionSettingsData.mWeightBias, 0.0f, 25.0f);
-		GuiController::weightedBlendedOitVolitionDynamicWidgets.mDynamicProperties.emplace_back(&weightBias);
+		GuiController::weightedBlendedOitVolitionDynamicWidgets.AddWidget(
+			SliderFloatWidget("Weight Bias", &gWBOITVolitionSettingsData.mWeightBias, 0.0f, 25.0f));
 
-		static SliderFloatWidget precisionScalar("Precision Scalar", &gWBOITVolitionSettingsData.mPrecisionScalar, 100.0f, 100000.0f);
-		GuiController::weightedBlendedOitVolitionDynamicWidgets.mDynamicProperties.emplace_back(&precisionScalar);
+		GuiController::weightedBlendedOitVolitionDynamicWidgets.AddWidget(
+			SliderFloatWidget("Precision Scalar", &gWBOITVolitionSettingsData.mPrecisionScalar, 100.0f, 100000.0f));
 
-		static SliderFloatWidget maximumWeight("Maximum Weight", &gWBOITVolitionSettingsData.mMaximumWeight, 0.1f, 100.0f);
-		GuiController::weightedBlendedOitVolitionDynamicWidgets.mDynamicProperties.emplace_back(&maximumWeight);
+		GuiController::weightedBlendedOitVolitionDynamicWidgets.AddWidget(
+			SliderFloatWidget("Maximum Weight", &gWBOITVolitionSettingsData.mMaximumWeight, 0.1f, 100.0f));
 
-		static SliderFloatWidget maximumColorValue("Maximum Color Value", &gWBOITVolitionSettingsData.mMaximumColorValue, 100.0f, 10000.0f);
-		GuiController::weightedBlendedOitVolitionDynamicWidgets.mDynamicProperties.emplace_back(&maximumColorValue);
+		GuiController::weightedBlendedOitVolitionDynamicWidgets.AddWidget(
+			SliderFloatWidget("Maximum Color Value", &gWBOITVolitionSettingsData.mMaximumColorValue, 100.0f, 10000.0f));
 
-		static SliderFloatWidget additiveSensitivity("Additive Sensitivity", &gWBOITVolitionSettingsData.mAdditiveSensitivity, 0.1f, 25.0f);
-		GuiController::weightedBlendedOitVolitionDynamicWidgets.mDynamicProperties.emplace_back(&additiveSensitivity);
+		GuiController::weightedBlendedOitVolitionDynamicWidgets.AddWidget(
+			SliderFloatWidget("Additive Sensitivity", &gWBOITVolitionSettingsData.mAdditiveSensitivity, 0.1f, 25.0f));
 
-		static SliderFloatWidget emissiveSensitivity("Emissive Sensitivity", &gWBOITVolitionSettingsData.mEmissiveSensitivity, 0.01f, 1.0f);
-		GuiController::weightedBlendedOitVolitionDynamicWidgets.mDynamicProperties.emplace_back(&emissiveSensitivity);
+		GuiController::weightedBlendedOitVolitionDynamicWidgets.AddWidget(
+			SliderFloatWidget("Emissive Sensitivity", &gWBOITVolitionSettingsData.mEmissiveSensitivity, 0.01f, 1.0f));
 
-		static ButtonWidget resetButton("Reset");
+		ButtonWidget resetButton("Reset");
 		resetButton.pOnDeactivatedAfterEdit = ([]() { gWBOITVolitionSettingsData = WBOITVolitionSettings(); });
-		GuiController::weightedBlendedOitVolitionDynamicWidgets.mDynamicProperties.emplace_back(&resetButton);
+		GuiController::weightedBlendedOitVolitionDynamicWidgets.AddWidget(resetButton);
 	}
 
 	pGuiWindow->AddWidget(LabelWidget("Light Settings"));
@@ -3746,21 +3881,20 @@ void GuiController::AddGui()
 	const float lightPosBound = 10.0f;
 	pGuiWindow->AddWidget(SliderFloat3Widget("Light Position", &gLightCpuSettings.mLightPosition, -lightPosBound, lightPosBound, 0.1f));
 
-
 	if (gTransparencyType == TRANSPARENCY_TYPE_ALPHA_BLEND)
 	{
 		GuiController::currentTransparencyType = TRANSPARENCY_TYPE_ALPHA_BLEND;
-		GuiController::alphaBlendDynamicWidgets.ShowDynamicProperties(pGuiWindow);
+		GuiController::alphaBlendDynamicWidgets.ShowWidgets(pGuiWindow);
 	}
 	else if (gTransparencyType == TRANSPARENCY_TYPE_WEIGHTED_BLENDED_OIT)
 	{
 		GuiController::currentTransparencyType = TRANSPARENCY_TYPE_WEIGHTED_BLENDED_OIT;
-		GuiController::weightedBlendedOitDynamicWidgets.ShowDynamicProperties(pGuiWindow);
+		GuiController::weightedBlendedOitDynamicWidgets.ShowWidgets(pGuiWindow);
 	}
 	else if (gTransparencyType == TRANSPARENCY_TYPE_WEIGHTED_BLENDED_OIT_VOLITION)
 	{
 		GuiController::currentTransparencyType = TRANSPARENCY_TYPE_WEIGHTED_BLENDED_OIT_VOLITION;
-		GuiController::weightedBlendedOitVolitionDynamicWidgets.ShowDynamicProperties(pGuiWindow);
+		GuiController::weightedBlendedOitVolitionDynamicWidgets.ShowWidgets(pGuiWindow);
 	}
 	else if (gTransparencyType == TRANSPARENCY_TYPE_PHENOMENOLOGICAL)
 	{
@@ -3773,6 +3907,5 @@ void GuiController::AddGui()
 	}
 #endif
 }
-
 
 DEFINE_APPLICATION_MAIN(Transparency)

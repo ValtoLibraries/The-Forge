@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -26,11 +26,11 @@
 // GPU 0 Renders Left Eye and finally does a composition pass to present Left and Right eye textures to screen
 // GPU 1 Renders Right Eye
 
-#define MAX_PLANETS 20 // Does not affect test, just for allocating space in uniform block. Must match with shader.
+#define MAX_PLANETS 20    // Does not affect test, just for allocating space in uniform block. Must match with shader.
 
 //tiny stl
-#include "../../../../Common_3/ThirdParty/OpenSource/TinySTL/vector.h"
-#include "../../../../Common_3/ThirdParty/OpenSource/TinySTL/string.h"
+#include "../../../../Common_3/ThirdParty/OpenSource/EASTL/vector.h"
+#include "../../../../Common_3/ThirdParty/OpenSource/EASTL/string.h"
 
 //Interfaces
 #include "../../../../Common_3/OS/Interfaces/ICameraController.h"
@@ -38,11 +38,9 @@
 #include "../../../../Common_3/OS/Interfaces/ILogManager.h"
 #include "../../../../Common_3/OS/Interfaces/IFileSystem.h"
 #include "../../../../Common_3/OS/Interfaces/ITimeManager.h"
+#include "../../../../Common_3/OS/Interfaces/IProfiler.h"
 #include "../../../../Common_3/Renderer/IRenderer.h"
-#include "../../../../Common_3/Renderer/GpuProfiler.h"
 #include "../../../../Common_3/Renderer/ResourceLoader.h"
-
-#include "../../../../Common_3/OS/Core/DebugRenderer.h"
 
 //Math
 #include "../../../../Common_3/OS/Math/MathTypes.h"
@@ -50,23 +48,22 @@
 #include "../../../../Middleware_3/UI/AppUI.h"
 #include "../../../../Middleware_3/PaniniProjection/Panini.h"
 
-#include "../../../../Middleware_3/Input/InputSystem.h"
-#include "../../../../Middleware_3/Input/InputMappings.h"
+#include "../../../../Common_3/OS/Input/InputSystem.h"
+#include "../../../../Common_3/OS/Input/InputMappings.h"
 
 #include "../../../../Common_3/OS/Interfaces/IMemoryManager.h"
-
 
 /// Demo structures
 struct PlanetInfoStruct
 {
-	uint mParentIndex;
-	vec4 mColor;
-	float mYOrbitSpeed; // Rotation speed around parent
+	uint  mParentIndex;
+	vec4  mColor;
+	float mYOrbitSpeed;    // Rotation speed around parent
 	float mZOrbitSpeed;
-	float mRotationSpeed; // Rotation speed around self
-	mat4 mTranslationMat;
-	mat4 mScaleMat;
-	mat4 mSharedMat;	// Matrix to pass down to children
+	float mRotationSpeed;    // Rotation speed around self
+	mat4  mTranslationMat;
+	mat4  mScaleMat;
+	mat4  mSharedMat;    // Matrix to pass down to children
 };
 
 struct UniformBlock
@@ -80,100 +77,97 @@ struct UniformBlock
 	vec3 mLightColor;
 };
 
-const uint32_t	  gImageCount = 3;
-const uint32_t	  gViewCount = 2;
-bool				gToggleVSync = false;
+const uint32_t gImageCount = 3;
+bool           bToggleMicroProfiler = false;
+bool           bPrevToggleMicroProfiler = false;
+
+const uint32_t gViewCount = 2;
+bool           gToggleVSync = false;
 // Simulate heavy gpu workload by rendering high resolution spheres
-const int		   gSphereResolution = 1024; // Increase for higher resolution spheres
-const float		 gSphereDiameter = 0.5f;
-const uint		  gNumPlanets = 11;	  // Sun, Mercury -> Neptune, Pluto, Moon
-const uint		  gTimeOffset = 600000;   // For visually better starting locations
-const float		 gRotSelfScale = 0.0004f;
-const float		 gRotOrbitYScale = 0.001f;
-const float		 gRotOrbitZScale = 0.00001f;
+const int   gSphereResolution = 1024;    // Increase for higher resolution spheres
+const float gSphereDiameter = 0.5f;
+const uint  gNumPlanets = 11;        // Sun, Mercury -> Neptune, Pluto, Moon
+const uint  gTimeOffset = 600000;    // For visually better starting locations
+const float gRotSelfScale = 0.0004f;
+const float gRotOrbitYScale = 0.001f;
+const float gRotOrbitZScale = 0.00001f;
 
-Renderer*		   pRenderer = NULL;
+Renderer* pRenderer = NULL;
 
-Queue*			  pGraphicsQueue[gViewCount] = { NULL };
-CmdPool*			pCmdPool[gViewCount] = { NULL };
-Cmd**			   ppCmds[gViewCount] = { NULL };
-Fence*			  pRenderCompleteFences[gViewCount][gImageCount] = { NULL };
-Semaphore*		  pRenderCompleteSemaphores[gViewCount][gImageCount] = { NULL };
-Buffer*			 pSphereVertexBuffer[gViewCount] = { NULL };
-Buffer*			 pSkyBoxVertexBuffer[gViewCount] = { NULL };
-Texture*			pSkyBoxTextures[gViewCount][6];
-GpuProfiler*		pGpuProfilers[gViewCount] = { NULL };
-RenderTarget*	   pRenderTargets[gViewCount][gImageCount] = { NULL };
-RenderTarget*	   pDepthBuffers[gViewCount] = { NULL };
+Queue*        pGraphicsQueue[gViewCount] = { NULL };
+CmdPool*      pCmdPool[gViewCount] = { NULL };
+Cmd**         ppCmds[gViewCount] = { NULL };
+Fence*        pRenderCompleteFences[gViewCount][gImageCount] = { NULL };
+Semaphore*    pRenderCompleteSemaphores[gViewCount][gImageCount] = { NULL };
+Buffer*       pSphereVertexBuffer[gViewCount] = { NULL };
+Buffer*       pSkyBoxVertexBuffer[gViewCount] = { NULL };
+Texture*      pSkyBoxTextures[gViewCount][6];
+GpuProfiler*  pGpuProfilers[gViewCount] = { NULL };
+RenderTarget* pRenderTargets[gViewCount][gImageCount] = { NULL };
+RenderTarget* pDepthBuffers[gViewCount] = { NULL };
 
-Semaphore*		  pImageAcquiredSemaphore = NULL;
-SwapChain*		  pSwapChain = NULL;
+Semaphore* pImageAcquiredSemaphore = NULL;
+SwapChain* pSwapChain = NULL;
 
-Shader*			 pSphereShader = NULL;
-Pipeline*		   pSpherePipeline = NULL;
+Shader*   pSphereShader = NULL;
+Pipeline* pSpherePipeline = NULL;
 
-Shader*			 pSkyBoxDrawShader = NULL;
-Pipeline*		   pSkyBoxDrawPipeline = NULL;
-RootSignature*	  pRootSignature = NULL;
-Sampler*			pSamplerSkyBox = NULL;
+Shader*           pSkyBoxDrawShader = NULL;
+Pipeline*         pSkyBoxDrawPipeline = NULL;
+RootSignature*    pRootSignature = NULL;
+Sampler*          pSamplerSkyBox = NULL;
+DescriptorBinder* pDescriptorBinder[gViewCount] = { NULL };
 
-DepthState*		 pDepth = NULL;
-RasterizerState*	pSkyboxRast = NULL;
+DepthState*      pDepth = NULL;
+RasterizerState* pSkyboxRast = NULL;
 
-Buffer*			 pProjViewUniformBuffer[gImageCount] = { NULL };
-Buffer*			 pSkyboxUniformBuffer[gImageCount] = { NULL };
+Buffer* pProjViewUniformBuffer[gImageCount] = { NULL };
+Buffer* pSkyboxUniformBuffer[gImageCount] = { NULL };
 
-uint32_t			gFrameIndex = 0;
+uint32_t gFrameIndex = 0;
 
-int				 gNumberOfSpherePoints;
-UniformBlock		gUniformData;
-UniformBlock		gUniformDataSky;
-PlanetInfoStruct	gPlanetInfoData[gNumPlanets];
+int              gNumberOfSpherePoints;
+UniformBlock     gUniformData;
+UniformBlock     gUniformDataSky;
+PlanetInfoStruct gPlanetInfoData[gNumPlanets];
 
-ICameraController*  pCameraController = NULL;
+ICameraController* pCameraController = NULL;
 
 /// UI
-UIApp			   gAppUI;
-GuiComponent*	   pGui;
+UIApp         gAppUI;
+GuiComponent* pGui;
 
-FileSystem		  gFileSystem;
-LogManager		  gLogManager;
+FileSystem gFileSystem;
 
-const char*		 pSkyBoxImageFileNames[] =
-{
-	"Skybox_right1.png",
-	"Skybox_left2.png",
-	"Skybox_top3.png",
-	"Skybox_bottom4.png",
-	"Skybox_front5.png",
-	"Skybox_back6.png"
+const char* pSkyBoxImageFileNames[] = { "Skybox_right1.png",  "Skybox_left2.png",  "Skybox_top3.png",
+										"Skybox_bottom4.png", "Skybox_front5.png", "Skybox_back6.png" };
+
+const char* pszBases[FSR_Count] = {
+	"../../../src/11_MultiGPU/",                        // FSR_BinShaders
+	"../../../src/11_MultiGPU/",                        // FSR_SrcShaders
+	"../../../UnitTestResources/",                      // FSR_Textures
+	"../../../UnitTestResources/",                      // FSR_Meshes
+	"../../../UnitTestResources/",                      // FSR_Builtin_Fonts
+	"../../../src/11_MultiGPU/",                        // FSR_GpuConfig
+	"",                                                 // FSR_Animation
+	"",                                                 // FSR_OtherFiles
+	"../../../../../Middleware_3/Text/",                // FSR_MIDDLEWARE_TEXT
+	"../../../../../Middleware_3/UI/",                  // FSR_MIDDLEWARE_UI
+	"../../../../../Middleware_3/PaniniProjection/",    // FSR_MIDDLEWARE_PANINI
 };
 
-const char* pszBases[] =
-{
-	"../../../src/11_MultiGPU/",                       // FSR_BinShaders
-	"../../../src/11_MultiGPU/",                       // FSR_SrcShaders
-	"../../../../../Middleware_3/PaniniProjection/",   // FSR_BinShaders_Common
-	"../../../../../Middleware_3/PaniniProjection/",   // FSR_SrcShaders_Common
-	"../../../UnitTestResources/",                     // FSR_Textures
-	"../../../UnitTestResources/",                     // FSR_Meshes
-	"../../../UnitTestResources/",                     // FSR_Builtin_Fonts
-	"../../../src/11_MultiGPU/",                       // FSR_GpuConfig
-	"",                                                // FSR_OtherFiles
-};
+TextDrawDesc     gFrameTimeDraw = TextDrawDesc(0, 0xff00ffff, 18);
+ClearValue       gClearColor = { 0.0f, 0.0f, 0.0f, 0.0f };
+ClearValue       gClearDepth = { 1.0f, 0 };
+Panini           gPanini = {};
+PaniniParameters gPaniniParams = {};
+bool             gMultiGPU = true;
+bool             gMultiGPURestart = false;
+float*           pSpherePoints;
 
-TextDrawDesc		gFrameTimeDraw = TextDrawDesc(0, 0xff00ffff, 18);
-ClearValue			  gClearColor = { 0.0f, 0.0f, 0.0f, 0.0f };
-ClearValue			  gClearDepth = { 1.0f, 0 };
-Panini				  gPanini = {};
-PaniniParameters		gPaniniParams = {};
-bool					gMultiGPU = true;
-bool					gMultiGPURestart = false;
-float*				  pSpherePoints;
-
-class MultiGPU : public IApp
+class MultiGPU: public IApp
 {
-public:
+	public:
 	bool Init()
 	{
 		// window and renderer setup
@@ -184,13 +178,11 @@ public:
 		if (!pRenderer)
 			return false;
 
-
-		initResourceLoaderInterface(pRenderer, DEFAULT_MEMORY_BUDGET);
-		initDebugRendererInterface(pRenderer, "TitilliumText/TitilliumText-Bold.otf", FSR_Builtin_Fonts);
+		initResourceLoaderInterface(pRenderer);
 
 		if (pRenderer->mSettings.mGpuMode == GPU_MODE_SINGLE && gMultiGPU)
 		{
-			LOGWARNINGF("Multi GPU will be disabled since the system only has one GPU");
+			LOGF(LogLevel::eWARNING, "Multi GPU will be disabled since the system only has one GPU");
 			gMultiGPU = false;
 		}
 
@@ -206,6 +198,10 @@ public:
 				addQueue(pRenderer, &queueDesc, &pGraphicsQueue[i]);
 		}
 
+		initProfiler(pRenderer, gImageCount);
+		profileRegisterInput();
+		char gpu_profile_name[16] = { 0 };
+
 		for (uint32_t i = 0; i < gViewCount; ++i)
 		{
 			addCmdPool(pRenderer, pGraphicsQueue[i], false, &pCmdPool[i]);
@@ -216,7 +212,8 @@ public:
 				addFence(pRenderer, &pRenderCompleteFences[i][frameIdx]);
 				addSemaphore(pRenderer, &pRenderCompleteSemaphores[i][frameIdx]);
 			}
-			addGpuProfiler(pRenderer, pGraphicsQueue[i], &pGpuProfilers[i]);
+			sprintf(gpu_profile_name, "GpuProfiler%d", i);
+			addGpuProfiler(pRenderer, pGraphicsQueue[i], &pGpuProfilers[i], gpu_profile_name);
 		}
 
 		addSemaphore(pRenderer, &pImageAcquiredSemaphore);
@@ -231,14 +228,16 @@ public:
 		addShader(pRenderer, &skyShader, &pSkyBoxDrawShader);
 		addShader(pRenderer, &basicShader, &pSphereShader);
 
-		SamplerDesc samplerDesc = {
-			FILTER_LINEAR, FILTER_LINEAR, MIPMAP_MODE_NEAREST,
-			ADDRESS_MODE_CLAMP_TO_EDGE, ADDRESS_MODE_CLAMP_TO_EDGE, ADDRESS_MODE_CLAMP_TO_EDGE
-		};
+		SamplerDesc samplerDesc = { FILTER_LINEAR,
+									FILTER_LINEAR,
+									MIPMAP_MODE_NEAREST,
+									ADDRESS_MODE_CLAMP_TO_EDGE,
+									ADDRESS_MODE_CLAMP_TO_EDGE,
+									ADDRESS_MODE_CLAMP_TO_EDGE };
 		addSampler(pRenderer, &samplerDesc, &pSamplerSkyBox);
 
-		Shader* shaders[] = { pSphereShader, pSkyBoxDrawShader };
-		const char* pStaticSamplers[] = { "uSampler0" };
+		Shader*           shaders[] = { pSphereShader, pSkyBoxDrawShader };
+		const char*       pStaticSamplers[] = { "uSampler0" };
 		RootSignatureDesc rootDesc = {};
 		rootDesc.mStaticSamplerCount = 1;
 		rootDesc.ppStaticSamplerNames = pStaticSamplers;
@@ -246,6 +245,12 @@ public:
 		rootDesc.mShaderCount = 2;
 		rootDesc.ppShaders = shaders;
 		addRootSignature(pRenderer, &rootDesc, &pRootSignature);
+
+		for (uint32_t i = 0; i < gViewCount; i++)
+		{
+			DescriptorBinderDesc descriptorBinderDesc = { pRootSignature, 0, 2 }; // 2 = planets + skybox rendering
+			addDescriptorBinder(pRenderer, gMultiGPU ? i : 0 , 1, &descriptorBinderDesc, &pDescriptorBinder[i]);
+		}
 
 		RasterizerStateDesc rasterizerStateDesc = {};
 		rasterizerStateDesc.mCullMode = CULL_MODE_NONE;
@@ -261,7 +266,7 @@ public:
 		if (!pSpherePoints)
 			generateSpherePoints(&pSpherePoints, &gNumberOfSpherePoints, gSphereResolution, gSphereDiameter);
 
-		uint64_t sphereDataSize = gNumberOfSpherePoints * sizeof(float);
+		uint64_t       sphereDataSize = gNumberOfSpherePoints * sizeof(float);
 		BufferLoadDesc sphereVbDesc = {};
 		sphereVbDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_VERTEX_BUFFER;
 		sphereVbDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_GPU_ONLY;
@@ -271,50 +276,32 @@ public:
 
 		//Generate sky box vertex buffer
 		float skyBoxPoints[] = {
-			10.0f,  -10.0f, -10.0f,6.0f, // -z
-			-10.0f, -10.0f, -10.0f,6.0f,
-			-10.0f, 10.0f, -10.0f,6.0f,
-			-10.0f, 10.0f, -10.0f,6.0f,
-			10.0f,  10.0f, -10.0f,6.0f,
-			10.0f,  -10.0f, -10.0f,6.0f,
+			10.0f,  -10.0f, -10.0f, 6.0f,    // -z
+			-10.0f, -10.0f, -10.0f, 6.0f,   -10.0f, 10.0f,  -10.0f, 6.0f,   -10.0f, 10.0f,
+			-10.0f, 6.0f,   10.0f,  10.0f,  -10.0f, 6.0f,   10.0f,  -10.0f, -10.0f, 6.0f,
 
-			-10.0f, -10.0f,  10.0f,2.0f,  //-x
-			-10.0f, -10.0f, -10.0f,2.0f,
-			-10.0f,  10.0f, -10.0f,2.0f,
-			-10.0f,  10.0f, -10.0f,2.0f,
-			-10.0f,  10.0f,  10.0f,2.0f,
-			-10.0f, -10.0f,  10.0f,2.0f,
+			-10.0f, -10.0f, 10.0f,  2.0f,    //-x
+			-10.0f, -10.0f, -10.0f, 2.0f,   -10.0f, 10.0f,  -10.0f, 2.0f,   -10.0f, 10.0f,
+			-10.0f, 2.0f,   -10.0f, 10.0f,  10.0f,  2.0f,   -10.0f, -10.0f, 10.0f,  2.0f,
 
-			10.0f, -10.0f, -10.0f,1.0f, //+x
-			10.0f, -10.0f,  10.0f,1.0f,
-			10.0f,  10.0f,  10.0f,1.0f,
-			10.0f,  10.0f,  10.0f,1.0f,
-			10.0f,  10.0f, -10.0f,1.0f,
-			10.0f, -10.0f, -10.0f,1.0f,
+			10.0f,  -10.0f, -10.0f, 1.0f,    //+x
+			10.0f,  -10.0f, 10.0f,  1.0f,   10.0f,  10.0f,  10.0f,  1.0f,   10.0f,  10.0f,
+			10.0f,  1.0f,   10.0f,  10.0f,  -10.0f, 1.0f,   10.0f,  -10.0f, -10.0f, 1.0f,
 
-			-10.0f, -10.0f,  10.0f,5.0f,  // +z
-			-10.0f,  10.0f,  10.0f,5.0f,
-			10.0f,  10.0f,  10.0f,5.0f,
-			10.0f,  10.0f,  10.0f,5.0f,
-			10.0f, -10.0f,  10.0f,5.0f,
-			-10.0f, -10.0f,  10.0f,5.0f,
+			-10.0f, -10.0f, 10.0f,  5.0f,    // +z
+			-10.0f, 10.0f,  10.0f,  5.0f,   10.0f,  10.0f,  10.0f,  5.0f,   10.0f,  10.0f,
+			10.0f,  5.0f,   10.0f,  -10.0f, 10.0f,  5.0f,   -10.0f, -10.0f, 10.0f,  5.0f,
 
-			-10.0f,  10.0f, -10.0f, 3.0f,  //+y
-			10.0f,  10.0f, -10.0f,3.0f,
-			10.0f,  10.0f,  10.0f,3.0f,
-			10.0f,  10.0f,  10.0f,3.0f,
-			-10.0f,  10.0f,  10.0f,3.0f,
-			-10.0f,  10.0f, -10.0f,3.0f,
+			-10.0f, 10.0f,  -10.0f, 3.0f,    //+y
+			10.0f,  10.0f,  -10.0f, 3.0f,   10.0f,  10.0f,  10.0f,  3.0f,   10.0f,  10.0f,
+			10.0f,  3.0f,   -10.0f, 10.0f,  10.0f,  3.0f,   -10.0f, 10.0f,  -10.0f, 3.0f,
 
-			10.0f,  -10.0f, 10.0f, 4.0f,  //-y
-			10.0f,  -10.0f, -10.0f,4.0f,
-			-10.0f,  -10.0f,  -10.0f,4.0f,
-			-10.0f,  -10.0f,  -10.0f,4.0f,
-			-10.0f,  -10.0f,  10.0f,4.0f,
-			10.0f,  -10.0f, 10.0f,4.0f,
+			10.0f,  -10.0f, 10.0f,  4.0f,    //-y
+			10.0f,  -10.0f, -10.0f, 4.0f,   -10.0f, -10.0f, -10.0f, 4.0f,   -10.0f, -10.0f,
+			-10.0f, 4.0f,   -10.0f, -10.0f, 10.0f,  4.0f,   10.0f,  -10.0f, 10.0f,  4.0f,
 		};
 
-		uint64_t skyBoxDataSize = 4 * 6 * 6 * sizeof(float);
+		uint64_t       skyBoxDataSize = 4 * 6 * 6 * sizeof(float);
 		BufferLoadDesc skyboxVbDesc = {};
 		skyboxVbDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_VERTEX_BUFFER;
 		skyboxVbDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_GPU_ONLY;
@@ -326,7 +313,7 @@ public:
 #ifndef TARGET_IOS
 		textureDesc.mRoot = FSR_Textures;
 #else
-		textureDesc.mRoot = FSRoot::FSR_Absolute; // Resources on iOS are bundled with the application.
+		textureDesc.mRoot = FSRoot::FSR_Absolute;    // Resources on iOS are bundled with the application.
 #endif
 		textureDesc.mUseMipmaps = true;
 
@@ -383,9 +370,9 @@ public:
 
 		// Sun
 		gPlanetInfoData[0].mParentIndex = 0;
-		gPlanetInfoData[0].mYOrbitSpeed = 0; // Earth years for one orbit
+		gPlanetInfoData[0].mYOrbitSpeed = 0;    // Earth years for one orbit
 		gPlanetInfoData[0].mZOrbitSpeed = 0;
-		gPlanetInfoData[0].mRotationSpeed = 24.0f; // Earth days for one rotation
+		gPlanetInfoData[0].mRotationSpeed = 24.0f;    // Earth days for one rotation
 		gPlanetInfoData[0].mTranslationMat = mat4::identity();
 		gPlanetInfoData[0].mScaleMat = mat4::scale(vec3(10.0f));
 		gPlanetInfoData[0].mColor = vec4(0.9f, 0.6f, 0.1f, 0.0f);
@@ -487,6 +474,8 @@ public:
 		GuiDesc guiDesc = {};
 		pGui = gAppUI.AddGuiComponent(GetName(), &guiDesc);
 
+    pGui->AddWidget(CheckboxWidget("Toggle Micro Profiler", &bToggleMicroProfiler));
+
 #if !defined(TARGET_IOS) && !defined(_DURANGO)
 		pGui->AddWidget(CheckboxWidget("Toggle VSync", &gToggleVSync));
 #endif
@@ -498,8 +487,8 @@ public:
 		pGui->AddWidget(SliderFloatWidget("Screen Scale", &gPaniniParams.scale, 1.0f, 10.0f, 0.01f));
 
 		CameraMotionParameters cmp{ 160.0f, 600.0f, 600.0f };
-		vec3 camPos{ 48.0f, 48.0f, 20.0f };
-		vec3 lookAt{ 0 };
+		vec3                   camPos{ 48.0f, 48.0f, 20.0f };
+		vec3                   lookAt{ 0 };
 
 		pCameraController = createFpsCameraController(camPos, lookAt);
 		requestMouseCapture(true);
@@ -509,16 +498,18 @@ public:
 
 		if (!gPanini.Init(pRenderer))
 			return false;
-
+		gPanini.SetDescriptorBinder(2);
 		return true;
 	}
 
 	void Exit()
 	{
 		for (uint32_t i = 0; i < gViewCount; ++i)
-			waitForFences(pGraphicsQueue[i], 1, &pRenderCompleteFences[i][gFrameIndex], true);
+			waitQueueIdle(pGraphicsQueue[i]);
 
 		destroyCameraController(pCameraController);
+
+		exitProfiler(pRenderer);
 
 		if (!gMultiGPURestart)
 		{
@@ -537,8 +528,11 @@ public:
 
 		for (uint32_t view = 0; view < gViewCount; ++view)
 		{
+			removeDescriptorBinder(pRenderer, pDescriptorBinder[view]);
+
+
 			if (!gMultiGPU && view > 0)
-				break;
+				continue;
 
 			removeResource(pSphereVertexBuffer[view]);
 			removeResource(pSkyBoxVertexBuffer[view]);
@@ -577,7 +571,6 @@ public:
 
 		removeSemaphore(pRenderer, pImageAcquiredSemaphore);
 
-		removeDebugRendererInterface();
 		removeResourceLoaderInterface(pRenderer);
 
 		removeRenderer(pRenderer);
@@ -613,7 +606,9 @@ public:
 		vertexLayout.mAttribs[1].mLocation = 1;
 		vertexLayout.mAttribs[1].mOffset = 3 * sizeof(float);
 
-		GraphicsPipelineDesc pipelineSettings = { 0 };
+		PipelineDesc desc = {};
+		desc.mType = PIPELINE_TYPE_GRAPHICS;
+		GraphicsPipelineDesc& pipelineSettings = desc.mGraphicsDesc;
 		pipelineSettings.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		pipelineSettings.mRenderTargetCount = 1;
 		pipelineSettings.pDepthState = pDepth;
@@ -626,7 +621,7 @@ public:
 		pipelineSettings.pShaderProgram = pSphereShader;
 		pipelineSettings.pVertexLayout = &vertexLayout;
 		pipelineSettings.pRasterizerState = pSkyboxRast;
-		addPipeline(pRenderer, &pipelineSettings, &pSpherePipeline);
+		addPipeline(pRenderer, &desc, &pSpherePipeline);
 
 		//layout and pipeline for skybox draw
 		vertexLayout = {};
@@ -640,7 +635,7 @@ public:
 		pipelineSettings.pDepthState = NULL;
 		pipelineSettings.pRasterizerState = pSkyboxRast;
 		pipelineSettings.pShaderProgram = pSkyBoxDrawShader;
-		addPipeline(pRenderer, &pipelineSettings, &pSkyBoxDrawPipeline);
+		addPipeline(pRenderer, &desc, &pSkyBoxDrawPipeline);
 
 		return true;
 	}
@@ -648,7 +643,7 @@ public:
 	void Unload()
 	{
 		for (uint32_t i = 0; i < gViewCount; ++i)
-			waitForFences(pGraphicsQueue[i], 1, &pRenderCompleteFences[i][gFrameIndex], true);
+			waitQueueIdle(pGraphicsQueue[i]);
 
 		gPanini.Unload();
 		gAppUI.Unload();
@@ -670,19 +665,19 @@ public:
 #if !defined(TARGET_IOS) && !defined(_DURANGO)
 		if (pSwapChain->mDesc.mEnableVsync != gToggleVSync)
 		{
-			waitForFences(pGraphicsQueue[0], gImageCount, pRenderCompleteFences[0], true);
+			waitQueueIdle(pGraphicsQueue[0]);
 			::toggleVSync(pRenderer, &pSwapChain);
 		}
 #endif
 		/************************************************************************/
 		// Input
 		/************************************************************************/
-		if (getKeyDown(KEY_BUTTON_X))
+		if (InputSystem::GetBoolInput(KEY_BUTTON_X_TRIGGERED))
 		{
 			RecenterCameraView(170.0f);
 		}
 
-		if (getKeyUp(KEY_LEFT_TRIGGER))
+		if (InputSystem::GetBoolInput(KEY_LEFT_TRIGGER_TRIGGERED))
 			gMultiGPU = !gMultiGPU;
 
 		pCameraController->update(deltaTime);
@@ -694,15 +689,15 @@ public:
 		currentTime += deltaTime * 1000.0f;
 
 		// update camera with time
-		mat4 viewMat = pCameraController->getViewMatrix();
+		mat4        viewMat = pCameraController->getViewMatrix();
 		const float aspectInverse = (float)mSettings.mHeight / ((float)mSettings.mWidth * 0.5f);
 		const float horizontal_fov = gPaniniParams.FoVH * PI / 180.0f;
-		mat4 projMat = mat4::perspective(horizontal_fov, aspectInverse, 0.1f, 1000.0f);
+		mat4        projMat = mat4::perspective(horizontal_fov, aspectInverse, 0.1f, 1000.0f);
 		gUniformData.mProjectView = projMat * viewMat;
 
 		// point light parameters
 		gUniformData.mLightPosition = vec3(0, 0, 0);
-		gUniformData.mLightColor = vec3(0.9f, 0.9f, 0.7f); // Pale Yellow
+		gUniformData.mLightColor = vec3(0.9f, 0.9f, 0.7f);    // Pale Yellow
 
 		// update planet transformations
 		for (int i = 0; i < gNumPlanets; i++)
@@ -722,7 +717,7 @@ public:
 			scale = gPlanetInfoData[i].mScaleMat;
 
 			gPlanetInfoData[i].mSharedMat = parentMat * rotOrbitY * trans;
-			gUniformData.mToWorldMat[i] = parentMat *  rotOrbitY * rotOrbitZ * trans * rotSelf * scale;
+			gUniformData.mToWorldMat[i] = parentMat * rotOrbitY * rotOrbitZ * trans * rotSelf * scale;
 			gUniformData.mColor[i] = gPlanetInfoData[i].mColor;
 		}
 
@@ -732,7 +727,23 @@ public:
 		/************************************************************************/
 		/************************************************************************/
 
-		gAppUI.Update(deltaTime);
+    // ProfileSetDisplayMode()
+    // TODO: need to change this better way 
+    if (bToggleMicroProfiler != bPrevToggleMicroProfiler)
+    {
+      Profile& S = *ProfileGet();
+      int nValue = bToggleMicroProfiler ? 1 : 0;
+      nValue = nValue >= 0 && nValue < P_DRAW_SIZE ? nValue : S.nDisplay;
+      S.nDisplay = nValue;
+
+      bPrevToggleMicroProfiler = bToggleMicroProfiler;
+    }
+
+    /************************************************************************/
+    // Update GUI
+    /************************************************************************/
+    gAppUI.Update(deltaTime);
+
 		gPanini.SetParams(gPaniniParams);
 		gPanini.Update(deltaTime);
 
@@ -773,10 +784,10 @@ public:
 		{
 			RenderTarget* pRenderTarget = pRenderTargets[i][gFrameIndex];
 			RenderTarget* pDepthBuffer = pDepthBuffers[i];
-			Semaphore* pRenderCompleteSemaphore = pRenderCompleteSemaphores[i][gFrameIndex];
-			Fence* pRenderCompleteFence = pRenderCompleteFences[i][gFrameIndex];
-			Cmd* cmd = ppCmds[i][gFrameIndex];
-			GpuProfiler* pGpuProfiler = pGpuProfilers[i];
+			Semaphore*    pRenderCompleteSemaphore = pRenderCompleteSemaphores[i][gFrameIndex];
+			Fence*        pRenderCompleteFence = pRenderCompleteFences[i][gFrameIndex];
+			Cmd*          cmd = ppCmds[i][gFrameIndex];
+			GpuProfiler*  pGpuProfiler = pGpuProfilers[i];
 
 			// simply record the screen cleaning command
 			LoadActionsDesc loadActions = {};
@@ -817,7 +828,7 @@ public:
 			params[5].ppTextures = &pSkyBoxTextures[i][4];
 			params[6].pName = "BackText";
 			params[6].ppTextures = &pSkyBoxTextures[i][5];
-			cmdBindDescriptors(cmd, pRootSignature, 7, params);
+			cmdBindDescriptors(cmd, pDescriptorBinder[i], pRootSignature, 7, params);
 			cmdBindVertexBuffer(cmd, 1, &pSkyBoxVertexBuffer[i], NULL);
 			cmdDraw(cmd, 36, 0);
 			cmdEndGpuTimestampQuery(cmd, pGpuProfiler);
@@ -826,7 +837,7 @@ public:
 			cmdBeginGpuTimestampQuery(cmd, pGpuProfiler, "Draw Planets", true);
 			cmdBindPipeline(cmd, pSpherePipeline);
 			params[0].ppBuffers = &pProjViewUniformBuffer[gFrameIndex];
-			cmdBindDescriptors(cmd, pRootSignature, 1, params);
+			cmdBindDescriptors(cmd, pDescriptorBinder[i], pRootSignature, 1, params);
 			cmdBindVertexBuffer(cmd, 1, &pSphereVertexBuffer[i], NULL);
 			cmdDrawInstanced(cmd, gNumberOfSpherePoints / 6, 0, gNumPlanets, 0);
 			cmdEndGpuTimestampQuery(cmd, pGpuProfiler);
@@ -843,7 +854,7 @@ public:
 				cmdBeginGpuTimestampQuery(cmd, pGpuProfiler, "Draw Results");
 				loadActions.mLoadActionDepth = LOAD_ACTION_DONTCARE;
 
-				RenderTarget* pRenderTarget = pSwapChain->ppSwapchainRenderTargets[gFrameIndex];
+				RenderTarget*  pRenderTarget = pSwapChain->ppSwapchainRenderTargets[gFrameIndex];
 				TextureBarrier barriers[1 + gViewCount] = {};
 				for (uint32_t i = 0; i < gViewCount; ++i)
 					barriers[i] = { pRenderTargets[i][gFrameIndex]->pTexture, RESOURCE_STATE_SHADER_RESOURCE };
@@ -859,7 +870,8 @@ public:
 				gPanini.SetSourceTexture(pRenderTargets[0][gFrameIndex]->pTexture);
 				gPanini.Draw(cmd);
 
-				cmdSetViewport(cmd, (float)mSettings.mWidth * 0.5f, 0.0f, (float)mSettings.mWidth * 0.5f, (float)mSettings.mHeight, 0.0f, 1.0f);
+				cmdSetViewport(
+					cmd, (float)mSettings.mWidth * 0.5f, 0.0f, (float)mSettings.mWidth * 0.5f, (float)mSettings.mHeight, 0.0f, 1.0f);
 				cmdSetScissor(cmd, 0, 0, mSettings.mWidth, mSettings.mHeight);
 				gPanini.SetSourceTexture(pRenderTargets[1][gFrameIndex]->pTexture);
 				gPanini.Draw(cmd);
@@ -870,30 +882,49 @@ public:
 
 				gAppUI.Gui(pGui);
 
-				drawDebugText(cmd, 8, 15, tinystl::string::format("CPU %f ms", gTimer.GetUSecAverage() / 1000.0f), &gFrameTimeDraw);
+				gAppUI.DrawText(
+					cmd, float2(8, 15), eastl::string().sprintf("CPU %f ms", gTimer.GetUSecAverage() / 1000.0f).c_str(), &gFrameTimeDraw);
 
 				if (gMultiGPU)
 				{
-					drawDebugText(cmd, 8, 40, tinystl::string::format("GPU %f ms",
-						max(pGpuProfilers[0]->mCumulativeTime, pGpuProfilers[1]->mCumulativeTime) * 1000.0), &gFrameTimeDraw);
+					gAppUI.DrawText(
+						cmd, float2(8, 40),
+						eastl::string()
+							.sprintf("GPU %f ms", max(pGpuProfilers[0]->mCumulativeTime, pGpuProfilers[1]->mCumulativeTime) * 1000.0)
+							.c_str(),
+						&gFrameTimeDraw);
 
-					drawDebugText(cmd, 8, 75, tinystl::string::format("First GPU %f ms", pGpuProfilers[0]->mCumulativeTime * 1000.0), &gFrameTimeDraw);
-					drawDebugGpuProfile(cmd, 8, 100, pGpuProfilers[0], NULL);
+					gAppUI.DrawText(
+						cmd, float2(8, 75), eastl::string().sprintf("First GPU %f ms", pGpuProfilers[0]->mCumulativeTime * 1000.0).c_str(),
+						&gFrameTimeDraw);
+					gAppUI.DrawDebugGpuProfile(cmd, float2(8, 100), pGpuProfilers[0], NULL);
 
-					drawDebugText(cmd, 8, 275, tinystl::string::format("Second GPU %f ms", pGpuProfilers[1]->mCumulativeTime * 1000.0), &gFrameTimeDraw);
-					drawDebugGpuProfile(cmd, 8, 300, pGpuProfilers[1], NULL);
+					gAppUI.DrawText(
+						cmd, float2(8, 275),
+						eastl::string().sprintf("Second GPU %f ms", pGpuProfilers[1]->mCumulativeTime * 1000.0).c_str(), &gFrameTimeDraw);
+					gAppUI.DrawDebugGpuProfile(cmd, float2(8, 300), pGpuProfilers[1], NULL);
 				}
 				else
 				{
-					drawDebugText(cmd, 8, 40, tinystl::string::format("GPU %f ms",
-						(pGpuProfilers[0]->mCumulativeTime + pGpuProfilers[1]->mCumulativeTime) * 1000.0), &gFrameTimeDraw);
+					gAppUI.DrawText(
+						cmd, float2(8, 40),
+						eastl::string()
+							.sprintf("GPU %f ms", (pGpuProfilers[0]->mCumulativeTime + pGpuProfilers[1]->mCumulativeTime) * 1000.0)
+							.c_str(),
+						&gFrameTimeDraw);
 
-					drawDebugText(cmd, 8, 75, tinystl::string::format("First CMD %f ms", pGpuProfilers[0]->mCumulativeTime * 1000.0), &gFrameTimeDraw);
-					drawDebugGpuProfile(cmd, 8, 100, pGpuProfilers[0], NULL);
+					gAppUI.DrawText(
+						cmd, float2(8, 75), eastl::string().sprintf("First CMD %f ms", pGpuProfilers[0]->mCumulativeTime * 1000.0).c_str(),
+						&gFrameTimeDraw);
+					gAppUI.DrawDebugGpuProfile(cmd, float2(8, 100), pGpuProfilers[0], NULL);
 
-					drawDebugText(cmd, 8, 275, tinystl::string::format("Second CMD %f ms", pGpuProfilers[1]->mCumulativeTime * 1000.0), &gFrameTimeDraw);
-					drawDebugGpuProfile(cmd, 8, 300, pGpuProfilers[1], NULL);
+					gAppUI.DrawText(
+						cmd, float2(8, 275),
+						eastl::string().sprintf("Second CMD %f ms", pGpuProfilers[1]->mCumulativeTime * 1000.0).c_str(), &gFrameTimeDraw);
+					gAppUI.DrawDebugGpuProfile(cmd, float2(8, 300), pGpuProfilers[1], NULL);
 				}
+
+				cmdDrawProfiler(cmd, mSettings.mWidth, mSettings.mHeight);
 
 				gAppUI.Draw(cmd);
 
@@ -925,22 +956,20 @@ public:
 		// Stall if CPU is running "Swap Chain Buffer Count" frames ahead of GPU
 		for (uint32_t i = 0; i < gViewCount; ++i)
 		{
-			Fence* pNextFence = pRenderCompleteFences[i][(gFrameIndex + 1) % gImageCount];
+			Fence*      pNextFence = pRenderCompleteFences[i][(gFrameIndex + 1) % gImageCount];
 			FenceStatus fenceStatus;
 			getFenceStatus(pRenderer, pNextFence, &fenceStatus);
 			if (fenceStatus == FENCE_STATUS_INCOMPLETE)
 			{
-				waitForFences(pGraphicsQueue[i], 1, &pNextFence, false);
+				waitForFences(pRenderer, 1, &pNextFence);
 			}
 		}
+		flipProfiler();
 
 		gTimer.GetUSec(true);
 	}
 
-	tinystl::string GetName()
-	{
-		return "11_MultiGPU";
-	}
+	const char* GetName() { return "11_MultiGPU"; }
 
 	bool addSwapChain()
 	{
@@ -1031,8 +1060,6 @@ public:
 		pCameraController->onInputEvent(data);
 		return true;
 	}
-
-
 };
 
 DEFINE_APPLICATION_MAIN(MultiGPU)

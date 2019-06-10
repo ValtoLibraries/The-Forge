@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  * 
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -74,7 +74,7 @@ void main(void)
   {
        fs_out_color  =  texture(sampler2D(TopText, uSampler0), (fs_in.texcoord.xz)/20+vec2(0.5));
   }
-  if(side == 4.0f)
+  else if(side == 4.0f)
   {
     
        newtextcoord = (fs_in.texcoord.xz)/20+vec2(0.5);

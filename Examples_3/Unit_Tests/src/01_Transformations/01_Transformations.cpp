@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -25,11 +25,7 @@
 // Unit Test for testing transformations using a solar system.
 // Tests the basic mat4 transformations, such as scaling, rotation, and translation.
 
-#define MAX_PLANETS 20 // Does not affect test, just for allocating space in uniform block. Must match with shader.
-
-//tiny stl
-#include "../../../../Common_3/ThirdParty/OpenSource/TinySTL/vector.h"
-#include "../../../../Common_3/ThirdParty/OpenSource/TinySTL/string.h"
+#define MAX_PLANETS 20    // Does not affect test, just for allocating space in uniform block. Must match with shader.
 
 //Interfaces
 #include "../../../../Common_3/OS/Interfaces/ICameraController.h"
@@ -37,28 +33,29 @@
 #include "../../../../Common_3/OS/Interfaces/ILogManager.h"
 #include "../../../../Common_3/OS/Interfaces/IFileSystem.h"
 #include "../../../../Common_3/OS/Interfaces/ITimeManager.h"
+#include "../../../../Common_3/OS/Interfaces/IProfiler.h"
 #include "../../../../Middleware_3/UI/AppUI.h"
-#include "../../../../Common_3/OS/Core/DebugRenderer.h"
 #include "../../../../Common_3/Renderer/IRenderer.h"
 #include "../../../../Common_3/Renderer/ResourceLoader.h"
 
-#include "../../../../Middleware_3/Input/InputSystem.h"
-#include "../../../../Middleware_3/Input/InputMappings.h"
+#include "../../../../Common_3/OS/Input/InputSystem.h"
+#include "../../../../Common_3/OS/Input/InputMappings.h"
 //Math
 #include "../../../../Common_3/OS/Math/MathTypes.h"
 
 #include "../../../../Common_3/OS/Interfaces/IMemoryManager.h"
+
 /// Demo structures
 struct PlanetInfoStruct
 {
-	uint mParentIndex;
-	vec4 mColor;
-	float mYOrbitSpeed; // Rotation speed around parent
+	uint  mParentIndex;
+	vec4  mColor;
+	float mYOrbitSpeed;    // Rotation speed around parent
 	float mZOrbitSpeed;
-	float mRotationSpeed; // Rotation speed around self
-	mat4 mTranslationMat;
-	mat4 mScaleMat;
-	mat4 mSharedMat;	// Matrix to pass down to children
+	float mRotationSpeed;    // Rotation speed around self
+	mat4  mTranslationMat;
+	mat4  mScaleMat;
+	mat4  mSharedMat;    // Matrix to pass down to children
 };
 
 struct UniformBlock
@@ -72,90 +69,87 @@ struct UniformBlock
 	vec3 mLightColor;
 };
 
-const uint32_t	  gImageCount = 3;
-const int		   gSphereResolution = 30; // Increase for higher resolution spheres
-const float		 gSphereDiameter = 0.5f;
-const uint		  gNumPlanets = 11;	  // Sun, Mercury -> Neptune, Pluto, Moon
-const uint		  gTimeOffset = 600000;   // For visually better starting locations
-const float		 gRotSelfScale = 0.0004f;
-const float		 gRotOrbitYScale = 0.001f;
-const float		 gRotOrbitZScale = 0.00001f;
+const uint32_t gImageCount = 3;
+bool           bToggleMicroProfiler = false;
+bool           bPrevToggleMicroProfiler = false;
+const int      gSphereResolution = 30;    // Increase for higher resolution spheres
+const float    gSphereDiameter = 0.5f;
+const uint     gNumPlanets = 11;        // Sun, Mercury -> Neptune, Pluto, Moon
+const uint     gTimeOffset = 600000;    // For visually better starting locations
+const float    gRotSelfScale = 0.0004f;
+const float    gRotOrbitYScale = 0.001f;
+const float    gRotOrbitZScale = 0.00001f;
 
-Renderer*		   pRenderer = NULL;
+Renderer* pRenderer = NULL;
 
-Queue*			  pGraphicsQueue = NULL;
-CmdPool*			pCmdPool = NULL;
-Cmd**			   ppCmds = NULL;
+Queue*   pGraphicsQueue = NULL;
+CmdPool* pCmdPool = NULL;
+Cmd**    ppCmds = NULL;
 
-SwapChain*		  pSwapChain = NULL;
-RenderTarget*	   pDepthBuffer = NULL;
-Fence*			  pRenderCompleteFences[gImageCount] = { NULL };
-Semaphore*		  pImageAcquiredSemaphore = NULL;
-Semaphore*		  pRenderCompleteSemaphores[gImageCount] = { NULL };
+SwapChain*    pSwapChain = NULL;
+RenderTarget* pDepthBuffer = NULL;
+Fence*        pRenderCompleteFences[gImageCount] = { NULL };
+Semaphore*    pImageAcquiredSemaphore = NULL;
+Semaphore*    pRenderCompleteSemaphores[gImageCount] = { NULL };
 
-Shader*			 pSphereShader = NULL;
-Buffer*			 pSphereVertexBuffer = NULL;
-Pipeline*		   pSpherePipeline = NULL;
+Shader*   pSphereShader = NULL;
+Buffer*   pSphereVertexBuffer = NULL;
+Pipeline* pSpherePipeline = NULL;
 
-Shader*			 pSkyBoxDrawShader = NULL;
-Buffer*			 pSkyBoxVertexBuffer = NULL;
-Pipeline*		   pSkyBoxDrawPipeline = NULL;
-RootSignature*	  pRootSignature = NULL;
-Sampler*			pSamplerSkyBox = NULL;
-Texture*			pSkyBoxTextures[6];
+Shader*        pSkyBoxDrawShader = NULL;
+Buffer*        pSkyBoxVertexBuffer = NULL;
+Pipeline*      pSkyBoxDrawPipeline = NULL;
+RootSignature* pRootSignature = NULL;
+Sampler*       pSamplerSkyBox = NULL;
+Texture*       pSkyBoxTextures[6];
+DescriptorBinder* pDescriptorBinder = NULL;
 #if defined(TARGET_IOS) || defined(__ANDROID__)
-VirtualJoystickUI   gVirtualJoystick;
+VirtualJoystickUI gVirtualJoystick;
 #endif
-DepthState*		 pDepth = NULL;
-RasterizerState*	pSkyboxRast = NULL;
-RasterizerState*	pSphereRast = NULL;
+DepthState*      pDepth = NULL;
+RasterizerState* pSkyboxRast = NULL;
+RasterizerState* pSphereRast = NULL;
 
-Buffer*				pProjViewUniformBuffer[gImageCount] = { NULL };
-Buffer*				pSkyboxUniformBuffer[gImageCount] = { NULL };
+Buffer* pProjViewUniformBuffer[gImageCount] = { NULL };
+Buffer* pSkyboxUniformBuffer[gImageCount] = { NULL };
 
-uint32_t			gFrameIndex = 0;
+uint32_t gFrameIndex = 0;
 
-int					gNumberOfSpherePoints;
-UniformBlock		gUniformData;
-UniformBlock		gUniformDataSky;
-PlanetInfoStruct	gPlanetInfoData[gNumPlanets];
+int              gNumberOfSpherePoints;
+UniformBlock     gUniformData;
+UniformBlock     gUniformDataSky;
+PlanetInfoStruct gPlanetInfoData[gNumPlanets];
 
-ICameraController*  pCameraController = NULL;
+ICameraController* pCameraController = NULL;
 
 /// UI
-UIApp			   gAppUI;
+UIApp gAppUI;
+GpuProfiler*       pGpuProfiler = NULL;
+FileSystem gFileSystem;
 
-FileSystem		  gFileSystem;
-LogManager        gLogManager;
+const char* pSkyBoxImageFileNames[] = { "Skybox_right1.png",  "Skybox_left2.png",  "Skybox_top3.png",
+										"Skybox_bottom4.png", "Skybox_front5.png", "Skybox_back6.png" };
 
-const char*		 pSkyBoxImageFileNames[] =
-{
-	"Skybox_right1.png",
-	"Skybox_left2.png",
-	"Skybox_top3.png",
-	"Skybox_bottom4.png",
-	"Skybox_front5.png",
-	"Skybox_back6.png"
-};
-
-const char* pszBases[] =
-{
-	"../../../src/01_Transformations/", // FSR_BinShaders
-	"../../../src/01_Transformations/", // FSR_SrcShaders
-	"../../../UnitTestResources/",		// FSR_BinShaders_Common
-	"../../../UnitTestResources/",		// FSR_SrcShaders_Common
-	"../../../UnitTestResources/",		// FSR_Textures
-	"../../../UnitTestResources/",		// FSR_Meshes
-	"../../../UnitTestResources/",		// FSR_Builtin_Fonts
-	"../../../src/01_Transformations/",	// FSR_GpuConfig
-	"",									// FSR_OtherFiles
+const char* pszBases[FSR_Count] = {
+	"../../../src/01_Transformations/",     // FSR_BinShaders
+	"../../../src/01_Transformations/",     // FSR_SrcShaders
+	"../../../UnitTestResources/",          // FSR_Textures
+	"../../../UnitTestResources/",          // FSR_Meshes
+	"../../../UnitTestResources/",          // FSR_Builtin_Fonts
+	"../../../src/01_Transformations/",     // FSR_GpuConfig
+	"",                                     // FSR_Animation
+	"",                                     // FSR_OtherFiles
+	"../../../../../Middleware_3/Text/",    // FSR_MIDDLEWARE_TEXT
+	"../../../../../Middleware_3/UI/",      // FSR_MIDDLEWARE_UI
 };
 
 TextDrawDesc gFrameTimeDraw = TextDrawDesc(0, 0xff00ffff, 18);
 
-class Transformations : public IApp
+GuiComponent* pGui = NULL;
+
+class Transformations: public IApp
 {
-public:
+	public:
 	bool Init()
 	{
 		// window and renderer setup
@@ -167,6 +161,7 @@ public:
 
 		QueueDesc queueDesc = {};
 		queueDesc.mType = CMD_POOL_DIRECT;
+    queueDesc.mFlag = QUEUE_FLAG_INIT_MICROPROFILE;
 		addQueue(pRenderer, &queueDesc, &pGraphicsQueue);
 		addCmdPool(pRenderer, pGraphicsQueue, false, &pCmdPool);
 		addCmd_n(pCmdPool, false, gImageCount, &ppCmds);
@@ -178,8 +173,13 @@ public:
 		}
 		addSemaphore(pRenderer, &pImageAcquiredSemaphore);
 
-		initResourceLoaderInterface(pRenderer, DEFAULT_MEMORY_BUDGET, true);
-		initDebugRendererInterface(pRenderer, "TitilliumText/TitilliumText-Bold.otf", FSR_Builtin_Fonts);
+		initResourceLoaderInterface(pRenderer);
+
+    // Initialize profile
+    initProfiler(pRenderer, gImageCount);
+    profileRegisterInput();
+
+    addGpuProfiler(pRenderer, pGraphicsQueue, &pGpuProfiler, "GpuProfiler");
 
 		// Loads Skybox Textures
 		for (int i = 0; i < 6; ++i)
@@ -195,7 +195,7 @@ public:
 #if defined(__ANDROID__) || defined(TARGET_IOS)
 		if (!gVirtualJoystick.Init(pRenderer, "circlepad.png", FSR_Textures))
 		{
-			LOGERRORF("Could not initialize Virtual Joystick.");
+			LOGF(LogLevel::eERROR, "Could not initialize Virtual Joystick.");
 			return false;
 		}
 #endif
@@ -210,14 +210,16 @@ public:
 		addShader(pRenderer, &skyShader, &pSkyBoxDrawShader);
 		addShader(pRenderer, &basicShader, &pSphereShader);
 
-		SamplerDesc samplerDesc = {
-			FILTER_LINEAR, FILTER_LINEAR, MIPMAP_MODE_NEAREST,
-			ADDRESS_MODE_CLAMP_TO_EDGE, ADDRESS_MODE_CLAMP_TO_EDGE, ADDRESS_MODE_CLAMP_TO_EDGE
-		};
+		SamplerDesc samplerDesc = { FILTER_LINEAR,
+									FILTER_LINEAR,
+									MIPMAP_MODE_NEAREST,
+									ADDRESS_MODE_CLAMP_TO_EDGE,
+									ADDRESS_MODE_CLAMP_TO_EDGE,
+									ADDRESS_MODE_CLAMP_TO_EDGE };
 		addSampler(pRenderer, &samplerDesc, &pSamplerSkyBox);
 
-		Shader* shaders[] = { pSphereShader, pSkyBoxDrawShader };
-		const char* pStaticSamplers[] = { "uSampler0" };
+		Shader*           shaders[] = { pSphereShader, pSkyBoxDrawShader };
+		const char*       pStaticSamplers[] = { "uSampler0" };
 		RootSignatureDesc rootDesc = {};
 		rootDesc.mStaticSamplerCount = 1;
 		rootDesc.ppStaticSamplerNames = pStaticSamplers;
@@ -225,6 +227,9 @@ public:
 		rootDesc.mShaderCount = 2;
 		rootDesc.ppShaders = shaders;
 		addRootSignature(pRenderer, &rootDesc, &pRootSignature);
+
+		DescriptorBinderDesc descriptorBinderDesc[2] = { { pRootSignature }, { pRootSignature } };
+		addDescriptorBinder(pRenderer, 0, 2, descriptorBinderDesc, &pDescriptorBinder);
 
 		RasterizerStateDesc rasterizerStateDesc = {};
 		rasterizerStateDesc.mCullMode = CULL_MODE_NONE;
@@ -244,7 +249,7 @@ public:
 		float* pSpherePoints;
 		generateSpherePoints(&pSpherePoints, &gNumberOfSpherePoints, gSphereResolution, gSphereDiameter);
 
-		uint64_t sphereDataSize = gNumberOfSpherePoints * sizeof(float);
+		uint64_t       sphereDataSize = gNumberOfSpherePoints * sizeof(float);
 		BufferLoadDesc sphereVbDesc = {};
 		sphereVbDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_VERTEX_BUFFER;
 		sphereVbDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_GPU_ONLY;
@@ -259,50 +264,32 @@ public:
 
 		//Generate sky box vertex buffer
 		float skyBoxPoints[] = {
-			10.0f,  -10.0f, -10.0f,6.0f, // -z
-			-10.0f, -10.0f, -10.0f,6.0f,
-			-10.0f, 10.0f, -10.0f,6.0f,
-			-10.0f, 10.0f, -10.0f,6.0f,
-			10.0f,  10.0f, -10.0f,6.0f,
-			10.0f,  -10.0f, -10.0f,6.0f,
+			10.0f,  -10.0f, -10.0f, 6.0f,    // -z
+			-10.0f, -10.0f, -10.0f, 6.0f,   -10.0f, 10.0f,  -10.0f, 6.0f,   -10.0f, 10.0f,
+			-10.0f, 6.0f,   10.0f,  10.0f,  -10.0f, 6.0f,   10.0f,  -10.0f, -10.0f, 6.0f,
 
-			-10.0f, -10.0f,  10.0f,2.0f,  //-x
-			-10.0f, -10.0f, -10.0f,2.0f,
-			-10.0f,  10.0f, -10.0f,2.0f,
-			-10.0f,  10.0f, -10.0f,2.0f,
-			-10.0f,  10.0f,  10.0f,2.0f,
-			-10.0f, -10.0f,  10.0f,2.0f,
+			-10.0f, -10.0f, 10.0f,  2.0f,    //-x
+			-10.0f, -10.0f, -10.0f, 2.0f,   -10.0f, 10.0f,  -10.0f, 2.0f,   -10.0f, 10.0f,
+			-10.0f, 2.0f,   -10.0f, 10.0f,  10.0f,  2.0f,   -10.0f, -10.0f, 10.0f,  2.0f,
 
-			10.0f, -10.0f, -10.0f,1.0f, //+x
-			10.0f, -10.0f,  10.0f,1.0f,
-			10.0f,  10.0f,  10.0f,1.0f,
-			10.0f,  10.0f,  10.0f,1.0f,
-			10.0f,  10.0f, -10.0f,1.0f,
-			10.0f, -10.0f, -10.0f,1.0f,
+			10.0f,  -10.0f, -10.0f, 1.0f,    //+x
+			10.0f,  -10.0f, 10.0f,  1.0f,   10.0f,  10.0f,  10.0f,  1.0f,   10.0f,  10.0f,
+			10.0f,  1.0f,   10.0f,  10.0f,  -10.0f, 1.0f,   10.0f,  -10.0f, -10.0f, 1.0f,
 
-			-10.0f, -10.0f,  10.0f,5.0f,  // +z
-			-10.0f,  10.0f,  10.0f,5.0f,
-			10.0f,  10.0f,  10.0f,5.0f,
-			10.0f,  10.0f,  10.0f,5.0f,
-			10.0f, -10.0f,  10.0f,5.0f,
-			-10.0f, -10.0f,  10.0f,5.0f,
+			-10.0f, -10.0f, 10.0f,  5.0f,    // +z
+			-10.0f, 10.0f,  10.0f,  5.0f,   10.0f,  10.0f,  10.0f,  5.0f,   10.0f,  10.0f,
+			10.0f,  5.0f,   10.0f,  -10.0f, 10.0f,  5.0f,   -10.0f, -10.0f, 10.0f,  5.0f,
 
-			-10.0f,  10.0f, -10.0f, 3.0f,  //+y
-			10.0f,  10.0f, -10.0f,3.0f,
-			10.0f,  10.0f,  10.0f,3.0f,
-			10.0f,  10.0f,  10.0f,3.0f,
-			-10.0f,  10.0f,  10.0f,3.0f,
-			-10.0f,  10.0f, -10.0f,3.0f,
+			-10.0f, 10.0f,  -10.0f, 3.0f,    //+y
+			10.0f,  10.0f,  -10.0f, 3.0f,   10.0f,  10.0f,  10.0f,  3.0f,   10.0f,  10.0f,
+			10.0f,  3.0f,   -10.0f, 10.0f,  10.0f,  3.0f,   -10.0f, 10.0f,  -10.0f, 3.0f,
 
-			10.0f,  -10.0f, 10.0f, 4.0f,  //-y
-			10.0f,  -10.0f, -10.0f,4.0f,
-			-10.0f,  -10.0f,  -10.0f,4.0f,
-			-10.0f,  -10.0f,  -10.0f,4.0f,
-			-10.0f,  -10.0f,  10.0f,4.0f,
-			10.0f,  -10.0f, 10.0f,4.0f,
+			10.0f,  -10.0f, 10.0f,  4.0f,    //-y
+			10.0f,  -10.0f, -10.0f, 4.0f,   -10.0f, -10.0f, -10.0f, 4.0f,   -10.0f, -10.0f,
+			-10.0f, 4.0f,   -10.0f, -10.0f, 10.0f,  4.0f,   10.0f,  -10.0f, 10.0f,  4.0f,
 		};
 
-		uint64_t skyBoxDataSize = 4 * 6 * 6 * sizeof(float);
+		uint64_t       skyBoxDataSize = 4 * 6 * 6 * sizeof(float);
 		BufferLoadDesc skyboxVbDesc = {};
 		skyboxVbDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_VERTEX_BUFFER;
 		skyboxVbDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_GPU_ONLY;
@@ -331,9 +318,9 @@ public:
 
 		// Sun
 		gPlanetInfoData[0].mParentIndex = 0;
-		gPlanetInfoData[0].mYOrbitSpeed = 0; // Earth years for one orbit
+		gPlanetInfoData[0].mYOrbitSpeed = 0;    // Earth years for one orbit
 		gPlanetInfoData[0].mZOrbitSpeed = 0;
-		gPlanetInfoData[0].mRotationSpeed = 24.0f; // Earth days for one rotation
+		gPlanetInfoData[0].mRotationSpeed = 24.0f;    // Earth days for one rotation
 		gPlanetInfoData[0].mTranslationMat = mat4::identity();
 		gPlanetInfoData[0].mScaleMat = mat4::scale(vec3(10.0f));
 		gPlanetInfoData[0].mColor = vec4(0.9f, 0.6f, 0.1f, 0.0f);
@@ -433,32 +420,46 @@ public:
 
 		gAppUI.LoadFont("TitilliumText/TitilliumText-Bold.otf", FSR_Builtin_Fonts);
 
+    GuiDesc guiDesc = {};
+    float   dpiScale = getDpiScale().x;
+    guiDesc.mStartSize = vec2(140.0f / dpiScale, 320.0f / dpiScale);
+    guiDesc.mStartPosition = vec2( mSettings.mWidth - guiDesc.mStartSize.getX() * 1.1f, guiDesc.mStartSize.getY() * 0.5f);
+
+    pGui = gAppUI.AddGuiComponent("Micro profiler", &guiDesc);
+
+    pGui->AddWidget(CheckboxWidget("Toggle Micro Profiler", &bToggleMicroProfiler));
+
+
 		CameraMotionParameters cmp{ 160.0f, 600.0f, 200.0f };
-		vec3 camPos{ 48.0f, 48.0f, 20.0f };
-		vec3 lookAt{ 0 };
+		vec3                   camPos{ 48.0f, 48.0f, 20.0f };
+		vec3                   lookAt{ 0 };
 
 		pCameraController = createFpsCameraController(camPos, lookAt);
 		requestMouseCapture(true);
 
 		pCameraController->setMotionParameters(cmp);
-
+#if defined(TARGET_IOS) || defined(__ANDROID__)
+		gVirtualJoystick.InitLRSticks();
+		pCameraController->setVirtualJoystick(&gVirtualJoystick);
+#endif
 		InputSystem::RegisterInputEvent(cameraInputEvent);
 		return true;
 	}
 
 	void Exit()
 	{
-		waitForFences(pGraphicsQueue, 1, &pRenderCompleteFences[gFrameIndex], true);
+		waitQueueIdle(pGraphicsQueue);
 
 		destroyCameraController(pCameraController);
-
-		removeDebugRendererInterface();
 
 #if defined(TARGET_IOS) || defined(__ANDROID__)
 		gVirtualJoystick.Exit();
 #endif
 
 		gAppUI.Exit();
+
+    // Exit profile
+    exitProfiler(pRenderer);
 
 		for (uint32_t i = 0; i < gImageCount; ++i)
 		{
@@ -470,6 +471,8 @@ public:
 
 		for (uint i = 0; i < 6; ++i)
 			removeResource(pSkyBoxTextures[i]);
+
+		removeDescriptorBinder(pRenderer, pDescriptorBinder);
 
 		removeSampler(pRenderer, pSamplerSkyBox);
 		removeShader(pRenderer, pSphereShader);
@@ -490,6 +493,7 @@ public:
 		removeCmd_n(pCmdPool, gImageCount, ppCmds);
 		removeCmdPool(pRenderer, pCmdPool);
 
+    removeGpuProfiler(pRenderer, pGpuProfiler);
 		removeResourceLoaderInterface(pRenderer);
 		removeQueue(pGraphicsQueue);
 		removeRenderer(pRenderer);
@@ -525,7 +529,9 @@ public:
 		vertexLayout.mAttribs[1].mLocation = 1;
 		vertexLayout.mAttribs[1].mOffset = 3 * sizeof(float);
 
-		GraphicsPipelineDesc pipelineSettings = { 0 };
+		PipelineDesc desc = {};
+		desc.mType = PIPELINE_TYPE_GRAPHICS;
+		GraphicsPipelineDesc& pipelineSettings = desc.mGraphicsDesc;
 		pipelineSettings.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		pipelineSettings.mRenderTargetCount = 1;
 		pipelineSettings.pDepthState = pDepth;
@@ -538,7 +544,7 @@ public:
 		pipelineSettings.pShaderProgram = pSphereShader;
 		pipelineSettings.pVertexLayout = &vertexLayout;
 		pipelineSettings.pRasterizerState = pSphereRast;
-		addPipeline(pRenderer, &pipelineSettings, &pSpherePipeline);
+		addPipeline(pRenderer, &desc, &pSpherePipeline);
 
 		//layout and pipeline for skybox draw
 		vertexLayout = {};
@@ -552,14 +558,14 @@ public:
 		pipelineSettings.pDepthState = NULL;
 		pipelineSettings.pRasterizerState = pSkyboxRast;
 		pipelineSettings.pShaderProgram = pSkyBoxDrawShader;
-		addPipeline(pRenderer, &pipelineSettings, &pSkyBoxDrawPipeline);
+		addPipeline(pRenderer, &desc, &pSkyBoxDrawPipeline);
 
 		return true;
 	}
 
 	void Unload()
 	{
-		waitForFences(pGraphicsQueue, gImageCount, pRenderCompleteFences, true);
+		waitQueueIdle(pGraphicsQueue);
 
 		gAppUI.Unload();
 
@@ -579,7 +585,7 @@ public:
 		/************************************************************************/
 		// Input
 		/************************************************************************/
-		if (getKeyDown(KEY_BUTTON_X))
+		if (InputSystem::GetBoolInput(KEY_BUTTON_X_TRIGGERED))
 		{
 			RecenterCameraView(170.0f);
 		}
@@ -596,15 +602,15 @@ public:
 
 		const float aspectInverse = (float)mSettings.mHeight / (float)mSettings.mWidth;
 		const float horizontal_fov = PI / 2.0f;
-		mat4 projMat = mat4::perspective(horizontal_fov, aspectInverse, 0.1f, 1000.0f);
+		mat4        projMat = mat4::perspective(horizontal_fov, aspectInverse, 0.1f, 1000.0f);
 		gUniformData.mProjectView = projMat * viewMat;
 
 		// point light parameters
 		gUniformData.mLightPosition = vec3(0, 0, 0);
-		gUniformData.mLightColor = vec3(0.9f, 0.9f, 0.7f); // Pale Yellow
+		gUniformData.mLightColor = vec3(0.9f, 0.9f, 0.7f);    // Pale Yellow
 
 		// update planet transformations
-		for (int i = 0; i < gNumPlanets; i++)
+		for (unsigned int i = 0; i < gNumPlanets; i++)
 		{
 			mat4 rotSelf, rotOrbitY, rotOrbitZ, trans, scale, parentMat;
 			rotSelf = rotOrbitY = rotOrbitZ = trans = scale = parentMat = mat4::identity();
@@ -621,7 +627,7 @@ public:
 			scale = gPlanetInfoData[i].mScaleMat;
 
 			gPlanetInfoData[i].mSharedMat = parentMat * rotOrbitY * trans;
-			gUniformData.mToWorldMat[i] = parentMat *  rotOrbitY * rotOrbitZ * trans * rotSelf * scale;
+			gUniformData.mToWorldMat[i] = parentMat * rotOrbitY * rotOrbitZ * trans * rotSelf * scale;
 			gUniformData.mColor[i] = gPlanetInfoData[i].mColor;
 		}
 
@@ -630,6 +636,23 @@ public:
 		gUniformDataSky.mProjectView = projMat * viewMat;
 		/************************************************************************/
 		/************************************************************************/
+
+    // ProfileSetDisplayMode()
+    // TODO: need to change this better way 
+    if(bToggleMicroProfiler != bPrevToggleMicroProfiler)
+    {
+       Profile& S = *ProfileGet();
+       int nValue = bToggleMicroProfiler ? 1 : 0;
+       nValue = nValue >= 0 && nValue < P_DRAW_SIZE ? nValue : S.nDisplay;
+       S.nDisplay = nValue;
+
+       bPrevToggleMicroProfiler = bToggleMicroProfiler;
+    }
+
+    /************************************************************************/
+    // Update GUI
+    /************************************************************************/
+    gAppUI.Update(deltaTime);  
 	}
 
 	void Draw()
@@ -637,14 +660,14 @@ public:
 		acquireNextImage(pRenderer, pSwapChain, pImageAcquiredSemaphore, NULL, &gFrameIndex);
 
 		RenderTarget* pRenderTarget = pSwapChain->ppSwapchainRenderTargets[gFrameIndex];
-		Semaphore* pRenderCompleteSemaphore = pRenderCompleteSemaphores[gFrameIndex];
-		Fence* pRenderCompleteFence = pRenderCompleteFences[gFrameIndex];
+		Semaphore*    pRenderCompleteSemaphore = pRenderCompleteSemaphores[gFrameIndex];
+		Fence*        pRenderCompleteFence = pRenderCompleteFences[gFrameIndex];
 
 		// Stall if CPU is running "Swap Chain Buffer Count" frames ahead of GPU
 		FenceStatus fenceStatus;
 		getFenceStatus(pRenderer, pRenderCompleteFence, &fenceStatus);
 		if (fenceStatus == FENCE_STATUS_INCOMPLETE)
-			waitForFences(pGraphicsQueue, 1, &pRenderCompleteFence, false);
+			waitForFences(pRenderer, 1, &pRenderCompleteFence);
 
 		// Update uniform buffers
 		BufferUpdateDesc viewProjCbv = { pProjViewUniformBuffer[gFrameIndex], &gUniformData };
@@ -667,6 +690,8 @@ public:
 		Cmd* cmd = ppCmds[gFrameIndex];
 		beginCmd(cmd);
 
+    cmdBeginGpuFrameProfile(cmd, pGpuProfiler);
+
 		TextureBarrier barriers[] = {
 			{ pRenderTarget->pTexture, RESOURCE_STATE_RENDER_TARGET },
 			{ pDepthBuffer->pTexture, RESOURCE_STATE_DEPTH_WRITE },
@@ -677,8 +702,9 @@ public:
 		cmdSetViewport(cmd, 0.0f, 0.0f, (float)pRenderTarget->mDesc.mWidth, (float)pRenderTarget->mDesc.mHeight, 0.0f, 1.0f);
 		cmdSetScissor(cmd, 0, 0, pRenderTarget->mDesc.mWidth, pRenderTarget->mDesc.mHeight);
 
+    
 		//// draw skybox
-		cmdBeginDebugMarker(cmd, 0, 0, 1, "Draw skybox");
+    cmdBeginGpuTimestampQuery(cmd, pGpuProfiler, "Draw skybox", true);
 		cmdBindPipeline(cmd, pSkyBoxDrawPipeline);
 
 		DescriptorData params[7] = {};
@@ -696,45 +722,57 @@ public:
 		params[5].ppTextures = &pSkyBoxTextures[4];
 		params[6].pName = "BackText";
 		params[6].ppTextures = &pSkyBoxTextures[5];
-		cmdBindDescriptors(cmd, pRootSignature, 7, params);
+		cmdBindDescriptors(cmd, pDescriptorBinder, pRootSignature, 7, params);
 		cmdBindVertexBuffer(cmd, 1, &pSkyBoxVertexBuffer, NULL);
 		cmdDraw(cmd, 36, 0);
-		cmdEndDebugMarker(cmd);
+    cmdEndGpuTimestampQuery(cmd, pGpuProfiler);
 
 		////// draw planets
-		cmdBeginDebugMarker(cmd, 1, 0, 1, "Draw Planets");
+    cmdBeginGpuTimestampQuery(cmd, pGpuProfiler, "Draw Planets", true);
 		cmdBindPipeline(cmd, pSpherePipeline);
 		params[0].ppBuffers = &pProjViewUniformBuffer[gFrameIndex];
-		cmdBindDescriptors(cmd, pRootSignature, 1, params);
+		cmdBindDescriptors(cmd, pDescriptorBinder, pRootSignature, 1, params);
 		cmdBindVertexBuffer(cmd, 1, &pSphereVertexBuffer, NULL);
 		cmdDrawInstanced(cmd, gNumberOfSpherePoints / 6, 0, gNumPlanets, 0);
-		cmdEndDebugMarker(cmd);
+    cmdEndGpuTimestampQuery(cmd, pGpuProfiler);
 
-		cmdBeginDebugMarker(cmd, 0, 1, 0, "Draw UI");
+    cmdBeginGpuTimestampQuery(cmd, pGpuProfiler, "Draw UI", true);
 		static HiresTimer gTimer;
 		gTimer.GetUSec(true);
 
 #if defined(TARGET_IOS) || defined(__ANDROID__)
-		gVirtualJoystick.Draw(cmd, pCameraController, { 1.0f, 1.0f, 1.0f, 1.0f });
+		gVirtualJoystick.Draw(cmd, { 1.0f, 1.0f, 1.0f, 1.0f });
 #endif
 
-		drawDebugText(cmd, 8, 15, tinystl::string::format("CPU %f ms", gTimer.GetUSecAverage() / 1000.0f), &gFrameTimeDraw);
+		gAppUI.DrawText(cmd, float2(8, 15), eastl::string().sprintf("CPU %f ms", gTimer.GetUSecAverage() / 1000.0f).c_str(), &gFrameTimeDraw);
+
+#if !defined(__ANDROID__)
+    gAppUI.DrawText(
+      cmd, float2(8, 40), eastl::string().sprintf("GPU %f ms", (float)pGpuProfiler->mCumulativeTime * 1000.0f).c_str(),
+      &gFrameTimeDraw);
+    gAppUI.DrawDebugGpuProfile(cmd, float2(8, 65), pGpuProfiler, NULL);
+#endif
+
+    gAppUI.Gui(pGui);
+
+    cmdDrawProfiler(cmd, static_cast<uint32_t>(mSettings.mWidth), static_cast<uint32_t>(mSettings.mHeight));
+
 		gAppUI.Draw(cmd);
 		cmdBindRenderTargets(cmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
-		cmdEndDebugMarker(cmd);
+    cmdEndGpuTimestampQuery(cmd, pGpuProfiler);
 
 		barriers[0] = { pRenderTarget->pTexture, RESOURCE_STATE_PRESENT };
 		cmdResourceBarrier(cmd, 0, NULL, 1, barriers, true);
+
+    cmdEndGpuFrameProfile(cmd, pGpuProfiler);
 		endCmd(cmd);
 
 		queueSubmit(pGraphicsQueue, 1, &cmd, pRenderCompleteFence, 1, &pImageAcquiredSemaphore, 1, &pRenderCompleteSemaphore);
 		queuePresent(pGraphicsQueue, pSwapChain, gFrameIndex, 1, &pRenderCompleteSemaphore);
+    flipProfiler();
 	}
 
-	tinystl::string GetName()
-	{
-		return "01_Transformations";
-	}
+	const char* GetName() { return "01_Transformations"; }
 
 	bool addSwapChain()
 	{
@@ -792,7 +830,6 @@ public:
 		pCameraController->onInputEvent(data);
 		return true;
 	}
-
 };
 
 DEFINE_APPLICATION_MAIN(Transformations)

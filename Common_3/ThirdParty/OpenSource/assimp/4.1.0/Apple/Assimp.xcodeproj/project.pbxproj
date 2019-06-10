@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 51;
+	objectVersion = 50;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -1378,14 +1378,15 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1010;
+				LastUpgradeCheck = 1020;
 			};
 			buildConfigurationList = 665C56851F354CF0905F39F7 /* Build configuration list for PBXProject "Assimp" */;
-			compatibilityVersion = "Xcode 10";
+			compatibilityVersion = "Xcode 9.3";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				Base,
 			);
 			mainGroup = F54E9A8A47624CD9A6EF70CC;
 			projectDirPath = ../;
@@ -1748,6 +1749,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.14;
 				OBJROOT = "$(PROJECT_DIR)/Apple/Build/";
 				ONLY_ACTIVE_ARCH = YES;
+				SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = YES;
 				SDKROOT = macosx;
 				SYMROOT = "$(PROJECT_DIR)/Apple/Bin/";
 				WARNING_CFLAGS = "";
@@ -1757,6 +1759,7 @@
 		48F420DA585B4F0580640E31 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
 				EXECUTABLE_SUFFIX = .a;
@@ -1796,13 +1799,14 @@
 					"-fno-strict-aliasing",
 					"-Wall",
 					"-Wno-long-long",
-					"-std=c++11",
+					"-std=c++14",
 					"-DNDEBUG",
 					"-g",
 				);
 				OTHER_LIBTOOLFLAGS = " ";
 				OTHER_REZFLAGS = "";
 				PRODUCT_NAME = assimp;
+				SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = YES;
 				SECTORDER_FLAGS = "";
 				SYMROOT = "$(PROJECT_DIR)/Apple/Bin/";
 				USE_HEADERMAP = NO;
@@ -1818,6 +1822,7 @@
 		4A22274BFE0B4985B3E20D51 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
 				EXECUTABLE_SUFFIX = .a;
@@ -1856,11 +1861,12 @@
 					"-fno-strict-aliasing",
 					"-Wall",
 					"-Wno-long-long",
-					"-std=c++11",
+					"-std=c++14",
 				);
 				OTHER_LIBTOOLFLAGS = " ";
 				OTHER_REZFLAGS = "";
 				PRODUCT_NAME = assimp;
+				SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = YES;
 				SECTORDER_FLAGS = "";
 				SYMROOT = "$(PROJECT_DIR)/Apple/Bin/";
 				USE_HEADERMAP = NO;
@@ -1878,6 +1884,7 @@
 			buildSettings = {
 				CLANG_ANALYZER_OBJC_UNUSED_IVARS = NO;
 				COPY_PHASE_STRIP = NO;
+				ENABLE_TESTABILITY = YES;
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				GCC_WARN_UNUSED_VALUE = NO;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/../include";
@@ -1885,6 +1892,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.14;
 				OBJROOT = "$(PROJECT_DIR)/Apple/Build/";
 				ONLY_ACTIVE_ARCH = YES;
+				SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = YES;
 				SDKROOT = macosx;
 				SYMROOT = "$(PROJECT_DIR)/Apple/Bin/";
 				WARNING_CFLAGS = "";
@@ -1895,6 +1903,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
 				EXECUTABLE_SUFFIX = .a;
@@ -1919,7 +1928,7 @@
 					"-fno-strict-aliasing",
 					"-Wall",
 					"-Wno-long-long",
-					"-std=c++11",
+					"-std=c++14",
 				);
 				OTHER_LIBTOOLFLAGS = " ";
 				OTHER_REZFLAGS = "";
@@ -1941,6 +1950,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
 				EXECUTABLE_SUFFIX = .a;
@@ -1965,7 +1975,7 @@
 					"-fno-strict-aliasing",
 					"-Wall",
 					"-Wno-long-long",
-					"-std=c++11",
+					"-std=c++14",
 					"-DNDEBUG",
 				);
 				OTHER_LIBTOOLFLAGS = " ";
@@ -1987,6 +1997,7 @@
 		6549C05821ACD08C00537773 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
 				EXECUTABLE_SUFFIX = .a;
@@ -2026,7 +2037,7 @@
 					"-fno-strict-aliasing",
 					"-Wall",
 					"-Wno-long-long",
-					"-std=c++11",
+					"-std=c++14",
 				);
 				OTHER_LIBTOOLFLAGS = " ";
 				OTHER_REZFLAGS = "";
@@ -2047,6 +2058,7 @@
 		6549C05921ACD08C00537773 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
 				EXECUTABLE_SUFFIX = .a;
@@ -2087,7 +2099,7 @@
 					"-fno-strict-aliasing",
 					"-Wall",
 					"-Wno-long-long",
-					"-std=c++11",
+					"-std=c++14",
 					"-DNDEBUG",
 					"-g",
 				);
@@ -2110,6 +2122,7 @@
 		6549C06D21ACD08E00537773 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
 				EXECUTABLE_SUFFIX = .a;
@@ -2152,6 +2165,7 @@
 		6549C06E21ACD08E00537773 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
 				EXECUTABLE_SUFFIX = .a;
@@ -2196,6 +2210,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
 				EXECUTABLE_SUFFIX = .a;
@@ -2219,7 +2234,7 @@
 					"-fno-strict-aliasing",
 					"-Wall",
 					"-Wno-long-long",
-					"-std=c++11",
+					"-std=c++14",
 					"-DNDEBUG",
 				);
 				OTHER_LIBTOOLFLAGS = " ";
@@ -2240,6 +2255,7 @@
 		6EEA03D7718B4905921C2F41 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
 				EXECUTABLE_SUFFIX = .a;
@@ -2281,6 +2297,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
 				EXECUTABLE_SUFFIX = .a;
@@ -2304,7 +2321,7 @@
 					"-fno-strict-aliasing",
 					"-Wall",
 					"-Wno-long-long",
-					"-std=c++11",
+					"-std=c++14",
 				);
 				OTHER_LIBTOOLFLAGS = " ";
 				OTHER_REZFLAGS = "";
@@ -2324,6 +2341,7 @@
 		B31AC744731B4F48A3B07E34 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
 				EXECUTABLE_SUFFIX = .a;

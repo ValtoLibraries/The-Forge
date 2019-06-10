@@ -1,7 +1,7 @@
 #version 450 core
 
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  * 
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -29,7 +29,7 @@ layout (std140, set=0, binding=0) uniform cbCamera {
 	uniform vec3 camPos;
 };
 
-layout (std140, set=1, binding=0) uniform cbObject {
+layout (std140, set=3, binding=0) uniform cbObject {
 	uniform mat4 worldMat;
 	float roughness;
 	float metalness;

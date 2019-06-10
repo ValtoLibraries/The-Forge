@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -28,35 +28,60 @@
 
 #ifdef __APPLE__
 #include <unistd.h>
-#include <limits.h>  // for UINT_MAX
-#include <sys/stat.h>  // for mkdir
-#include <sys/errno.h> // for errno
+#include <limits.h>       // for UINT_MAX
+#include <sys/stat.h>     // for mkdir
+#include <sys/errno.h>    // for errno
 #include <dirent.h>
 #endif
 #ifdef _WIN32
-#include  <io.h>
-#include  <stdio.h>
-#include  <stdlib.h>
+#include <io.h>
+#include <stdio.h>
+#include <stdlib.h>
 #endif
 #ifdef __linux__
 #include <unistd.h>
-#include <limits.h>  // for UINT_MAX
-#include <sys/stat.h>  // for mkdir
-#include <sys/errno.h> // for errno
+#include <limits.h>       // for UINT_MAX
+#include <sys/stat.h>     // for mkdir
+#include <sys/errno.h>    // for errno
 #include <sys/wait.h>
 #include <dirent.h>
 #endif
 
-static const char* pszFileAccessFlags[] =
+void translateFileAccessFlags(FileMode modeFlags, char* fileAccesString, int strLength)
 {
-	"rb",   //!<	FM_ReadBinary	   = 0,
-	"wb",   //!<	FM_WriteBinary,
-	"w+b",  //!<	FM_ReadWriteBinary,
-	"rb",   //!<	FM_Read,
-	"w",	//!<	FM_Write,
-	"w+",   //!<	FM_ReadWrite,
-	"--",   //!<	FM_Count
-};
+	ASSERT(fileAccesString != NULL && strLength >= 4);
+	memset(fileAccesString, '\0', strLength);
+	int index = 0;
+
+	// Read + Write uses w+ then filemode (b or t)
+	if (modeFlags & FileMode::FM_Read && modeFlags & FileMode::FM_Write)
+	{
+		fileAccesString[index++] = 'w';
+		fileAccesString[index++] = '+';
+	}
+	// Read + Append uses a+ then filemode (b or t)
+	else if (modeFlags & FileMode::FM_Read && modeFlags & FileMode::FM_Append)
+	{
+		fileAccesString[index++] = 'a';
+		fileAccesString[index++] = '+';
+	}
+	else
+	{
+		if (modeFlags & FileMode::FM_Read)
+			fileAccesString[index++] = 'r';
+		if (modeFlags & FileMode::FM_Write)
+			fileAccesString[index++] = 'w';
+		if (modeFlags & FileMode::FM_Append)
+			fileAccesString[index++] = 'a';
+	}
+
+	if (modeFlags & FileMode::FM_Binary)
+		fileAccesString[index++] = 'b';
+	else
+		fileAccesString[index++] = 't';
+
+	fileAccesString[index++] = '\0';
+}
 
 //static const unsigned SKIP_BUFFER_SIZE = 1024;
 
@@ -78,26 +103,13 @@ static inline unsigned SDBMHash(unsigned hash, unsigned char c) { return c + (ha
 /************************************************************************/
 // Deserializer implementation
 /************************************************************************/
-Deserializer::Deserializer() :
-	mPosition(0),
-	mSize(0)
-{
-}
+Deserializer::Deserializer(): mPosition(0), mSize(0) {}
 
-Deserializer::Deserializer(unsigned size) :
-	mPosition(0),
-	mSize(size)
-{
-}
+Deserializer::Deserializer(unsigned size): mPosition(0), mSize(size) {}
 
-Deserializer::~Deserializer()
-{
-}
+Deserializer::~Deserializer() {}
 
-unsigned Deserializer::GetChecksum()
-{
-	return 0;
-}
+unsigned Deserializer::GetChecksum() { return 0; }
 
 int64_t Deserializer::ReadInt64()
 {
@@ -106,7 +118,7 @@ int64_t Deserializer::ReadInt64()
 	return ret;
 }
 
-int Deserializer::ReadInt()
+int32_t Deserializer::ReadInt()
 {
 	int ret;
 	Read(&ret, sizeof ret);
@@ -127,7 +139,7 @@ int8_t Deserializer::ReadByte()
 	return ret;
 }
 
-unsigned Deserializer::ReadUInt()
+uint32_t Deserializer::ReadUInt()
 {
 	unsigned ret;
 	Read(&ret, sizeof ret);
@@ -148,10 +160,7 @@ uint8_t Deserializer::ReadUByte()
 	return ret;
 }
 
-bool Deserializer::ReadBool()
-{
-	return ReadUByte() != 0;
-}
+bool Deserializer::ReadBool() { return ReadUByte() != 0; }
 
 float Deserializer::ReadFloat()
 {
@@ -183,7 +192,7 @@ float3 Deserializer::ReadVector3()
 
 float3 Deserializer::ReadPackedVector3(float maxAbsCoord)
 {
-	float invV = maxAbsCoord / 32767.0f;
+	float   invV = maxAbsCoord / 32767.0f;
 	int16_t coords[3];
 	Read(coords, sizeof coords);
 	float3 ret(coords[0] * invV, coords[1] * invV, coords[2] * invV);
@@ -197,9 +206,9 @@ float4 Deserializer::ReadVector4()
 	return float4(data[0], data[1], data[2], data[3]);
 }
 
-tinystl::string Deserializer::ReadString()
+eastl::string Deserializer::ReadString()
 {
-	tinystl::string ret;
+	eastl::string ret;
 
 	while (!IsEof())
 	{
@@ -213,17 +222,17 @@ tinystl::string Deserializer::ReadString()
 	return ret;
 }
 
-tinystl::string Deserializer::ReadFileID()
+eastl::string Deserializer::ReadFileID()
 {
-	tinystl::string ret;
+	eastl::string ret;
 	ret.resize(4);
 	Read(ret.begin(), 4);
 	return ret;
 }
 
-tinystl::string Deserializer::ReadLine()
+eastl::string Deserializer::ReadLine()
 {
-	tinystl::string ret;
+	eastl::string ret;
 
 	while (!IsEof())
 	{
@@ -265,74 +274,36 @@ static unsigned c_strlen(const char* str)
 #endif
 }
 
-Serializer::~Serializer()
-{
-}
+Serializer::~Serializer() {}
 
-bool Serializer::WriteInt64(int64_t value)
-{
-	return Write(&value, sizeof value) == sizeof value;
-}
+bool Serializer::WriteInt64(int64_t value) { return Write(&value, sizeof value) == sizeof value; }
 
-bool Serializer::WriteInt(int value)
-{
-	return Write(&value, sizeof value) == sizeof value;
-}
+bool Serializer::WriteInt(int32_t value) { return Write(&value, sizeof value) == sizeof value; }
 
-bool Serializer::WriteShort(int16_t value)
-{
-	return Write(&value, sizeof value) == sizeof value;
-}
+bool Serializer::WriteShort(int16_t value) { return Write(&value, sizeof value) == sizeof value; }
 
-bool Serializer::WriteByte(int8_t value)
-{
-	return Write(&value, sizeof value) == sizeof value;
-}
+bool Serializer::WriteByte(int8_t value) { return Write(&value, sizeof value) == sizeof value; }
 
-bool Serializer::WriteUInt(unsigned value)
-{
-	return Write(&value, sizeof value) == sizeof value;
-}
+bool Serializer::WriteUInt(uint32_t value) { return Write(&value, sizeof value) == sizeof value; }
 
-bool Serializer::WriteUShort(uint16_t value)
-{
-	return Write(&value, sizeof value) == sizeof value;
-}
+bool Serializer::WriteUShort(uint16_t value) { return Write(&value, sizeof value) == sizeof value; }
 
-bool Serializer::WriteUByte(uint8_t value)
-{
-	return Write(&value, sizeof value) == sizeof value;
-}
+bool Serializer::WriteUByte(uint8_t value) { return Write(&value, sizeof value) == sizeof value; }
 
-bool Serializer::WriteBool(bool value)
-{
-	return WriteUByte((unsigned char)(value ? 1 : 0)) == 1;
-}
+bool Serializer::WriteBool(bool value) { return WriteUByte((unsigned char)(value ? 1 : 0)) == 1; }
 
-bool Serializer::WriteFloat(float value)
-{
-	return Write(&value, sizeof value) == sizeof value;
-}
+bool Serializer::WriteFloat(float value) { return Write(&value, sizeof value) == sizeof value; }
 
-bool Serializer::WriteDouble(double value)
-{
-	return Write(&value, sizeof value) == sizeof value;
-}
+bool Serializer::WriteDouble(double value) { return Write(&value, sizeof value) == sizeof value; }
 
-bool Serializer::WriteVector2(const float2& value)
-{
-	return Write(&value, sizeof value) == sizeof value;
-}
+bool Serializer::WriteVector2(const float2& value) { return Write(&value, sizeof value) == sizeof value; }
 
-bool Serializer::WriteVector3(const float3& value)
-{
-	return Write(&value, sizeof value) == sizeof value;
-}
+bool Serializer::WriteVector3(const float3& value) { return Write(&value, sizeof value) == sizeof value; }
 
 bool Serializer::WritePackedVector3(const float3& value, float maxAbsCoord)
 {
 	int16_t coords[3];
-	float v = 32767.0f / maxAbsCoord;
+	float   v = 32767.0f / maxAbsCoord;
 
 	coords[0] = (int16_t)(clamp(value.getX(), -maxAbsCoord, maxAbsCoord) * v + 0.5f);
 	coords[1] = (int16_t)(clamp(value.getY(), -maxAbsCoord, maxAbsCoord) * v + 0.5f);
@@ -340,12 +311,9 @@ bool Serializer::WritePackedVector3(const float3& value, float maxAbsCoord)
 	return Write(&coords[0], sizeof coords) == sizeof coords;
 }
 
-bool Serializer::WriteVector4(const float4& value)
-{
-	return Write(&value, sizeof value) == sizeof value;
-}
+bool Serializer::WriteVector4(const float4& value) { return Write(&value, sizeof value) == sizeof value; }
 
-bool Serializer::WriteString(const tinystl::string& value)
+bool Serializer::WriteString(const eastl::string& value)
 {
 	const char* chars = value.c_str();
 	// Count length to the first zero, because ReadString() does the same
@@ -353,9 +321,9 @@ bool Serializer::WriteString(const tinystl::string& value)
 	return Write(chars, length) == length + 1;
 }
 
-bool Serializer::WriteFileID(const tinystl::string& value)
+bool Serializer::WriteFileID(const eastl::string& value)
 {
-	bool success = true;
+	bool     success = true;
 	unsigned length = (unsigned)min((int)(uint32_t)value.size(), 4);
 
 	success &= Write(value.c_str(), length) == length;
@@ -364,7 +332,7 @@ bool Serializer::WriteFileID(const tinystl::string& value)
 	return success;
 }
 
-bool Serializer::WriteLine(const tinystl::string& value)
+bool Serializer::WriteLine(const eastl::string& value)
 {
 	bool success = true;
 	success &= Write(value.c_str(), (uint32_t)value.size()) == (uint32_t)value.size();
@@ -376,33 +344,27 @@ bool Serializer::WriteLine(const tinystl::string& value)
 /************************************************************************/
 // File implementation
 /************************************************************************/
-File::File() :
-	mMode(FileMode::FM_Read),
-	pHandle(0),
-	mOffset(0),
-	mChecksum(0),
-	mReadSyncNeeded(false),
-	mWriteSyncNeeded(false)
-{
-}
+File::File(): mMode(FileMode::FM_Read), pHandle(0), mOffset(0), mChecksum(0), mReadSyncNeeded(false), mWriteSyncNeeded(false) {}
 
-bool File::Open(const tinystl::string& _fileName, FileMode mode, FSRoot root)
+bool File::Open(const eastl::string& _fileName, FileMode mode, FSRoot root)
 {
-	tinystl::string fileName = FileSystem::FixPath(_fileName, root);
+	eastl::string fileName = FileSystem::FixPath(_fileName, root);
 
 	Close();
 
 	if (fileName.size() == 0)
 	{
-		LOGERRORF("Could not open file with empty name");
+		LOGF(LogLevel::eERROR, "Could not open file with empty name");
 		return false;
 	}
 
-	pHandle = open_file(fileName, pszFileAccessFlags[mode]);
+	char fileAcessStr[8];
+	translateFileAccessFlags(mode, fileAcessStr, sizeof(fileAcessStr));
+	pHandle = open_file(fileName.c_str(), fileAcessStr);
 
 	if (!pHandle)
 	{
-		LOGERRORF("Could not open file %s", fileName.c_str());
+		LOGF(LogLevel::eERROR, "Could not open file %s", fileName.c_str());
 		return false;
 	}
 
@@ -417,7 +379,7 @@ bool File::Open(const tinystl::string& _fileName, FileMode mode, FSRoot root)
 	size_t size = FileSystem::GetFileSize(pHandle);
 	if (size > UINT_MAX)
 	{
-		LOGERRORF("Could not open file %s which is larger than 4GB", fileName.c_str());
+		LOGF(LogLevel::eERROR, "Could not open file %s which is larger than 4GB", fileName.c_str());
 		Close();
 		mSize = 0;
 		return false;
@@ -427,17 +389,19 @@ bool File::Open(const tinystl::string& _fileName, FileMode mode, FSRoot root)
 	return true;
 }
 
-void File::Close()
+bool File::Close()
 {
+	bool ret = false;
 	if (pHandle)
 	{
-		close_file(pHandle);
+		ret = close_file(pHandle);
 		pHandle = 0;
 		mPosition = 0;
 		mSize = 0;
 		mOffset = 0;
 		mChecksum = 0;
 	}
+	return ret;
 }
 
 void File::Flush()
@@ -456,7 +420,7 @@ unsigned File::Read(void* dest, unsigned size)
 
 	if (IsWriteOnly())
 	{
-		LOGERROR("File not opened for reading");
+		LOGF(LogLevel::eERROR, "File not opened for reading");
 		return 0;
 	}
 
@@ -485,29 +449,33 @@ unsigned File::Seek(unsigned position, SeekDir seekDir /* = SeekDir::SEEK_DIR_BE
 		return 0;
 	}
 
-	if (mMode == FileMode::FM_Read && position > mSize)
+	//If reading or appending don't seek past the end
+	if ((mMode & FileMode::FM_Read || mMode & FileMode::FM_Append) && position > mSize)
 		position = mSize;
 
 	int origin = -1;
 	switch (seekDir)
 	{
-	case SEEK_DIR_BEGIN:
-		origin = SEEK_SET;
-		break;
-	case SEEK_DIR_CUR:
-		origin = SEEK_CUR;
-		break;
-	case SEEK_DIR_END:
-		origin = SEEK_END;
-		break;
-	default:
-		break;
+		case SEEK_DIR_BEGIN: origin = SEEK_SET; break;
+		case SEEK_DIR_CUR: origin = SEEK_CUR; break;
+		case SEEK_DIR_END: origin = SEEK_END; break;
+		default: break;
 	}
 	seek_file(pHandle, position + mOffset, origin);
 	mPosition = position;
 	mReadSyncNeeded = false;
 	mWriteSyncNeeded = false;
 	return mPosition;
+}
+
+unsigned File::Tell()
+{
+    if (!pHandle)
+    {
+        return 0;
+    }
+    
+    return (unsigned)tell_file(pHandle);
 }
 
 unsigned File::Write(const void* data, unsigned size)
@@ -520,7 +488,7 @@ unsigned File::Write(const void* data, unsigned size)
 
 	if (IsReadOnly())
 	{
-		LOGERROR("File not opened for writing");
+		LOGF(LogLevel::eERROR, "File not opened for writing");
 		return 0;
 	}
 
@@ -540,7 +508,7 @@ unsigned File::Write(const void* data, unsigned size)
 	{
 		// Return to the position where the write began
 		seek_file(pHandle, mPosition + mOffset, SEEK_SET);
-		LOGERROR("Error while writing to file " + GetName());
+		LOGF(LogLevel::eERROR, ("Error while writing to file " + GetName()).c_str());
 		return 0;
 	}
 
@@ -567,7 +535,7 @@ unsigned File::GetChecksum()
 	while (!IsEof())
 	{
 		unsigned char block[1024];
-		unsigned readBytes = Read(block, 1024);
+		unsigned      readBytes = Read(block, 1024);
 		for (unsigned i = 0; i < readBytes; ++i)
 			mChecksum = SDBMHash(mChecksum, block[i]);
 	}
@@ -576,13 +544,13 @@ unsigned File::GetChecksum()
 	return mChecksum;
 }
 
-tinystl::string File::ReadText()
+eastl::string File::ReadText()
 {
 	Seek(0);
-	tinystl::string text;
+	eastl::string text;
 
 	if (!mSize)
-		return tinystl::string();
+		return eastl::string();
 
 	text.resize(mSize);
 
@@ -591,19 +559,13 @@ tinystl::string File::ReadText()
 	return text;
 }
 
-MemoryBuffer::MemoryBuffer(const void* data, unsigned size) :
-	Deserializer(size),
-	pBuffer((unsigned char*)data),
-	mReadOnly(true)
+MemoryBuffer::MemoryBuffer(const void* data, unsigned size): Deserializer(size), pBuffer((unsigned char*)data), mReadOnly(true)
 {
 	if (!pBuffer)
 		mSize = 0;
 }
 
-MemoryBuffer::MemoryBuffer(void* data, unsigned size) :
-	Deserializer(size),
-	pBuffer((unsigned char*)data),
-	mReadOnly(false)
+MemoryBuffer::MemoryBuffer(void* data, unsigned size): Deserializer(size), pBuffer((unsigned char*)data), mReadOnly(false)
 {
 	if (!pBuffer)
 		mSize = 0;
@@ -650,6 +612,11 @@ unsigned MemoryBuffer::Seek(unsigned position, SeekDir seekDir /* = SeekDir::SEE
 	return mPosition;
 }
 
+unsigned MemoryBuffer::Tell()
+{
+    return mPosition;
+}
+
 unsigned MemoryBuffer::Write(const void* data, unsigned size)
 {
 	if (size + mPosition > mSize)
@@ -682,10 +649,10 @@ unsigned MemoryBuffer::Write(const void* data, unsigned size)
 }
 /************************************************************************/
 /************************************************************************/
-tinystl::string FileSystem::mModifiedRootPaths[FSRoot::FSR_Count] = { "" };
-tinystl::string FileSystem::mProgramDir = "";
+eastl::string FileSystem::mModifiedRootPaths[FSRoot::FSR_Count] = { "" };
+eastl::string FileSystem::mProgramDir = "";
 
-void FileSystem::SetRootPath(FSRoot root, const tinystl::string& rootPath)
+void FileSystem::SetRootPath(FSRoot root, const eastl::string& rootPath)
 {
 	ASSERT(root < FSR_Count);
 	mModifiedRootPaths[root] = rootPath;
@@ -693,14 +660,13 @@ void FileSystem::SetRootPath(FSRoot root, const tinystl::string& rootPath)
 
 void FileSystem::ClearModifiedRootPaths()
 {
-	for (tinystl::string& s : mModifiedRootPaths)
+	for (eastl::string& s : mModifiedRootPaths)
 		s = "";
 }
 
-unsigned FileSystem::GetLastModifiedTime(const tinystl::string& fileName)
-{
-	return (unsigned)get_file_last_modified_time(fileName);
-}
+time_t FileSystem::GetLastModifiedTime(const eastl::string& fileName) { return get_file_last_modified_time(fileName.c_str()); }
+time_t FileSystem::GetLastAccessedTime(const eastl::string& fileName) { return get_file_last_accessed_time(fileName.c_str()); }
+time_t FileSystem::GetCreationTime(const eastl::string& fileName) { return get_file_creation_time(fileName.c_str()); }
 
 unsigned FileSystem::GetFileSize(FileHandle handle)
 {
@@ -711,30 +677,31 @@ unsigned FileSystem::GetFileSize(FileHandle handle)
 	return (unsigned)length;
 }
 
-bool FileSystem::FileExists(const tinystl::string& _fileName, FSRoot _root)
+bool FileSystem::FileExists(const eastl::string& _fileName, FSRoot _root)
 {
-	tinystl::string fileName = FileSystem::FixPath(_fileName, _root);
+	eastl::string fileName = FileSystem::FixPath(_fileName, _root);
 #ifdef _DURANGO
-	return (fopen(fileName, "rb") != NULL);
+	return (fopen(fileName.c_str(), "rb") != NULL);
 #else
 	return ((access(fileName.c_str(), 0)) != -1);
 #endif
 }
 
 // TODO: FIX THIS FUNCTION
-tinystl::string FileSystem::FixPath(const tinystl::string& pszFileName, FSRoot root)
+eastl::string FileSystem::FixPath(const eastl::string& pszFileName, FSRoot root)
 {
 	ASSERT(root < FSR_Count);
-	tinystl::string res;
-	if (root != FSR_Absolute && pszFileName[1U] != ':' && pszFileName[0U] != '/') //Quick hack to ignore root changes when a absolute path is given in windows or GNU
+	eastl::string res;
+	if (root != FSR_Absolute && (pszFileName.empty() || (pszFileName[1U] != ':' &&
+		pszFileName[0U] != '/')))    //Quick hack to ignore root changes when a absolute path is given in windows or GNU
 	{
 		// was the path modified? if so use that, otherwise use static array
 		if (mModifiedRootPaths[root].size() != 0)
 			res = mModifiedRootPaths[root] + pszFileName;
 		else
-			res = tinystl::string(pszRoots[root]) + pszFileName;
+			res = eastl::string(pszRoots[root]) + pszFileName;
 #if !__IGNORE_PSZBASE
-		res = tinystl::string(pszBases[root]) + res;
+		res = eastl::string(pszBases[root]) + res;
 #endif
 	}
 	else
@@ -745,15 +712,15 @@ tinystl::string FileSystem::FixPath(const tinystl::string& pszFileName, FSRoot r
 #ifdef TARGET_IOS
 	// Dont append bundle path if input path is already an absolute path
 	// Example: Files outside the application folder picked using the Files API, iCloud files, ...
-	if (!absolute_path(res))
+	if (!absolute_path(res.c_str()))
 	{
 		// iOS is deployed on the device so we need to get the
 		// bundle path via get_current_dir()
-		const tinystl::string currDir = get_current_dir();
-		if (res.find(currDir, 0) == tinystl::string::npos)
+		const eastl::string currDir = get_current_dir();
+		if (res.find(currDir, 0) == eastl::string::npos)
 			res = currDir + "/" + res;
-		
-		res = GetInternalPath(res); // eliminate windows separators here.
+
+		res = GetInternalPath(res);    // eliminate windows separators here.
 	}
 #endif
 
@@ -762,7 +729,7 @@ tinystl::string FileSystem::FixPath(const tinystl::string& pszFileName, FSRoot r
 	// absolute or already relative to absolute paths we can assume are already fixed,
 	// of course deteminting whats absolute is platform specific
 	// so this will likely require work for some platforms
-	const tinystl::string filename(pszFileName);
+	const eastl::string filename(pszFileName);
 	// on all but unix filesystem : generally mean volume relative so absolute
 	if( filename.find( ":" ) ){
 	return filename;
@@ -774,7 +741,7 @@ tinystl::string FileSystem::FixPath(const tinystl::string& pszFileName, FSRoot r
 	// TODO unix root, google Filesytem has a good open source implementation
 	// that should work on most platforms.
 
-	tinystl::string res = tinystl::string (rootPaths[root] ) + filename;
+	eastl::string res = eastl::string (rootPaths[root] ) + filename;
 
 	#ifdef	SN_TARGET_PS3
 	res.replace("\\","/");
@@ -786,28 +753,47 @@ tinystl::string FileSystem::FixPath(const tinystl::string& pszFileName, FSRoot r
 	return res;
 }
 
-void FileSystem::SplitPath(const tinystl::string& fullPath, tinystl::string* pathName, tinystl::string* fileName, tinystl::string* extension, bool lowercaseExtension)
+eastl::string FileSystem::GetRootPath(FSRoot root)
 {
-	tinystl::string fullPathCopy = GetInternalPath(fullPath);
+	if (mModifiedRootPaths[root].size())
+		return mModifiedRootPaths[root];
+	else
+		return pszRoots[root];
+}
 
-	unsigned extPos = fullPathCopy.find_last('.');
-	unsigned pathPos = fullPathCopy.find_last('/');
+eastl::string FileSystem::CombinePaths(const eastl::string& path1, const eastl::string& path2)
+{
+	eastl::string tmp = path2;
+	tmp.trim();
+	eastl::replace(tmp.begin(), tmp.end(), '\\', '/');
 
-	if (extPos != tinystl::string::npos && (pathPos == tinystl::string::npos || extPos > pathPos))
+	return RemoveTrailingSlash(path1) + ((tmp != "" && tmp[0] != '/') ? "/" : "") + tmp;
+}
+
+void FileSystem::SplitPath(
+	const eastl::string& fullPath, eastl::string* pathName, eastl::string* fileName, eastl::string* extension,
+	bool lowercaseExtension)
+{
+	eastl::string fullPathCopy = GetInternalPath(fullPath);
+
+	size_t extPos = fullPathCopy.find_last_of('.');
+	size_t pathPos = fullPathCopy.find_last_of('/');
+
+	if (extPos != eastl::string::npos && (pathPos == eastl::string::npos || extPos > pathPos))
 	{
-		*extension = fullPathCopy.substring(extPos);
+		*extension = fullPathCopy.substr(extPos);
 		if (lowercaseExtension)
-			*extension = extension->to_lower();
-		fullPathCopy = fullPathCopy.substring(0, extPos);
+			extension->make_lower();
+		fullPathCopy = fullPathCopy.substr(0, extPos);
 	}
 	else
 		extension->resize(0);
 
-	pathPos = fullPathCopy.find_last('/');
-	if (pathPos != tinystl::string::npos)
+	pathPos = fullPathCopy.find_last_of('/');
+	if (pathPos != eastl::string::npos)
 	{
-		*fileName = fullPathCopy.substring(pathPos + 1);
-		*pathName = fullPathCopy.substring(0, pathPos + 1);
+		*fileName = fullPathCopy.substr(pathPos + 1);
+		*pathName = fullPathCopy.substr(0, pathPos + 1);
 	}
 	else
 	{
@@ -816,93 +802,97 @@ void FileSystem::SplitPath(const tinystl::string& fullPath, tinystl::string* pat
 	}
 }
 
-tinystl::string FileSystem::GetPath(const tinystl::string& fullPath)
+eastl::string FileSystem::GetPath(const eastl::string& fullPath)
 {
-	tinystl::string path, file, extension;
+	eastl::string path, file, extension;
 	SplitPath(fullPath, &path, &file, &extension);
 	return path;
 }
 
-tinystl::string FileSystem::GetFileName(const tinystl::string& fullPath)
+eastl::string FileSystem::GetFileName(const eastl::string& fullPath)
 {
-	tinystl::string path, file, extension;
+	eastl::string path, file, extension;
 	SplitPath(fullPath, &path, &file, &extension);
 	return file;
 }
 
-tinystl::string FileSystem::GetExtension(const tinystl::string& fullPath, bool lowercaseExtension)
+eastl::string FileSystem::GetExtension(const eastl::string& fullPath, bool lowercaseExtension)
 {
-	tinystl::string path, file, extension;
+	eastl::string path, file, extension;
 	SplitPath(fullPath, &path, &file, &extension, lowercaseExtension);
 	return extension;
 }
 
-tinystl::string FileSystem::GetFileNameAndExtension(const tinystl::string& fileName, bool lowercaseExtension)
+eastl::string FileSystem::GetFileNameAndExtension(const eastl::string& fileName, bool lowercaseExtension)
 {
-	tinystl::string path, file, extension;
+	eastl::string path, file, extension;
 	SplitPath(fileName, &path, &file, &extension, lowercaseExtension);
 	return file + extension;
 }
 
-tinystl::string FileSystem::ReplaceExtension(const tinystl::string& fullPath, const tinystl::string& newExtension)
+eastl::string FileSystem::ReplaceExtension(const eastl::string& fullPath, const eastl::string& newExtension)
 {
-	tinystl::string path, file, extension;
+	eastl::string path, file, extension;
 	SplitPath(fullPath, &path, &file, &extension);
 	return path + file + newExtension;
 }
 
-tinystl::string FileSystem::AddTrailingSlash(const tinystl::string& pathName)
+eastl::string FileSystem::AddTrailingSlash(const eastl::string& pathName)
 {
-	tinystl::string ret = pathName.trimmed();
-	ret.replace('\\', '/');
+	eastl::string ret = pathName;
+	ret.trim();
+	eastl::replace(ret.begin(), ret.end(), '\\', '/');
 	if (ret.size() != 0 && ret.at((uint32_t)ret.size() - 1) != '/')
 		ret.push_back('/');
 	return ret;
 }
 
-tinystl::string FileSystem::RemoveTrailingSlash(const tinystl::string& pathName)
+eastl::string FileSystem::RemoveTrailingSlash(const eastl::string& pathName)
 {
-	tinystl::string ret = pathName.trimmed();
-	ret.replace('\\', '/');
+	eastl::string ret = pathName;
+	ret.trim();
+	eastl::replace(ret.begin(), ret.end(), '\\', '/');
 	if (ret.size() != 0 && ret.at((uint32_t)ret.size() - 1) == '/')
 		ret.resize((uint32_t)ret.size() - 1);
 	return ret;
 }
 
-tinystl::string FileSystem::GetParentPath(const tinystl::string& path)
+eastl::string FileSystem::GetParentPath(const eastl::string& path)
 {
-	unsigned pos = RemoveTrailingSlash(path).find_last('/');
-	if (pos != tinystl::string::npos)
-		return path.substring(0, pos + 1);
+	size_t pos = RemoveTrailingSlash(path).find_last_of('/');
+	if (pos != eastl::string::npos)
+		return path.substr(0, pos + 1);
 	else
-		return tinystl::string();
+		return eastl::string();
 }
 
-tinystl::string FileSystem::GetInternalPath(const tinystl::string& pathName)
+eastl::string FileSystem::GetInternalPath(const eastl::string& pathName)
 {
-	tinystl::string ret = pathName;
-	ret.replace('\\', '/');
+	eastl::string ret = pathName;
+	eastl::replace(ret.begin(), ret.end(), '\\', '/');
 	return ret;
 }
 
-tinystl::string FileSystem::GetNativePath(const tinystl::string& pathName)
+eastl::string FileSystem::GetNativePath(const eastl::string& pathName)
 {
 #ifdef _WIN32
-	return pathName.replaced('/', '\\');
+	eastl::string ret = pathName;
+	eastl::replace(ret.begin(), ret.end(), '\\', '/');
+	return ret;
 #else
 	return pathName;
 #endif
 }
 
-bool FileSystem::CopyFile(const tinystl::string& src, const tinystl::string& dst, bool failIfExists)
+bool FileSystem::CopyFile(const eastl::string& src, const eastl::string& dst, bool failIfExists)
 {
 	if (failIfExists && FileExists(dst, FSR_Absolute))
 		return false;
-	
-	return copy_file(src, dst);
+
+	return copy_file(src.c_str(), dst.c_str());
 }
 
-bool FileSystem::DirExists(const tinystl::string& pathName)
+bool FileSystem::DirExists(const eastl::string& pathName)
 {
 #ifndef _WIN32
 	// Always return true for the root directory
@@ -910,7 +900,7 @@ bool FileSystem::DirExists(const tinystl::string& pathName)
 		return true;
 #endif
 
-	tinystl::string fixedName = GetNativePath(RemoveTrailingSlash(pathName));
+	eastl::string fixedName = GetNativePath(RemoveTrailingSlash(pathName));
 
 #ifdef _WIN32
 	DWORD attributes = GetFileAttributesA(fixedName.c_str());
@@ -925,10 +915,10 @@ bool FileSystem::DirExists(const tinystl::string& pathName)
 	return true;
 }
 
-bool FileSystem::CreateDir(const tinystl::string& pathName)
+bool FileSystem::CreateDir(const eastl::string& pathName)
 {
 	// Create each of the parents if necessary
-	tinystl::string parentPath = GetParentPath(pathName);
+	eastl::string parentPath = GetParentPath(pathName);
 	if ((uint32_t)parentPath.size() > 1 && !DirExists(parentPath))
 	{
 		if (!CreateDir(parentPath))
@@ -936,24 +926,23 @@ bool FileSystem::CreateDir(const tinystl::string& pathName)
 	}
 
 #ifdef _WIN32
-	bool success = (CreateDirectoryA(RemoveTrailingSlash(pathName).c_str(), NULL) == TRUE) ||
-		(GetLastError() == ERROR_ALREADY_EXISTS);
+	bool success = (CreateDirectoryA(RemoveTrailingSlash(pathName).c_str(), NULL) == TRUE) || (GetLastError() == ERROR_ALREADY_EXISTS);
 #else
 	bool success = mkdir(GetNativePath(RemoveTrailingSlash(pathName)).c_str(), S_IRWXU) == 0 || errno == EEXIST;
 #endif
 
 	if (success)
-		LOGDEBUG("Created directory " + pathName);
+		LOGF(LogLevel::eDEBUG, ("Created directory " + pathName).c_str());
 	else
-		LOGERROR("Failed to create directory " + pathName);
+		LOGF(LogLevel::eERROR, ("Failed to create directory " + pathName).c_str());
 
 	return success;
 }
 
-int FileSystem::SystemRun(const tinystl::string& fileName, const tinystl::vector<tinystl::string>& arguments, tinystl::string stdOutFile)
+int FileSystem::SystemRun(const eastl::string& fileName, const eastl::vector<eastl::string>& arguments, eastl::string stdOutFile)
 {
 	UNREF_PARAM(arguments);
-	tinystl::string fixedFileName = GetNativePath(fileName);
+	eastl::string fixedFileName = GetNativePath(fileName);
 
 #ifdef _DURANGO
 	ASSERT(!"UNIMPLEMENTED");
@@ -964,7 +953,7 @@ int FileSystem::SystemRun(const tinystl::string& fileName, const tinystl::vector
 	if (GetExtension(fixedFileName).size() == 0)
 		fixedFileName += ".exe";
 
-	tinystl::string commandLine = "\"" + fixedFileName + "\"";
+	eastl::string commandLine = "\"" + fixedFileName + "\"";
 	for (unsigned i = 0; i < (unsigned)arguments.size(); ++i)
 		commandLine += " " + arguments[i];
 
@@ -976,16 +965,10 @@ int FileSystem::SystemRun(const tinystl::string& fileName, const tinystl::vector
 		sa.lpSecurityDescriptor = NULL;
 		sa.bInheritHandle = TRUE;
 
-		stdOut = CreateFileA(stdOutFile,
-			GENERIC_ALL,
-			FILE_SHARE_WRITE | FILE_SHARE_READ,
-			&sa,
-			OPEN_ALWAYS,
-			FILE_ATTRIBUTE_NORMAL,
-			NULL);
+		stdOut = CreateFileA(stdOutFile.c_str(), GENERIC_ALL, FILE_SHARE_WRITE | FILE_SHARE_READ, &sa, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	}
 
-	STARTUPINFOA startupInfo;
+	STARTUPINFOA        startupInfo;
 	PROCESS_INFORMATION processInfo;
 	memset(&startupInfo, 0, sizeof startupInfo);
 	memset(&processInfo, 0, sizeof processInfo);
@@ -994,7 +977,8 @@ int FileSystem::SystemRun(const tinystl::string& fileName, const tinystl::vector
 	startupInfo.hStdOutput = stdOut;
 	startupInfo.hStdError = stdOut;
 
-	if (!CreateProcessA(NULL, (LPSTR)commandLine.c_str(), NULL, NULL, stdOut ? TRUE : FALSE, CREATE_NO_WINDOW, NULL, NULL, &startupInfo, &processInfo))
+	if (!CreateProcessA(
+			NULL, (LPSTR)commandLine.c_str(), NULL, NULL, stdOut ? TRUE : FALSE, CREATE_NO_WINDOW, NULL, NULL, &startupInfo, &processInfo))
 		return -1;
 
 	WaitForSingleObject(processInfo.hProcess, INFINITE);
@@ -1011,9 +995,9 @@ int FileSystem::SystemRun(const tinystl::string& fileName, const tinystl::vector
 
 	return exitCode;
 #elif defined(__linux__)
-	tinystl::vector<const char*> argPtrs;
-	tinystl::string cmd(fixedFileName.c_str());
-	char space = ' ';
+	eastl::vector<const char*> argPtrs;
+	eastl::string              cmd(fixedFileName.c_str());
+	char                         space = ' ';
 	cmd.append(&space, &space + 1);
 	for (unsigned i = 0; i < (unsigned)arguments.size(); ++i)
 	{
@@ -1026,19 +1010,20 @@ int FileSystem::SystemRun(const tinystl::string& fileName, const tinystl::vector
 	pid_t pid = fork();
 	if (!pid)
 	{
-		tinystl::vector<const char*> argPtrs;
+		eastl::vector<const char*> argPtrs;
 		argPtrs.push_back(fixedFileName.c_str());
 		for (unsigned i = 0; i < (unsigned)arguments.size(); ++i)
 			argPtrs.push_back(arguments[i].c_str());
 		argPtrs.push_back(NULL);
 
 		execvp(argPtrs[0], (char**)&argPtrs[0]);
-		return -1; // Return -1 if we could not spawn the process
+		return -1;    // Return -1 if we could not spawn the process
 	}
 	else if (pid > 0)
 	{
 		int exitCode = EINTR;
-		while (exitCode == EINTR) wait(&exitCode);
+		while (exitCode == EINTR)
+			wait(&exitCode);
 		return exitCode;
 	}
 	else
@@ -1046,7 +1031,7 @@ int FileSystem::SystemRun(const tinystl::string& fileName, const tinystl::vector
 #endif
 }
 
-bool FileSystem::Delete(const tinystl::string& fileName)
+bool FileSystem::Delete(const eastl::string& fileName)
 {
 #ifdef _WIN32
 	return DeleteFileA(GetNativePath(fileName).c_str()) != 0;

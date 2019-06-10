@@ -4,6 +4,30 @@
     <Filter Include="Dependencies">
       <UniqueIdentifier>{f279652a-57c2-4291-932a-ee9f98aba841}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Middleware_3">
+      <UniqueIdentifier>{a9268313-8233-4fcd-8b2f-daa1ea49d480}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Middleware_3\UI">
+      <UniqueIdentifier>{67dcb179-77f7-4735-ba7a-9d47f2c86c55}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Middleware_3\Text">
+      <UniqueIdentifier>{ea71056b-4bfe-454e-b0e4-312881420a89}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Middleware_3\UI\imgui">
+      <UniqueIdentifier>{724e49bb-b5bc-44a6-8d6c-f9363f9a504b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Middleware_3\Animation">
+      <UniqueIdentifier>{1f453981-a767-4c40-af2e-0f8c18732ab7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Dependencies\EASTL">
+      <UniqueIdentifier>{4d35b274-f888-4766-aed3-701214301ff7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Dependencies\EASTL\EAStdC">
+      <UniqueIdentifier>{399ceffb-3792-4696-9a7c-dfb5d3121c25}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="utils">
+      <UniqueIdentifier>{f6c4d317-0683-49d8-98da-c8e3ec613e69}</UniqueIdentifier>
+    </Filter>
     <Filter Include="OS">
       <UniqueIdentifier>{522d7531-b739-46d1-8107-6830d4cd4ec6}</UniqueIdentifier>
     </Filter>
@@ -31,23 +55,29 @@
     <Filter Include="OS\Camera">
       <UniqueIdentifier>{9020f991-deb3-47a0-a9c1-76f2a341a41d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Middleware_3">
-      <UniqueIdentifier>{a9268313-8233-4fcd-8b2f-daa1ea49d480}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Middleware_3\Input">
-      <UniqueIdentifier>{876bbf80-2f47-408d-893b-3488727f5462}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Middleware_3\UI">
-      <UniqueIdentifier>{67dcb179-77f7-4735-ba7a-9d47f2c86c55}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Middleware_3\Text">
-      <UniqueIdentifier>{ea71056b-4bfe-454e-b0e4-312881420a89}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Middleware_3\UI\imgui">
-      <UniqueIdentifier>{724e49bb-b5bc-44a6-8d6c-f9363f9a504b}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Utils">
       <UniqueIdentifier>{0ac76a3d-2a41-45ff-beb0-7b0d162c070b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OS\Input">
+      <UniqueIdentifier>{3e277fa4-c0b6-44eb-b9d4-efc9070ff1e0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OS\Middleware_3">
+      <UniqueIdentifier>{a9268313-8233-4fcd-8b2f-daa1ea49d480}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OS\Middleware_3\UI">
+      <UniqueIdentifier>{67dcb179-77f7-4735-ba7a-9d47f2c86c55}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OS\Middleware_3\UI\imgui">
+      <UniqueIdentifier>{724e49bb-b5bc-44a6-8d6c-f9363f9a504b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OS\Middleware_3\Text">
+      <UniqueIdentifier>{ea71056b-4bfe-454e-b0e4-312881420a89}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OS\Middleware_3\Animation">
+      <UniqueIdentifier>{1f453981-a767-4c40-af2e-0f8c18732ab7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OS\Profiler">
+      <UniqueIdentifier>{dcb22600-d19a-42d3-b830-c802db82bb93}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -100,34 +130,73 @@
       <Filter>OS\Interfaces</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\..\Middleware_3\UI\AppUI.h">
-      <Filter>Middleware_3\UI</Filter>
+      <Filter>OS\Middleware_3\UI</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\..\Middleware_3\UI\UIShaders.h">
-      <Filter>Middleware_3\UI</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\..\Common_3\OS\Core\DebugRenderer.h">
-      <Filter>OS\Core</Filter>
+      <Filter>OS\Middleware_3\UI</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\..\Common_3\OS\Core\GPUConfig.h">
       <Filter>OS\Core</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\..\Middleware_3\Input\InputSystem.h">
-      <Filter>Middleware_3\Input</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\..\Middleware_3\Input\InputMappings.h">
-      <Filter>Middleware_3\Input</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\..\Middleware_3\Text\Fontstash.h">
-      <Filter>Middleware_3\Text</Filter>
+      <Filter>OS\Middleware_3\Text</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\imgui\imconfig.h">
-      <Filter>Middleware_3\UI\imgui</Filter>
+      <Filter>OS\Middleware_3\UI\imgui</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\imgui\imgui.h">
-      <Filter>Middleware_3\UI\imgui</Filter>
+      <Filter>OS\Middleware_3\UI\imgui</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\imgui\imgui_internal.h">
-      <Filter>Middleware_3\UI\imgui</Filter>
+      <Filter>OS\Middleware_3\UI\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\Middleware_3\Animation\AnimatedObject.h">
+      <Filter>OS\Middleware_3\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\Middleware_3\Animation\Animation.h">
+      <Filter>OS\Middleware_3\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\Middleware_3\Animation\Clip.h">
+      <Filter>OS\Middleware_3\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\Middleware_3\Animation\ClipController.h">
+      <Filter>OS\Middleware_3\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\Middleware_3\Animation\ClipMask.h">
+      <Filter>OS\Middleware_3\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\Middleware_3\Animation\Rig.h">
+      <Filter>OS\Middleware_3\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\Middleware_3\Animation\SkeletonBatcher.h">
+      <Filter>OS\Middleware_3\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\Common_3\OS\Core\Atomics.h">
+      <Filter>OS\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\Common_3\OS\Input\InputMappings.h">
+      <Filter>OS\Input</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\Common_3\OS\Input\InputSystem.h">
+      <Filter>OS\Input</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\Common_3\OS\Core\ThreadSystem.h">
+      <Filter>OS\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\MicroProfile\ProfilerBase.h">
+      <Filter>OS\Profiler</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\MicroProfile\ProfilerEnableMacro.h">
+      <Filter>OS\Profiler</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\MicroProfile\ProfilerHTML.h">
+      <Filter>OS\Profiler</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\MicroProfile\ProfilerUI.h">
+      <Filter>OS\Profiler</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\..\Common_3\OS\Interfaces\IProfiler.h">
+      <Filter>OS\Interfaces</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -174,36 +243,102 @@
       <Filter>OS\Core</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\..\Middleware_3\UI\AppUI.cpp">
-      <Filter>Middleware_3\UI</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\..\Common_3\OS\Core\DebugRenderer.cpp">
-      <Filter>OS\Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\..\Middleware_3\Input\InputSystem.cpp">
-      <Filter>Middleware_3\Input</Filter>
+      <Filter>OS\Middleware_3\UI</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\..\Middleware_3\Text\Fontstash.cpp">
-      <Filter>Middleware_3\Text</Filter>
+      <Filter>OS\Middleware_3\Text</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\..\Middleware_3\UI\ImguiGUIDriver.cpp">
-      <Filter>Middleware_3\UI</Filter>
+      <Filter>OS\Middleware_3\UI</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\imgui\imgui.cpp">
-      <Filter>Middleware_3\UI\imgui</Filter>
+      <Filter>OS\Middleware_3\UI\imgui</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\imgui\imgui_demo.cpp">
-      <Filter>Middleware_3\UI\imgui</Filter>
+      <Filter>OS\Middleware_3\UI\imgui</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\imgui\imgui_draw.cpp">
-      <Filter>Middleware_3\UI\imgui</Filter>
+      <Filter>OS\Middleware_3\UI\imgui</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\imgui\imgui_widgets.cpp">
-      <Filter>Middleware_3\UI\imgui</Filter>
+      <Filter>OS\Middleware_3\UI\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Middleware_3\Animation\AnimatedObject.cpp">
+      <Filter>OS\Middleware_3\Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Middleware_3\Animation\Animation.cpp">
+      <Filter>OS\Middleware_3\Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Middleware_3\Animation\Clip.cpp">
+      <Filter>OS\Middleware_3\Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Middleware_3\Animation\ClipController.cpp">
+      <Filter>OS\Middleware_3\Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Middleware_3\Animation\ClipMask.cpp">
+      <Filter>OS\Middleware_3\Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Middleware_3\Animation\Rig.cpp">
+      <Filter>OS\Middleware_3\Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Middleware_3\Animation\SkeletonBatcher.cpp">
+      <Filter>OS\Middleware_3\Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Common_3\OS\Input\InputSystem.cpp">
+      <Filter>OS\Input</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\EASTL\assert.cpp">
+      <Filter>Dependencies\EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\EASTL\fixed_pool.cpp">
+      <Filter>Dependencies\EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\EASTL\hashtable.cpp">
+      <Filter>Dependencies\EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\EASTL\intrusive_list.cpp">
+      <Filter>Dependencies\EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\EASTL\numeric_limits.cpp">
+      <Filter>Dependencies\EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\EASTL\red_black_tree.cpp">
+      <Filter>Dependencies\EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\EASTL\string.cpp">
+      <Filter>Dependencies\EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\EASTL\thread_support.cpp">
+      <Filter>Dependencies\EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\EASTL\EAStdC\EAMemory.cpp">
+      <Filter>Dependencies\EASTL\EAStdC</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\EASTL\EAStdC\EASprintf.cpp">
+      <Filter>Dependencies\EASTL\EAStdC</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\EASTL\allocator_forge.cpp">
+      <Filter>Dependencies\EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\MicroProfile\Profiler.cpp">
+      <Filter>OS\Profiler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\MicroProfile\ProfilerBase.cpp">
+      <Filter>OS\Profiler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\MicroProfile\ProfilerDraw.cpp">
+      <Filter>OS\Profiler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\MicroProfile\ProfilerInput.cpp">
+      <Filter>OS\Profiler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\MicroProfile\ProfilerUI.cpp">
+      <Filter>OS\Profiler</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <Natvis Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\TinySTL\tinystl.natvis">
-      <Filter>Utils</Filter>
+    <Natvis Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\EASTL\EASTL.natvis">
+      <Filter>utils</Filter>
     </Natvis>
   </ItemGroup>
 </Project>

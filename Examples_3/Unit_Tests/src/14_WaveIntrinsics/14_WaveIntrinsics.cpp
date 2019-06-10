@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -24,8 +24,8 @@
 
 // Unit Test for testing wave intrinsic operations
 
-#include "../../../../Common_3/ThirdParty/OpenSource/TinySTL/vector.h"
-#include "../../../../Common_3/ThirdParty/OpenSource/TinySTL/string.h"
+#include "../../../../Common_3/ThirdParty/OpenSource/EASTL/vector.h"
+#include "../../../../Common_3/ThirdParty/OpenSource/EASTL/string.h"
 
 //Interfaces
 #include "../../../../Common_3/OS/Interfaces/ICameraController.h"
@@ -34,12 +34,11 @@
 #include "../../../../Common_3/OS/Interfaces/IFileSystem.h"
 #include "../../../../Common_3/OS/Interfaces/ITimeManager.h"
 #include "../../../../Middleware_3/UI/AppUI.h"
-#include "../../../../Common_3/OS/Core/DebugRenderer.h"
 #include "../../../../Common_3/Renderer/IRenderer.h"
 #include "../../../../Common_3/Renderer/ResourceLoader.h"
 
-#include "../../../../Middleware_3/Input/InputSystem.h"
-#include "../../../../Middleware_3/Input/InputMappings.h"
+#include "../../../../Common_3/OS/Input/InputSystem.h"
+#include "../../../../Common_3/OS/Input/InputMappings.h"
 //Math
 #include "../../../../Common_3/OS/Math/MathTypes.h"
 
@@ -48,58 +47,57 @@
 /// Demo structures
 struct SceneConstantBuffer
 {
-	mat4 orthProjMatrix;
+	mat4   orthProjMatrix;
 	float2 mousePosition;
 	float2 resolution;
-	float time;
-	uint renderMode;
-	uint laneSize;
-	uint padding;
+	float  time;
+	uint   renderMode;
+	uint   laneSize;
+	uint   padding;
 };
 
-const uint32_t	  gImageCount = 3;
+const uint32_t gImageCount = 3;
 
-Renderer*		   pRenderer = NULL;
+Renderer* pRenderer = NULL;
 
-Queue*			  pGraphicsQueue = NULL;
-CmdPool*			pCmdPool = NULL;
-Cmd**			   ppCmds = NULL;
+Queue*   pGraphicsQueue = NULL;
+CmdPool* pCmdPool = NULL;
+Cmd**    ppCmds = NULL;
 
-SwapChain*		  pSwapChain = NULL;
-Fence*			  pRenderCompleteFences[gImageCount] = { NULL };
-Semaphore*		  pImageAcquiredSemaphore = NULL;
-Semaphore*		  pRenderCompleteSemaphores[gImageCount] = { NULL };
+SwapChain* pSwapChain = NULL;
+Fence*     pRenderCompleteFences[gImageCount] = { NULL };
+Semaphore* pImageAcquiredSemaphore = NULL;
+Semaphore* pRenderCompleteSemaphores[gImageCount] = { NULL };
 
-RenderTarget*	   pRenderTargetIntermediate = NULL;
+RenderTarget* pRenderTargetIntermediate = NULL;
 
-Shader*			 pShaderWave = NULL;
-Pipeline*		   pPipelineWave = NULL;
-RootSignature*	  pRootSignatureWave = NULL;
-Shader*			 pShaderMagnify = NULL;
-Pipeline*		   pPipelineMagnify = NULL;
-RootSignature*	  pRootSignatureMagnify = NULL;
+Shader*           pShaderWave = NULL;
+Pipeline*         pPipelineWave = NULL;
+RootSignature*    pRootSignatureWave = NULL;
+Shader*           pShaderMagnify = NULL;
+Pipeline*         pPipelineMagnify = NULL;
+RootSignature*    pRootSignatureMagnify = NULL;
 
-Sampler*			pSamplerPointWrap = NULL;
-#ifdef TARGET_IOS
-VirtualJoystickUI   gVirtualJoystick;
-#endif
-DepthState*		 pDepthNone = NULL;
-RasterizerState*	pRasterizerCullNone = NULL;
+DescriptorBinder* pDescriptorBinder = NULL;
 
-Buffer*			 pUniformBuffer[gImageCount] = { NULL };
-Buffer*			 pVertexBufferTriangle = NULL;
-Buffer*			 pVertexBufferQuad = NULL;
+Sampler* pSamplerPointWrap = NULL;
 
-uint32_t			gFrameIndex = 0;
+DepthState*      pDepthNone = NULL;
+RasterizerState* pRasterizerCullNone = NULL;
+
+Buffer* pUniformBuffer[gImageCount] = { NULL };
+Buffer* pVertexBufferTriangle = NULL;
+Buffer* pVertexBufferQuad = NULL;
+
+uint32_t gFrameIndex = 0;
 
 SceneConstantBuffer gSceneData;
 
 /// UI
-UIApp			   gAppUI;
-GuiComponent*	   pGui = NULL;
+UIApp         gAppUI;
+GuiComponent* pGui = NULL;
 
-FileSystem		  gFileSystem;
-LogManager		  gLogManager;
+FileSystem gFileSystem;
 
 enum RenderMode
 {
@@ -116,30 +114,32 @@ enum RenderMode
 };
 int32_t gRenderModeToggles = 0;
 
-const char* pszBases[] =
-{
-	"../../../src/14_WaveIntrinsics/",										// FSR_BinShaders
-	"../../../src/14_WaveIntrinsics/",									// FSR_SrcShaders
-	"",																		// FSR_BinShaders_Common
-	"",																		// FSR_SrcShaders_Common
-	"../../../UnitTestResources/",											// FSR_Textures
-	"../../../UnitTestResources/",											// FSR_Meshes
-	"../../../UnitTestResources/",											// FSR_Builtin_Fonts
-	"../../../src/14_WaveIntrinsics/",										// FSR_GpuConfig
-	"",																		// FSR_OtherFiles
+const char* pszBases[FSR_Count] = {
+	"../../../src/14_WaveIntrinsics/",      // FSR_BinShaders
+	"../../../src/14_WaveIntrinsics/",      // FSR_SrcShaders
+	"../../../UnitTestResources/",          // FSR_Textures
+	"../../../UnitTestResources/",          // FSR_Meshes
+	"../../../UnitTestResources/",          // FSR_Builtin_Fonts
+	"../../../src/14_WaveIntrinsics/",      // FSR_GpuConfig
+	"",                                     // FSR_Animation
+	"",                                     // FSR_OtherFiles
+	"../../../../../Middleware_3/Text/",    // FSR_MIDDLEWARE_TEXT
+	"../../../../../Middleware_3/UI/",      // FSR_MIDDLEWARE_UI
 };
 
 TextDrawDesc gFrameTimeDraw = TextDrawDesc(0, 0xff00ffff, 18);
 
-class WaveIntrinsics : public IApp
+class WaveIntrinsics: public IApp
 {
-public:
+	public:
 	WaveIntrinsics()
 	{
+#ifndef TARGET_IOS
 		mSettings.mWidth = 1920;
-		mSettings.mHeight =1080;
+		mSettings.mHeight = 1080;
+#endif
 	}
-	
+
 	bool Init()
 	{
 		// window and renderer setup
@@ -149,12 +149,13 @@ public:
 		//check for init success
 		if (!pRenderer)
 			return false;
-		
+
 #ifdef METAL
 		//Instead of setting the gpu to Office and disabling the Unit test on more platforms, we do it here as the issue is only specific to Metal.
-		if(stricmp(pRenderer->pActiveGpuSettings->mGpuVendorPreset.mVendorId,"0x1002") == 0 && stricmp(pRenderer->pActiveGpuSettings->mGpuVendorPreset.mModelId, "0x67df") == 0)
+		if (stricmp(pRenderer->pActiveGpuSettings->mGpuVendorPreset.mVendorId, "0x1002") == 0 &&
+			stricmp(pRenderer->pActiveGpuSettings->mGpuVendorPreset.mModelId, "0x67df") == 0)
 		{
-			LOGERROR("This GPU model causes Internal Shader compiler errors on Metal when compiling the wave instrinsics.");
+			LOGF(LogLevel::eERROR, "This GPU model causes Internal Shader compiler errors on Metal when compiling the wave instrinsics.");
 			//exit instead of returning not to trigger failure in Jenkins
 			exit(0);
 		}
@@ -173,18 +174,19 @@ public:
 		}
 		addSemaphore(pRenderer, &pImageAcquiredSemaphore);
 
-		initResourceLoaderInterface(pRenderer, DEFAULT_MEMORY_BUDGET, true);
-		initDebugRendererInterface(pRenderer, "TitilliumText/TitilliumText-Bold.otf", FSR_Builtin_Fonts);
-
-#ifdef TARGET_IOS
-		if (!gVirtualJoystick.Init(pRenderer, "circlepad.png", FSR_Absolute))
-			return false;
-#endif
+		initResourceLoaderInterface(pRenderer);
 
 		ShaderLoadDesc waveShader = {};
 		waveShader.mStages[0] = { "wave.vert", NULL, 0, FSR_SrcShaders };
 		waveShader.mStages[1] = { "wave.frag", NULL, 0, FSR_SrcShaders };
 		waveShader.mTarget = shader_target_6_0;
+#ifdef TARGET_IOS
+		ShaderMacro iosMacro;
+		iosMacro.definition = "TARGET_IOS";
+		iosMacro.value = "1";
+		waveShader.mStages[1].mMacroCount = 1;
+		waveShader.mStages[1].pMacros = &iosMacro;
+#endif
 		ShaderLoadDesc magnifyShader = {};
 		magnifyShader.mStages[0] = { "magnify.vert", NULL, 0, FSR_SrcShaders };
 		magnifyShader.mStages[1] = { "magnify.frag", NULL, 0, FSR_SrcShaders };
@@ -192,13 +194,11 @@ public:
 		addShader(pRenderer, &waveShader, &pShaderWave);
 		addShader(pRenderer, &magnifyShader, &pShaderMagnify);
 
-		SamplerDesc samplerDesc = {
-			FILTER_NEAREST, FILTER_NEAREST, MIPMAP_MODE_NEAREST,
-			ADDRESS_MODE_REPEAT, ADDRESS_MODE_REPEAT, ADDRESS_MODE_CLAMP_TO_BORDER
-		};
+		SamplerDesc samplerDesc = { FILTER_NEAREST,      FILTER_NEAREST,      MIPMAP_MODE_NEAREST,
+									ADDRESS_MODE_REPEAT, ADDRESS_MODE_REPEAT, ADDRESS_MODE_CLAMP_TO_BORDER };
 		addSampler(pRenderer, &samplerDesc, &pSamplerPointWrap);
 
-		const char* pStaticSamplers[] = { "g_sampler" };
+		const char*       pStaticSamplers[] = { "g_sampler" };
 		RootSignatureDesc rootDesc = {};
 		rootDesc.mStaticSamplerCount = 1;
 		rootDesc.ppStaticSamplerNames = pStaticSamplers;
@@ -209,6 +209,9 @@ public:
 
 		rootDesc.ppShaders = &pShaderMagnify;
 		addRootSignature(pRenderer, &rootDesc, &pRootSignatureMagnify);
+
+		DescriptorBinderDesc descriptorBinderDesc[2] = { { pRootSignatureWave }, { pRootSignatureMagnify } };
+		addDescriptorBinder(pRenderer, 0, 2, descriptorBinderDesc, &pDescriptorBinder);
 
 		RasterizerStateDesc rasterizerStateDesc = {};
 		rasterizerStateDesc.mCullMode = CULL_MODE_NONE;
@@ -230,12 +233,9 @@ public:
 		};
 
 		// Define the geometry for a triangle.
-		Vertex triangleVertices[] =
-		{
-			{ { 0.0f, 0.5f , 0.0f },{ 0.8f, 0.8f, 0.0f, 1.0f } },
-			{ { 0.5f, -0.5f , 0.0f },{ 0.0f, 0.8f, 0.8f, 1.0f } },
-			{ { -0.5f, -0.5f , 0.0f },{ 0.8f, 0.0f, 0.8f, 1.0f } }
-		};
+		Vertex triangleVertices[] = { { { 0.0f, 0.5f, 0.0f }, { 0.8f, 0.8f, 0.0f, 1.0f } },
+									  { { 0.5f, -0.5f, 0.0f }, { 0.0f, 0.8f, 0.8f, 1.0f } },
+									  { { -0.5f, -0.5f, 0.0f }, { 0.8f, 0.0f, 0.8f, 1.0f } } };
 
 		BufferLoadDesc triangleColorDesc = {};
 		triangleColorDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_VERTEX_BUFFER;
@@ -247,16 +247,11 @@ public:
 		addResource(&triangleColorDesc);
 
 		// Define the geometry for a rectangle.
-		Vertex2 quadVertices[] =
-		{
-			{ { -1.0f, -1.0f , 0.0f },{ 0.0f, 1.0f } },
-			{ { -1.0f, 1.0f , 0.0f },{ 0.0f, 0.0f } },
-			{ { 1.0f, 1.0f , 0.0f },{ 1.0f, 0.0f } },
+		Vertex2 quadVertices[] = { { { -1.0f, -1.0f, 0.0f }, { 0.0f, 1.0f } }, { { -1.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } },
+								   { { 1.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
 
-			{ { -1.0f, -1.0f , 0.0f },{ 0.0f, 1.0f } },
-			{ { 1.0f, 1.0f , 0.0f },{ 1.0f, 0.0f } },
-			{ { 1.0f, -1.0f , 0.0f },{ 1.0f, 1.0f } }
-		};
+								   { { -1.0f, -1.0f, 0.0f }, { 0.0f, 1.0f } }, { { 1.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
+								   { { 1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f } } };
 
 		BufferLoadDesc quadUVDesc = {};
 		quadUVDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_VERTEX_BUFFER;
@@ -291,6 +286,9 @@ public:
 		const char* m_labels[RenderModeCount] = {};
 		m_labels[RenderMode1] = "1. Normal render.\n";
 		m_labels[RenderMode2] = "2. Color pixels by lane indices.\n";
+#ifdef TARGET_IOS
+		m_labels[RenderMode9] = "3. Color pixels by their quad id.\n";
+#else
 		m_labels[RenderMode3] = "3. Show first lane (white dot) in each wave.\n";
 		m_labels[RenderMode4] = "4. Show first(white dot) and last(red dot) lanes in each wave.\n";
 		m_labels[RenderMode5] = "5. Color pixels by active lane ratio (white = 100%; black = 0%).\n";
@@ -298,10 +296,15 @@ public:
 		m_labels[RenderMode7] = "7. Average the color in a wave.\n";
 		m_labels[RenderMode8] = "8. Color pixels by prefix sum of distance between current and first lane.\n";
 		m_labels[RenderMode9] = "9. Color pixels by their quad id.\n";
+#endif
 
 		// Radio Buttons
 		for (uint32_t i = 0; i < RenderModeCount; ++i)
 		{
+#ifdef TARGET_IOS
+			//Subset of supported render modes on iOS
+			if(i == RenderMode1 || i == RenderMode2 || i == RenderMode9)
+#endif
 			pGui->AddWidget(RadioButtonWidget(m_labels[i], &gRenderModeToggles, i));
 		}
 
@@ -313,13 +316,7 @@ public:
 
 	void Exit()
 	{
-		waitForFences(pGraphicsQueue, 1, &pRenderCompleteFences[gFrameIndex], true);
-
-		removeDebugRendererInterface();
-
-#ifdef TARGET_IOS
-		gVirtualJoystick.Exit();
-#endif
+		waitQueueIdle(pGraphicsQueue);
 
 		gAppUI.Exit();
 
@@ -335,6 +332,7 @@ public:
 		removeRootSignature(pRenderer, pRootSignatureMagnify);
 		removeShader(pRenderer, pShaderWave);
 		removeRootSignature(pRenderer, pRootSignatureWave);
+		removeDescriptorBinder(pRenderer, pDescriptorBinder);
 
 		removeDepthState(pDepthNone);
 		removeRasterizerState(pRasterizerCullNone);
@@ -365,11 +363,6 @@ public:
 		if (!gAppUI.Load(pSwapChain->ppSwapchainRenderTargets))
 			return false;
 
-#ifdef TARGET_IOS
-		if (!gVirtualJoystick.Load(pSwapChain->ppSwapchainRenderTargets[0], pDepthBuffer->mDesc.mFormat))
-			return false;
-#endif
-
 		//layout and pipeline for sphere draw
 		VertexLayout vertexLayout = {};
 		vertexLayout.mAttribCount = 2;
@@ -384,7 +377,9 @@ public:
 		vertexLayout.mAttribs[1].mLocation = 1;
 		vertexLayout.mAttribs[1].mOffset = 3 * sizeof(float);
 
-		GraphicsPipelineDesc pipelineSettings = { 0 };
+		PipelineDesc desc = {};
+		desc.mType = PIPELINE_TYPE_GRAPHICS;
+		GraphicsPipelineDesc& pipelineSettings = desc.mGraphicsDesc;
 		pipelineSettings.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
 		pipelineSettings.mRenderTargetCount = 1;
 		pipelineSettings.pDepthState = pDepthNone;
@@ -396,7 +391,7 @@ public:
 		pipelineSettings.pShaderProgram = pShaderWave;
 		pipelineSettings.pVertexLayout = &vertexLayout;
 		pipelineSettings.pRasterizerState = pRasterizerCullNone;
-		addPipeline(pRenderer, &pipelineSettings, &pPipelineWave);
+		addPipeline(pRenderer, &desc, &pPipelineWave);
 
 		//layout and pipeline for skybox draw
 		vertexLayout.mAttribs[1].mSemantic = SEMANTIC_TEXCOORD0;
@@ -407,7 +402,7 @@ public:
 
 		pipelineSettings.pRootSignature = pRootSignatureMagnify;
 		pipelineSettings.pShaderProgram = pShaderMagnify;
-		addPipeline(pRenderer, &pipelineSettings, &pPipelineMagnify);
+		addPipeline(pRenderer, &desc, &pPipelineMagnify);
 
 		gSceneData.mousePosition.x = mSettings.mWidth * 0.5f;
 		gSceneData.mousePosition.y = mSettings.mHeight * 0.5f;
@@ -417,13 +412,9 @@ public:
 
 	void Unload()
 	{
-		waitForFences(pGraphicsQueue, gImageCount, pRenderCompleteFences, true);
+		waitQueueIdle(pGraphicsQueue);
 
 		gAppUI.Unload();
-
-#ifdef TARGET_IOS
-		gVirtualJoystick.Unload();
-#endif
 
 		removePipeline(pRenderer, pPipelineMagnify);
 		removePipeline(pRenderer, pPipelineWave);
@@ -455,24 +446,24 @@ public:
 	{
 		acquireNextImage(pRenderer, pSwapChain, pImageAcquiredSemaphore, NULL, &gFrameIndex);
 		/************************************************************************/
+		/************************************************************************/
+		// Stall if CPU is running "Swap Chain Buffer Count" frames ahead of GPU
+		Fence*      pNextFence = pRenderCompleteFences[gFrameIndex];
+		FenceStatus fenceStatus;
+		getFenceStatus(pRenderer, pNextFence, &fenceStatus);
+		if (fenceStatus == FENCE_STATUS_INCOMPLETE)
+			waitForFences(pRenderer, 1, &pNextFence);
+		/************************************************************************/
 		// Scene Update
 		/************************************************************************/
 		BufferUpdateDesc viewProjCbv = { pUniformBuffer[gFrameIndex], &gSceneData };
 		updateResource(&viewProjCbv);
-		/************************************************************************/
-		/************************************************************************/
-		// Stall if CPU is running "Swap Chain Buffer Count" frames ahead of GPU
-		Fence* pNextFence = pRenderCompleteFences[gFrameIndex];
-		FenceStatus fenceStatus;
-		getFenceStatus(pRenderer, pNextFence, &fenceStatus);
-		if (fenceStatus == FENCE_STATUS_INCOMPLETE)
-			waitForFences(pGraphicsQueue, 1, &pNextFence, false);
 
 		RenderTarget* pRenderTarget = pRenderTargetIntermediate;
 		RenderTarget* pScreenRenderTarget = pSwapChain->ppSwapchainRenderTargets[gFrameIndex];
 
 		Semaphore* pRenderCompleteSemaphore = pRenderCompleteSemaphores[gFrameIndex];
-		Fence* pRenderCompleteFence = pRenderCompleteFences[gFrameIndex];
+		Fence*     pRenderCompleteFence = pRenderCompleteFences[gFrameIndex];
 
 		// simply record the screen cleaning command
 		LoadActionsDesc loadActions = {};
@@ -498,7 +489,7 @@ public:
 		DescriptorData params[1] = {};
 		params[0].pName = "SceneConstantBuffer";
 		params[0].ppBuffers = &pUniformBuffer[gFrameIndex];
-		cmdBindDescriptors(cmd, pRootSignatureWave, 1, params);
+		cmdBindDescriptors(cmd, pDescriptorBinder, pRootSignatureWave, 1, params);
 		cmdBindVertexBuffer(cmd, 1, &pVertexBufferTriangle, NULL);
 		cmdDraw(cmd, 3, 0);
 		cmdBindRenderTargets(cmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
@@ -519,7 +510,7 @@ public:
 		magnifyParams[0].ppBuffers = &pUniformBuffer[gFrameIndex];
 		magnifyParams[1].pName = "g_texture";
 		magnifyParams[1].ppTextures = &pRenderTarget->pTexture;
-		cmdBindDescriptors(cmd, pRootSignatureMagnify, 2, magnifyParams);
+		cmdBindDescriptors(cmd, pDescriptorBinder, pRootSignatureMagnify, 2, magnifyParams);
 		cmdBindPipeline(cmd, pPipelineMagnify);
 		cmdBindVertexBuffer(cmd, 1, &pVertexBufferQuad, NULL);
 		cmdDrawInstanced(cmd, 6, 0, 2, 0);
@@ -530,11 +521,8 @@ public:
 		static HiresTimer gTimer;
 		gTimer.GetUSec(true);
 
-#ifdef TARGET_IOS
-		gVirtualJoystick.Draw(cmd, pCameraController, { 1.0f, 1.0f, 1.0f, 1.0f });
-#endif
-
-		drawDebugText(cmd, 8, 15, tinystl::string::format("CPU %f ms", gTimer.GetUSecAverage() / 1000.0f), &gFrameTimeDraw);
+		gAppUI.DrawText(
+			cmd, float2(8, 15), eastl::string().sprintf("CPU %f ms", gTimer.GetUSecAverage() / 1000.0f).c_str(), &gFrameTimeDraw);
 
 		gAppUI.Gui(pGui);
 		gAppUI.Draw(cmd);
@@ -549,10 +537,7 @@ public:
 		queuePresent(pGraphicsQueue, pSwapChain, gFrameIndex, 1, &pRenderCompleteSemaphore);
 	}
 
-	tinystl::string GetName()
-	{
-		return "14_WaveIntrinsics";
-	}
+	const char* GetName() { return "14_WaveIntrinsics"; }
 
 	bool addSwapChain()
 	{
@@ -594,11 +579,11 @@ public:
 		{
 			if (pData->mUserId == KEY_UI_MOVE)
 			{
-				if(InputSystem::IsButtonPressed(KEY_CONFIRM))
+				if (InputSystem::GetBoolInput(KEY_CONFIRM_PRESSED))
 				{
 					gSceneData.mousePosition.x = pData->mValue[0];
 					gSceneData.mousePosition.y = pData->mValue[1];
-					
+
 					return true;
 				}
 			}

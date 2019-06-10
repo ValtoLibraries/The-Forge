@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -27,10 +27,14 @@
 void SkeletonBatcher::Initialize(const SkeletonRenderDesc& skeletonRenderDesc)
 {
 	// Set member render variables based on the description
+	mRenderer = skeletonRenderDesc.mRenderer;
 	mSkeletonPipeline = skeletonRenderDesc.mSkeletonPipeline;
 	mRootSignature = skeletonRenderDesc.mRootSignature;
 	mJointVertexBuffer = skeletonRenderDesc.mJointVertexBuffer;
 	mNumJointPoints = skeletonRenderDesc.mNumJointPoints;
+
+	DescriptorBinderDesc descriptorBinderDescSkeleton = { mRootSignature, 0, MAX_BATCHES * 2}; // 2 because updates buffer twice per instanced draw call: one for joints and one for bones
+	addDescriptorBinder(mRenderer, 0, 1, &descriptorBinderDescSkeleton, &mDescriptorBinder);
 
 	// Determine if we will ever expect to use this renderer to draw bones
 	mDrawBones = skeletonRenderDesc.mDrawBones;
@@ -45,7 +49,7 @@ void SkeletonBatcher::Initialize(const SkeletonRenderDesc& skeletonRenderDesc)
 	ubDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	ubDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_CPU_TO_GPU;
 	ubDesc.mDesc.mSize = sizeof(UniformSkeletonBlock);
-	ubDesc.mDesc.mFlags = BUFFER_CREATION_FLAG_PERSISTENT_MAP_BIT;
+	ubDesc.mDesc.mFlags = BUFFER_CREATION_FLAG_PERSISTENT_MAP_BIT | skeletonRenderDesc.mCreationFlag;
 	ubDesc.pData = NULL;
 	for (unsigned int i = 0; i < MAX_BATCHES; i++)
 	{
@@ -64,6 +68,7 @@ void SkeletonBatcher::Initialize(const SkeletonRenderDesc& skeletonRenderDesc)
 
 void SkeletonBatcher::Destroy()
 {
+	removeDescriptorBinder(mRenderer, mDescriptorBinder);
 	for (unsigned int i = 0; i < MAX_BATCHES; i++)
 	{
 		for (uint32_t j = 0; j < ImageCount; ++j)
@@ -93,7 +98,6 @@ void SkeletonBatcher::SetSharedUniforms(const Matrix4& projViewMat, const Vector
 
 void SkeletonBatcher::SetPerInstanceUniforms(const uint32_t& frameIndex, int numRigs)
 {
-
 	// Will keep track of the current batch we are setting the uniforms for
 	// and will indicate how many catches to draw when draw is called for this frame index
 	mBatchCounts[frameIndex] = 0;
@@ -123,7 +127,8 @@ void SkeletonBatcher::SetPerInstanceUniforms(const uint32_t& frameIndex, int num
 				mUniformDataBones.mColor[instanceCount] = mRigs[rigIndex]->GetBoneColor();
 
 				// add joint data to the uniform while scaling the joints by their determined chlid bone length
-				mUniformDataJoints.mToWorldMat[instanceCount] = mRigs[rigIndex]->GetJointWorldMatNoScale(jointIndex) * mat4::scale(mRigs[rigIndex]->GetJointScale(jointIndex));
+				mUniformDataJoints.mToWorldMat[instanceCount] =
+					mRigs[rigIndex]->GetJointWorldMatNoScale(jointIndex) * mat4::scale(mRigs[rigIndex]->GetJointScale(jointIndex));
 			}
 			else
 			{
@@ -170,7 +175,6 @@ void SkeletonBatcher::SetPerInstanceUniforms(const uint32_t& frameIndex, int num
 	}
 }
 
-
 void SkeletonBatcher::AddRig(Rig* rig)
 {
 	// Adds the rig so its data can be used and increments the rig count
@@ -195,7 +199,7 @@ void SkeletonBatcher::Draw(Cmd* cmd, const uint32_t& frameIndex)
 	for (unsigned int batchIndex = 0; batchIndex < numBatches; batchIndex++)
 	{
 		params[0].ppBuffers = &mProjViewUniformBufferJoints[batchIndex][frameIndex];
-		cmdBindDescriptors(cmd, mRootSignature, 1, params);
+		cmdBindDescriptors(cmd, mDescriptorBinder, mRootSignature, 1, params);
 
 		if (batchIndex < numBatches - 1)
 		{
@@ -204,11 +208,12 @@ void SkeletonBatcher::Draw(Cmd* cmd, const uint32_t& frameIndex)
 		}
 		else
 		{
-			// For the last batch use its recorded number of instances for this frameindex 
+			// For the last batch use its recorded number of instances for this frameindex
 			cmdDrawInstanced(cmd, mNumJointPoints / 6, 0, mLastBatchSize[frameIndex], 0);
 		}
 	}
 	cmdEndDebugMarker(cmd);
+
 
 	// Bones
 	if (mDrawBones)
@@ -220,7 +225,7 @@ void SkeletonBatcher::Draw(Cmd* cmd, const uint32_t& frameIndex)
 		for (unsigned int batchIndex = 0; batchIndex < numBatches; batchIndex++)
 		{
 			params[0].ppBuffers = &mProjViewUniformBufferBones[batchIndex][frameIndex];
-			cmdBindDescriptors(cmd, mRootSignature, 1, params);
+			cmdBindDescriptors(cmd, mDescriptorBinder, mRootSignature, 1, params);
 
 			if (batchIndex < numBatches - 1)
 			{
@@ -229,7 +234,7 @@ void SkeletonBatcher::Draw(Cmd* cmd, const uint32_t& frameIndex)
 			}
 			else
 			{
-				// For the last batch use its recorded number of instances for this frameindex 
+				// For the last batch use its recorded number of instances for this frameindex
 				cmdDrawInstanced(cmd, mNumBonePoints / 6, 0, mLastBatchSize[frameIndex], 0);
 			}
 		}

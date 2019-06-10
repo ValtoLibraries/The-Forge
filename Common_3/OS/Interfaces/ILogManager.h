@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -24,35 +24,31 @@
 
 #pragma once
 
-#include "../../ThirdParty/OpenSource/TinySTL/string.h"
+#include "../../ThirdParty/OpenSource/EASTL/string.h"
 #include "../../OS/Logging/LogManager.h"
 #include "ITimeManager.h"
 
-#ifndef USE_LOGGING
-#define USE_LOGGING 1
-#endif
+void _ErrorMsg(int line, const char*, const char* string, ...);
+void _WarningMsg(int line, const char*, const char* string, ...);
+void _InfoMsg(int line, const char*, const char* string, ...);
+void _FailedAssert(const char* file, int line, const char* statement);
+void _OutputDebugString(const char* str, ...);
 
-void _ErrorMsg(int line, const char*, const char *string, ...);
-void _WarningMsg(int line, const char*, const char *string, ...);
-void _InfoMsg(int line, const char*, const char *string, ...);
-void _FailedAssert(const char *file, int line, const char *statement);
-void _OutputDebugString(const char *str, ...);
+void _PrintUnicode(const eastl::string& str, bool error = false);
+void _PrintUnicodeLine(const eastl::string& str, bool error = false);
 
-void _PrintUnicode(const tinystl::string& str, bool error = false);
-void _PrintUnicodeLine(const tinystl::string& str, bool error = false);
-
-#define ErrorMsg(str,...) _ErrorMsg(__LINE__, __FILE__, str, ##__VA_ARGS__)
-#define WarningMsg(str,...) _WarningMsg(__LINE__, __FILE__, str, ##__VA_ARGS__)
-#define InfoMsg(str,...) _InfoMsg(__LINE__, __FILE__, str, ##__VA_ARGS__)
+#define ErrorMsg(str, ...) _ErrorMsg(__LINE__, __FILE__, str, ##__VA_ARGS__)
+#define WarningMsg(str, ...) _WarningMsg(__LINE__, __FILE__, str, ##__VA_ARGS__)
+#define InfoMsg(str, ...) _InfoMsg(__LINE__, __FILE__, str, ##__VA_ARGS__)
 
 #if _MSC_VER >= 1400
 // To make MSVC 2005 happy
-#pragma warning (disable: 4996)
-#  define assume(x) __assume(x)
-#  define no_alias __declspec(noalias)
+#pragma warning(disable : 4996)
+#define assume(x) __assume(x)
+#define no_alias __declspec(noalias)
 #else
-#  define assume(x)
-#  define no_alias
+#define assume(x)
+#define no_alias
 #endif
 
 #ifdef _DEBUG
@@ -64,7 +60,10 @@ void _PrintUnicodeLine(const tinystl::string& str, bool error = false);
 // there is a large amount of stuff included via header files ...
 #define ASSERT(cond) SCE_GNM_ASSERT(cond)
 #else
-#define ASSERT(b) if (b) {} else _FailedAssert(__FILE__, __LINE__, #b)
+#define ASSERT(b) \
+	if (b) {}     \
+	else          \
+		_FailedAssert(__FILE__, __LINE__, #b)
 #endif
 #else
 #define ASSERT(b) assume(b)
@@ -73,27 +72,42 @@ void _PrintUnicodeLine(const tinystl::string& str, bool error = false);
 #else
 #define IFASSERT(x)
 #endif
-#endif // DEBUG
-#ifdef USE_LOGGING
-#define LOGDEBUG(message) LogManager::Write(LogLevel::LL_Debug, ToString(__FUNCTION__, message, ""))
-#define LOGINFO(message) LogManager::Write(LogLevel::LL_Info, ToString(__FUNCTION__, message, ""))
-#define LOGWARNING(message) LogManager::Write(LogLevel::LL_Warning, ToString(__FUNCTION__, message, ""))
-#define LOGERROR(message) LogManager::Write(LogLevel::LL_Error, ToString(__FUNCTION__, message, ""))
-#define LOGRAW(message) LogManager::WriteRaw(ToString(__FUNCTION__, message, ""))
-#define LOGDEBUGF(format, ...) LogManager::Write(LogLevel::LL_Debug, ToString(__FUNCTION__, format, ##__VA_ARGS__))
-#define LOGINFOF(format, ...) LogManager::Write(LogLevel::LL_Info, ToString(__FUNCTION__, format, ##__VA_ARGS__))
-#define LOGWARNINGF(format, ...) LogManager::Write(LogLevel::LL_Warning, ToString(__FUNCTION__, format, ##__VA_ARGS__))
-#define LOGERRORF(format, ...) LogManager::Write(LogLevel::LL_Error, ToString(__FUNCTION__, format, ##__VA_ARGS__))
-#define LOGRAWF(format, ...) LogManager::WriteRaw(ToString(__FUNCTION__, format, ##__VA_ARGS__))
+#endif
+
+// Usage: LOGF(LogLevel::eINFO | LogLevel::eDEBUG, "Whatever string %s, this is an int %d", "This is a string", 1)
+#define LOGF(log_level, ...) LogManager::Write((log_level), ToString(__VA_ARGS__), __FILE__, __LINE__)
+// Usage: LOGF_IF(LogLevel::eINFO | LogLevel::eDEBUG, boolean_value && integer_value == 5, "Whatever string %s, this is an int %d", "This is a string", 1)
+#define LOGF_IF(log_level, condition, ...) ((condition) ? LogManager::Write((log_level), ToString(__VA_ARGS__), __FILE__, __LINE__) : (void)0)
+//
+#define LOGF_SCOPE(log_level, ...) LogManager::LogScope ANONIMOUS_VARIABLE_LOG(scope_log_){ (log_level), __FILE__, __LINE__, __VA_ARGS__ }
+
+// Usage: RAW_LOGF(LogLevel::eINFO | LogLevel::eDEBUG, "Whatever string %s, this is an int %d", "This is a string", 1)
+#define RAW_LOGF(log_level, ...) LogManager::WriteRaw((log_level), ToString(__VA_ARGS__))
+// Usage: RAW_LOGF_IF(LogLevel::eINFO | LogLevel::eDEBUG, boolean_value && integer_value == 5, "Whatever string %s, this is an int %d", "This is a string", 1)
+#define RAW_LOGF_IF(log_level, condition, ...) ((condition) ? LogManager::WriteRaw((log_level), ToString(__VA_ARGS__)))
+
+#ifdef _DEBUG
+
+// Usage: DLOGF(LogLevel::eINFO | LogLevel::eDEBUG, "Whatever string %s, this is an int %d", "This is a string", 1)
+#define DLOGF(log_level, ...) LOGF(log_level, __VA_ARGS__)
+// Usage: DLOGF_IF(LogLevel::eINFO | LogLevel::eDEBUG, boolean_value && integer_value == 5, "Whatever string %s, this is an int %d", "This is a string", 1)
+#define DLOGF_IF(log_level, condition, ...) LOGF_IF(log_level, condition, __VA_ARGS__)
+
+// Usage: DRAW_LOGF(LogLevel::eINFO | LogLevel::eDEBUG, "Whatever string %s, this is an int %d", "This is a string", 1)
+#define DRAW_LOGF(log_level, ...) RAW_LOGF(log_level, __VA_ARGS__)
+// Usage: DRAW_LOGF_IF(LogLevel::eINFO | LogLevel::eDEBUG, boolean_value && integer_value == 5, "Whatever string %s, this is an int %d", "This is a string", 1)
+#define DRAW_LOGF_IF(log_level, condition, ...) RAW_LOGF_IF(log_level, condition, __VA_ARGS__)
+
 #else
-#define LOGDEBUG(message) ((void)0)
-#define LOGINFO(message) ((void)0)
-#define LOGWARNING(message) ((void)0)
-#define LOGERROR(message) ((void)0)
-#define LOGRAW(message) ((void)0)
-#define LOGDEBUGF(...) ((void)0)
-#define LOGINFOF(...) ((void)0)
-#define LOGWARNINGF(...) ((void)0)
-#define LOGERRORF(...) ((void)0)
-#define LOGRAWF(...) ((void)0)
+
+// Usage: DLOGF(LogLevel::eINFO | LogLevel::eDEBUG, "Whatever string %s, this is an int %d", "This is a string", 1)
+#define DLOGF(log_value, ...)
+// Usage: DLOGF_IF(LogLevel::eINFO | LogLevel::eDEBUG, boolean_value && integer_value == 5, "Whatever string %s, this is an int %d", "This is a string", 1)
+#define DLOGF_IF(log_value, condition, ...)
+
+// Usage: DRAW_LOGF(LogLevel::eINFO | LogLevel::eDEBUG, "Whatever string %s, this is an int %d", "This is a string", 1)
+#define DRAW_LOGF(log_level, ...)
+// Usage: DRAW_LOGF_IF(LogLevel::eINFO | LogLevel::eDEBUG, boolean_value && integer_value == 5, "Whatever string %s, this is an int %d", "This is a string", 1)
+#define DRAW_LOGF_IF(log_level, condition, ...)
+
 #endif

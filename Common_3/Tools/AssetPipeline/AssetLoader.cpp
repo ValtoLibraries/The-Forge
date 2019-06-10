@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Confetti Interactive Inc.
+ * Copyright (c) 2018-2019 Confetti Interactive Inc.
  *
  * This file is part of The-Forge
  * (see https://github.com/ConfettiFX/The-Forge).
@@ -30,12 +30,12 @@
 
 #include "../../OS/Interfaces/IOperatingSystem.h"
 #include "../../OS/Interfaces/ILogManager.h"
-#include "../../OS/Interfaces/IMemoryManager.h" //NOTE: this should be the last include in a .cpp
+#include "../../OS/Interfaces/IMemoryManager.h"    //NOTE: this should be the last include in a .cpp
 
 bool AssetLoader::LoadSkeleton(const char* skeletonFile, FSRoot root, ozz::animation::Skeleton* skeleton)
 {
 	// Fix path
-	tinystl::string path = FileSystem::FixPath(skeletonFile, root);
+	eastl::string path = FileSystem::FixPath(skeletonFile, root);
 
 	// Load skeleton from disk
 	ozz::io::File file(path.c_str(), "rb");
@@ -51,7 +51,7 @@ bool AssetLoader::LoadSkeleton(const char* skeletonFile, FSRoot root, ozz::anima
 bool AssetLoader::LoadAnimation(const char* animationFile, FSRoot root, ozz::animation::Animation* animation)
 {
 	// Fix path
-	tinystl::string path = FileSystem::FixPath(animationFile, root);
+	eastl::string path = FileSystem::FixPath(animationFile, root);
 
 	// Load animation from disk
 	ozz::io::File file(path.c_str(), "rb");
