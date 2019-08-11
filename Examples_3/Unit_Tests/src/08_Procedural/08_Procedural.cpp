@@ -28,9 +28,9 @@
 
 //Interfaces
 #include "../../../../Common_3/OS/Interfaces/ICameraController.h"
-#include "../../../../Common_3/OS/Interfaces/ILogManager.h"
+#include "../../../../Common_3/OS/Interfaces/ILog.h"
 #include "../../../../Common_3/OS/Interfaces/IFileSystem.h"
-#include "../../../../Common_3/OS/Interfaces/ITimeManager.h"
+#include "../../../../Common_3/OS/Interfaces/ITime.h"
 #include "../../../../Common_3/OS/Interfaces/IProfiler.h"
 #include "../../../../Middleware_3/UI/AppUI.h"
 #include "../../../../Common_3/OS/Interfaces/IApp.h"
@@ -44,7 +44,7 @@
 //Math
 #include "../../../../Common_3/OS/Math/MathTypes.h"
 
-#include "../../../../Common_3/OS/Interfaces/IMemoryManager.h"
+#include "../../../../Common_3/OS/Interfaces/IMemory.h"
 
 const char* pszBases[FSR_Count] = {
 	"../../../src/08_Procedural/",          // FSR_BinShaders
@@ -54,6 +54,7 @@ const char* pszBases[FSR_Count] = {
 	"../../../UnitTestResources/",          // FSR_Builtin_Fonts
 	"../../../src/08_Procedural/",          // FSR_GpuConfig
 	"",                                     // FSR_Animation
+	"",                                     // FSR_Audio
 	"",                                     // FSR_OtherFiles
 	"../../../../../Middleware_3/Text/",    // FSR_MIDDLEWARE_TEXT
 	"../../../../../Middleware_3/UI/",      // FSR_MIDDLEWARE_UI
@@ -177,7 +178,7 @@ const int gSphereResolution = 1024;    // Increase for higher resolution spheres
 #else
 const int gSphereResolution = 512;    // Halve the resolution of the planet on iOS.
 #endif
-const char* pEnvImageFileNames[] = { "environment_sky.png" };
+const char* pEnvImageFileNames[] = { "environment_sky" };
 
 int gNumOfSpherePoints;
 
@@ -237,19 +238,18 @@ class Procedural: public IApp
 
 		initResourceLoaderInterface(pRenderer);
 
-		initProfiler(pRenderer, gImageCount);
+		initProfiler(pRenderer);
 		profileRegisterInput();
 		addGpuProfiler(pRenderer, pGraphicsQueue, &pGpuProfiler, "GpuProfiler");
 
 		TextureLoadDesc textureDesc = {};
 		textureDesc.mRoot = FSR_Textures;
-		textureDesc.mUseMipmaps = true;
 		textureDesc.pFilename = pEnvImageFileNames[0];
 		textureDesc.ppTexture = &pEnvTex;
 		addResource(&textureDesc);
 
 #ifdef TARGET_IOS
-		if (!gVirtualJoystick.Init(pRenderer, "circlepad.png", FSR_Textures))
+		if (!gVirtualJoystick.Init(pRenderer, "circlepad", FSR_Textures))
 			return false;
 #endif
 
@@ -453,7 +453,7 @@ class Procedural: public IApp
 		waitQueueIdle(pGraphicsQueue);
 		destroyCameraController(pCameraController);
 
-		exitProfiler(pRenderer);
+		exitProfiler();
 
 		removeResource(pSphereVertexBuffer);
 		removeResource(pBGVertexBuffer);
@@ -526,8 +526,9 @@ class Procedural: public IApp
 		if (!gAppUI.Load(pSwapChain->ppSwapchainRenderTargets))
 			return false;
 
+		loadProfiler(pSwapChain->ppSwapchainRenderTargets[0]);
 #ifdef TARGET_IOS
-		if (!gVirtualJoystick.Load(pSwapChain->ppSwapchainRenderTargets[0], ImageFormat::Enum::NONE))
+		if (!gVirtualJoystick.Load(pSwapChain->ppSwapchainRenderTargets[0]))
 			return false;
 #endif
 
@@ -608,6 +609,7 @@ class Procedural: public IApp
 	{
 		waitQueueIdle(pGraphicsQueue);
 
+		unloadProfiler();
 #ifdef TARGET_IOS
 		gVirtualJoystick.Unload();
 #endif
@@ -786,7 +788,7 @@ class Procedural: public IApp
 
 		cmd = ppUICmds[gFrameIndex];
 		beginCmd(cmd);
-
+		cmdBeginDebugMarker(cmd, 0, 1, 0, "Draw UI");
 		// Prepare UI command buffers
 
 		cmdBindRenderTargets(cmd, 1, &pRenderTarget, NULL, NULL, NULL, NULL, -1, -1);
@@ -808,10 +810,11 @@ class Procedural: public IApp
 			&gFrameTimeDraw);
 		gAppUI.DrawDebugGpuProfile(cmd, float2(8, 65), pGpuProfiler, NULL);
 
-		cmdDrawProfiler(cmd, mSettings.mWidth, mSettings.mHeight);
+		cmdDrawProfiler(cmd);
 
 		gAppUI.Gui(pGui);
 		gAppUI.Draw(cmd);
+		cmdEndDebugMarker(cmd);
 
 		// Transition our texture to present state
 		barriers[0] = { pRenderTarget->pTexture, RESOURCE_STATE_PRESENT };
@@ -832,7 +835,7 @@ class Procedural: public IApp
 	bool addSwapChain()
 	{
 		SwapChainDesc swapChainDesc = {};
-		swapChainDesc.pWindow = pWindow;
+		swapChainDesc.mWindowHandle = pWindow->handle;
 		swapChainDesc.mPresentQueueCount = 1;
 		swapChainDesc.ppPresentQueues = &pGraphicsQueue;
 		swapChainDesc.mWidth = mSettings.mWidth;

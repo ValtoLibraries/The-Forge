@@ -38,9 +38,12 @@ int64_t ProfileGetTick()
 #include <stdio.h>
 #include <stdarg.h>
 #include <math.h>
-#include <algorithm>
+//#include <algorithm>
 
-#include "../../../OS/Interfaces/IMemoryManager.h"
+//EASTL Includes
+#include "../EASTL/sort.h"
+#include "../EASTL/algorithm.h"
+
 
 
 #if PROFILE_WEBSERVER
@@ -64,6 +67,8 @@ int64_t ProfileGetTick()
 #endif
 
 #endif 
+
+#include "../../../OS/Interfaces/IMemory.h"
 
 #if PROFILE_WEBSERVER || PROFILE_CONTEXT_SWITCH_TRACE
 typedef ThreadFunction ProfileThreadFunc;
@@ -107,22 +112,27 @@ static void ProfileCreateThreadLogKey()
 }
 #else
 P_THREAD_LOCAL ProfileThreadLog* g_ProfileThreadLog = nullptr;
-#endif
-
-static bool g_bUseLock = false; /// This is used because windows does not support using mutexes under dll init(which is where global initialization is handled)
 
 void ProfileShutdown();
 struct ForceProfileThreadExit
-{
+{	
 	~ForceProfileThreadExit()
 	{
 		ProfileOnThreadExit();
 	}
+
+	// NOTE: The thread_local object needs to be used on Linux or it'll never get created!
+	//       According to the standard:
+	//       "A variable with thread storage duration shall be initialized before its first odr-use (3.2) and, if constructed, shall be destroyed on thread exit."
+	// So the following is used on thread creation to ensure the object is properly constructed.
+	void EnsureConstruction() {dummy = 0;}
+	int8_t dummy;
 };
 
-//static ForceProfileShutdown g_ForceProfileShutdownMain;
 P_THREAD_LOCAL ForceProfileThreadExit g_ForceProfileThreadExit;
+#endif
 
+static bool g_bUseLock = false; /// This is used because windows does not support using mutexes under dll init(which is where global initialization is handled)
 
 inline std::recursive_mutex& ProfileMutex()
 {
@@ -332,6 +342,7 @@ void ProfileOnThreadCreate(const char* pThreadName)
 		ProfileThreadLog* pLog = ProfileCreateThreadLog(pThreadName ? pThreadName : ProfileGetThreadName());
 		P_ASSERT(pLog);
 		ProfileSetThreadLog(pLog);
+		g_ForceProfileThreadExit.EnsureConstruction();
 	}
 }
 
@@ -2382,14 +2393,14 @@ void ProfileDumpHtml(ProfileWriteCallback CB, void* Handle, int nMaxFrames, cons
 	{
 		nTimerCounterSort[i] = i;
 	}
-	std::sort(nGroupCounterSort, nGroupCounterSort + S.nGroupCount,
+	eastl::sort(nGroupCounterSort, nGroupCounterSort + S.nGroupCount,
 		[nGroupCounter](const uint32_t l, const uint32_t r)
 	{
 		return nGroupCounter[l] > nGroupCounter[r];
 	}
 	);
 
-	std::sort(nTimerCounterSort, nTimerCounterSort + S.nTotalTimers,
+	eastl::sort(nTimerCounterSort, nTimerCounterSort + S.nTotalTimers,
 		[nTimerCounter](const uint32_t l, const uint32_t r)
 	{
 		return nTimerCounter[l] > nTimerCounter[r];
@@ -3159,9 +3170,6 @@ uint64_t ProfileTicksPerSecondGpu()
 
 bool ProfileGetGpuTickReference(int64_t* pOutCpu, int64_t* pOutGpu)
 {
-	// TODO(AITOR): Need to figure out when this is used
-	P_ASSERT(false);
-
 	return false;
 	//Profile & S = g_Profile;
 	//if (!S.GPU.GetTickReference)

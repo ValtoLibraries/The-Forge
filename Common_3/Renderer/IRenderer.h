@@ -69,8 +69,20 @@
 // Set this define to enable renderdoc layer
 // NOTE: Setting this define will disable use of the khr dedicated allocation extension since it conflicts with the renderdoc capture layer
 //#define USE_RENDER_DOC
+
+// Raytracing
+#ifdef VK_NV_RAY_TRACING_SPEC_VERSION
+#define ENABLE_RAYTRACING
+#endif
 #elif defined(DIRECT3D12)
 //#define USE_PIX
+
+// Raytracing
+#ifdef D3D12_RAYTRACING_AABB_BYTE_ALIGNMENT
+#define ENABLE_RAYTRACING
+#endif
+#elif defined(METAL)
+#define ENABLE_RAYTRACING
 #endif
 
 #include "../OS/Image/ImageEnums.h"
@@ -207,7 +219,6 @@ typedef enum ResourceMemoryUsage
 
 // Forward declarations
 typedef struct Renderer             Renderer;
-typedef struct RaytracingHitGroup	RaytracingHitGroup;
 typedef struct Raytracing			Raytracing;
 typedef struct Queue                Queue;
 typedef struct Pipeline             Pipeline;
@@ -217,6 +228,10 @@ typedef struct BlendState           BlendState;
 typedef struct ShaderReflectionInfo ShaderReflectionInfo;
 typedef struct Shader               Shader;
 typedef struct DescriptorBinder     DescriptorBinder;
+
+// Raytracing
+typedef struct RaytracingHitGroup	 RaytracingHitGroup;
+typedef struct AccelerationStructure AccelerationStructure;
 
 typedef struct IndirectDrawArguments
 {
@@ -285,12 +300,12 @@ typedef enum DescriptorType
 	DESCRIPTOR_TYPE_RENDER_TARGET_ARRAY_SLICES = (DESCRIPTOR_TYPE_ROOT_CONSTANT << 2),
 	/// RTV / DSV per depth slice
 	DESCRIPTOR_TYPE_RENDER_TARGET_DEPTH_SLICES = (DESCRIPTOR_TYPE_RENDER_TARGET_ARRAY_SLICES << 1),
+	DESCRIPTOR_TYPE_RAY_TRACING = (DESCRIPTOR_TYPE_RENDER_TARGET_DEPTH_SLICES << 1),
 #if defined(VULKAN)
 	/// Subpass input (descriptor type only available in Vulkan)
-	DESCRIPTOR_TYPE_INPUT_ATTACHMENT = (DESCRIPTOR_TYPE_RENDER_TARGET_DEPTH_SLICES << 1),
+	DESCRIPTOR_TYPE_INPUT_ATTACHMENT = (DESCRIPTOR_TYPE_RAY_TRACING << 1),
 	DESCRIPTOR_TYPE_TEXEL_BUFFER = (DESCRIPTOR_TYPE_INPUT_ATTACHMENT << 1),
 	DESCRIPTOR_TYPE_RW_TEXEL_BUFFER = (DESCRIPTOR_TYPE_TEXEL_BUFFER << 1),
-	DESCRIPTOR_TYPE_RAY_TRACING = (DESCRIPTOR_TYPE_RW_TEXEL_BUFFER << 1),
 #endif
 } DescriptorType;
 MAKE_ENUM_FLAG(uint32_t, DescriptorType)
@@ -311,7 +326,7 @@ typedef enum ShaderStage
 	SHADER_STAGE_VERT = 0X00000001,
 	SHADER_STAGE_FRAG = 0X00000002,
 	SHADER_STAGE_COMP = 0X00000004,
-	SHADER_STAGE_ALL_GRAPHICS = 0X00000003,
+	SHADER_STAGE_ALL_GRAPHICS = ((uint32_t)SHADER_STAGE_VERT | (uint32_t)SHADER_STAGE_FRAG),
 	SHADER_STAGE_COUNT = 3,
 } ShaderStage;
 #else
@@ -324,8 +339,8 @@ typedef enum ShaderStage
 	SHADER_STAGE_GEOM = 0X00000008,
 	SHADER_STAGE_FRAG = 0X00000010,
 	SHADER_STAGE_COMP = 0X00000020,
-	SHADER_STAGE_ALL_GRAPHICS = 0X0000001F,
-	SHADER_STAGE_LIB  = 0X00000040,
+	SHADER_STAGE_RAYTRACING  = 0X00000040,
+	SHADER_STAGE_ALL_GRAPHICS = ((uint32_t)SHADER_STAGE_VERT | (uint32_t)SHADER_STAGE_TESC | (uint32_t)SHADER_STAGE_TESE | (uint32_t)SHADER_STAGE_GEOM | (uint32_t)SHADER_STAGE_FRAG),
 	SHADER_STAGE_HULL = SHADER_STAGE_TESC,
 	SHADER_STAGE_DOMN = SHADER_STAGE_TESE,
 	SHADER_STAGE_COUNT = 7,
@@ -821,8 +836,6 @@ typedef struct Texture
 	VkImageView* pVkSRVStencilDescriptor;
 	/// Native handle of the underlying resource
 	VkImage pVkImage;
-	/// Device memory handle
-	VkDeviceMemory pVkMemory;
 	/// Contains resource allocation info such as parent heap, offset in heap
 	struct VmaAllocation_T* pVkAllocation;
 	/// Flags specifying which aspects (COLOR,DEPTH,STENCIL) are included in the pVkImageView
@@ -993,28 +1006,28 @@ typedef struct DescriptorInfo
 #endif
 } DescriptorInfo;
 
-typedef enum RootSignatureType
+typedef enum RootSignatureFlags
 {
-	ROOT_SIGNATURE_GRAPHICS_COMPUTE,
-	ROOT_SIGNATURE_RAYTRACING_EMPTY,
-	ROOT_SIGNATURE_RAYTRACING_GLOBAL,
-} RootSignatureType;
+	/// Default flag
+	ROOT_SIGNATURE_FLAG_NONE = 0,
+	/// Local root signature used mainly in raytracing shaders
+	ROOT_SIGNATURE_FLAG_LOCAL_BIT = 0x1,
+} RootSignatureFlags;
+MAKE_ENUM_FLAG(uint32_t, RootSignatureFlags)
 
 typedef struct RootSignatureDesc
 {
-	Shader**     ppShaders;
-	uint32_t     mShaderCount;
-	uint32_t     mMaxBindlessTextures;
-	const char** ppStaticSamplerNames;
-	Sampler**    ppStaticSamplers;
-	uint32_t     mStaticSamplerCount;
+	Shader**               ppShaders;
+	uint32_t               mShaderCount;
+	uint32_t               mMaxBindlessTextures;
+	const char**           ppStaticSamplerNames;
+	Sampler**              ppStaticSamplers;
+	uint32_t               mStaticSamplerCount;
 #if defined(VULKAN)
-	const char** ppDynamicUniformBufferNames;
-	uint32_t     mDynamicUniformBufferCount;
+	const char**           ppDynamicUniformBufferNames;
+	uint32_t               mDynamicUniformBufferCount;
 #endif
-	RootSignatureType mSignatureType;
-	ShaderResource* pRaytracingShaderResources;
-	uint32_t pRaytracingResourcesCount;
+	RootSignatureFlags     mFlags;
 } RootSignatureDesc;
 
 typedef struct RootSignature
@@ -1094,6 +1107,8 @@ typedef struct DescriptorData
 		Buffer** ppBuffers;
 		/// Constant data in system memory to be bound as root / push constant
 		void* pRootConstant;
+		/// Custom binding (raytracing acceleration structure ...)
+		AccelerationStructure** ppAccelerationStructures;
 	};
 	/// Number of resources in the descriptor(applies to array of textures, buffers,...)
 	uint32_t mCount;
@@ -1122,17 +1137,7 @@ typedef struct Cmd
 	Renderer* pRenderer;
 	CmdPool*  pCmdPool;
 
-	DescriptorBinder*    pBoundDescriptorBinder;
-	uint32_t*            pBoundColorFormats;
-	bool*                pBoundSrgbValues;
-	uint32_t             mBoundDepthStencilFormat;
-	uint32_t             mBoundRenderTargetCount;
-	SampleCount          mBoundSampleCount;
-	uint32_t             mBoundSampleQuality;
-	uint32_t             mBoundWidth;
-	uint32_t             mBoundHeight;
 	uint32_t             mNodeIndex;
-	uint64_t             mRenderPassHash;
 #if defined(DIRECT3D12)
 	// For now each command list will have its own allocator until we get the command allocator pool logic working
 	ID3D12CommandAllocator*    pDxCmdAlloc;
@@ -1152,6 +1157,8 @@ typedef struct Cmd
 	VkBufferMemoryBarrier       pBatchBufferMemoryBarriers[MAX_BATCH_BARRIERS];
 	uint32_t                    mBatchImageMemoryBarrierCount;
 	uint32_t                    mBatchBufferMemoryBarrierCount;
+	VkPipelineStageFlags        mSrcStageMask;
+	VkPipelineStageFlags        mDstStageMask;
 #endif
 #if defined(METAL)
 	id<MTLCommandBuffer>         mtlCommandBuffer;
@@ -1177,6 +1184,8 @@ typedef struct Cmd
 	Buffer*  pRootConstantBuffer;
 	Buffer*  pTransientConstantBuffer;
 #endif
+	void*                        pBoundDescriptorBinderNode;
+	struct DescriptorBinder*     pBoundDescriptorBinder;
 } Cmd;
 
 typedef struct QueueDesc
@@ -1502,10 +1511,6 @@ typedef struct VertexAttrib
 	uint32_t          mOffset;
 	VertexAttribRate  mRate;
 
-#ifdef FORGE_JHABLE_EDITS_V01
-	uint32_t mSemanticType;
-	uint32_t mSemanticIndex;
-#endif
 } VertexAttrib;
 
 typedef struct VertexLayout
@@ -1642,7 +1647,7 @@ typedef struct SubresourceDataDesc
 typedef struct SwapChainDesc
 {
 	/// Window handle
-	WindowsDesc* pWindow;
+	WindowHandle mWindowHandle;
 	/// Queues which should be allowed to present
 	Queue** ppPresentQueues;
 	/// Number of present queues
@@ -1726,7 +1731,7 @@ typedef enum ShaderTarget
 	shader_target_6_2,
 	shader_target_6_3, //required for Raytracing
 #endif
-} DXShaderTarget;
+} ShaderTarget;
 
 typedef enum GpuMode
 {
@@ -1737,19 +1742,21 @@ typedef enum GpuMode
 
 typedef struct RendererDesc
 {
-	LogFn        pLogFn;
-	RendererApi  mApi;
-	ShaderTarget mShaderTarget;
-	GpuMode      mGpuMode;
+	LogFn                        pLogFn;
+	RendererApi                  mApi;
+	ShaderTarget                 mShaderTarget;
+	GpuMode                      mGpuMode;
 #if defined(VULKAN)
 	eastl::vector<eastl::string> mInstanceLayers;
 	eastl::vector<eastl::string> mInstanceExtensions;
 	eastl::vector<eastl::string> mDeviceExtensions;
-	PFN_vkDebugReportCallbackEXT     pVkDebugFn;
 #endif
 #if defined(DIRECT3D12)
-	D3D_FEATURE_LEVEL mDxFeatureLevel;
+	D3D_FEATURE_LEVEL            mDxFeatureLevel;
 #endif
+	/// This results in new validation not possible during API calls on the CPU, by creating patched shaders that have validation added directly to the shader.
+	/// However, it can slow things down a lot, especially for applications with numerous PSOs. Time to see the first render frame may take several minutes
+	bool                         mEnableGPUBasedValidation;
 } RendererDesc;
 
 typedef struct GPUVendorPreset
@@ -1845,11 +1852,12 @@ typedef struct Renderer
 	VkPhysicalDeviceProperties2*      pVkActiveGPUProperties;
 	VkDevice                          pVkDevice;
 #ifdef USE_DEBUG_UTILS_EXTENSION
-	VkDebugUtilsMessengerEXT pVkDebugUtilsMessenger;
+	VkDebugUtilsMessengerEXT          pVkDebugUtilsMessenger;
+#else
+	VkDebugReportCallbackEXT          pVkDebugReport;
 #endif
-	VkDebugReportCallbackEXT     pVkDebugReport;
-	eastl::vector<const char*> mInstanceLayers;
-	uint32_t                     mVkUsedQueueCount[MAX_GPUS][16];
+	eastl::vector<const char*>        mInstanceLayers;
+	uint32_t                          mVkUsedQueueCount[MAX_GPUS][16];
 
 	Texture* pDefaultTextureSRV[MAX_GPUS][TEXTURE_DIM_COUNT];
 	Texture* pDefaultTextureUAV[MAX_GPUS][TEXTURE_DIM_COUNT];
@@ -2044,6 +2052,7 @@ API_INTERFACE void FORGE_CALLCONV cmdExecuteIndirect(Cmd* pCmd, CommandSignature
 API_INTERFACE void FORGE_CALLCONV getTimestampFrequency(Queue* pQueue, double* pFrequency);
 API_INTERFACE void FORGE_CALLCONV addQueryHeap(Renderer* pRenderer, const QueryHeapDesc* pDesc, QueryHeap** ppQueryHeap);
 API_INTERFACE void FORGE_CALLCONV removeQueryHeap(Renderer* pRenderer, QueryHeap* pQueryHeap);
+API_INTERFACE void FORGE_CALLCONV cmdResetQueryHeap(Cmd* pCmd, QueryHeap* pQueryHeap, uint32_t startQuery, uint32_t queryCount);
 API_INTERFACE void FORGE_CALLCONV cmdBeginQuery(Cmd* pCmd, QueryHeap* pQueryHeap, QueryDesc* pQuery);
 API_INTERFACE void FORGE_CALLCONV cmdEndQuery(Cmd* pCmd, QueryHeap* pQueryHeap, QueryDesc* pQuery);
 API_INTERFACE void FORGE_CALLCONV cmdResolveQuery(Cmd* pCmd, QueryHeap* pQueryHeap, Buffer* pReadbackBuffer, uint32_t startQuery, uint32_t queryCount);
@@ -2067,6 +2076,7 @@ API_INTERFACE void FORGE_CALLCONV setTextureName(Renderer* pRenderer, Texture* p
 /************************************************************************/
 #else
 // DLL Interface must be generated using the ExportRendererDLLFunctions.py script under TheForge/Tools/
+#include "IRay.h"
 #include "IRendererDLL.h"
 #endif
 // clang-format on

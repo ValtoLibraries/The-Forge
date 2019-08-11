@@ -34,9 +34,9 @@
 //Interfaces
 #include "../../../../Common_3/OS/Interfaces/ICameraController.h"
 #include "../../../../Common_3/OS/Interfaces/IApp.h"
-#include "../../../../Common_3/OS/Interfaces/ILogManager.h"
+#include "../../../../Common_3/OS/Interfaces/ILog.h"
 #include "../../../../Common_3/OS/Interfaces/IFileSystem.h"
-#include "../../../../Common_3/OS/Interfaces/ITimeManager.h"
+#include "../../../../Common_3/OS/Interfaces/ITime.h"
 
 // Rendering
 #include "../../../../Common_3/Renderer/IRenderer.h"
@@ -50,7 +50,7 @@
 //Math
 #include "../../../../Common_3/OS/Math/MathTypes.h"
 
-#include "../../../../Common_3/OS/Interfaces/IMemoryManager.h"
+#include "../../../../Common_3/OS/Interfaces/IMemory.h"
 
 const char* pszBases[FSR_Count] = {
 	"../../../src/13_UserInterface/",       // FSR_BinShaders
@@ -60,6 +60,7 @@ const char* pszBases[FSR_Count] = {
 	"../../../UnitTestResources/",          // FSR_Builtin_Fonts
 	"../../../src/13_UserInterface/",       // FSR_GpuConfig
 	"",                                     // FSR_Animation
+	"",                                     // FSR_Audio
 	"",                                     // FSR_OtherFiles
 	"../../../../../Middleware_3/Text/",    // FSR_MIDDLEWARE_TEXT
 	"../../../../../Middleware_3/UI/",      // FSR_MIDDLEWARE_UI
@@ -76,14 +77,13 @@ CmdPool* pCmdPool = NULL;
 Cmd**    ppCmds = NULL;
 
 SwapChain*    pSwapChain = NULL;
-RenderTarget* pDepthBuffer = NULL;
 Fence*        pRenderCompleteFences[gImageCount] = { NULL };
 Semaphore*    pImageAcquiredSemaphore = NULL;
 Semaphore*    pRenderCompleteSemaphores[gImageCount] = { NULL };
 
 Texture*	  pSpriteTexture = NULL;
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(__ANDROID__)
 VirtualJoystickUI gVirtualJoystick;
 #endif
 DepthState* pDepth = NULL;
@@ -95,8 +95,6 @@ uint32_t gFrameIndex = 0;
 // CAMERA CONTROLLER & SYSTEMS (File/Log/UI)
 //--------------------------------------------------------------------------------------------
 ICameraController* pCameraController = NULL;
-FileSystem         gFileSystem;
-
 UIApp         gAppUI;
 GuiComponent* pStandaloneControlsGUIWindow = NULL;
 GuiComponent* pGroupedGUIWindow = NULL;
@@ -239,16 +237,15 @@ public:
 		// INITIALIZE RESOURCE/DEBUG SYSTEMS
 		//
 		initResourceLoaderInterface(pRenderer);
-#ifdef TARGET_IOS
-		if (!gVirtualJoystick.Init(pRenderer, "circlepad.png", FSR_Textures))
+#if defined(TARGET_IOS) || defined(__ANDROID__)
+		if (!gVirtualJoystick.Init(pRenderer, "circlepad", FSR_Textures))
 			return false;
 #endif
 
 		TextureLoadDesc textureDesc = {};
 		textureDesc.mRoot = FSR_Textures;
 		textureDesc.ppTexture = &pSpriteTexture;
-		textureDesc.mUseMipmaps = false;
-		textureDesc.pFilename = "sprites.png";
+		textureDesc.pFilename = "sprites";
 		addResource(&textureDesc);
 
 		finishResourceLoading();
@@ -274,7 +271,6 @@ public:
 #endif
 		pCameraController->setMotionParameters(cmp);
 
-		requestMouseCapture(true);
 		InputSystem::RegisterInputEvent(cameraInputEvent);
 
 		// INITIALIZE THE USER INTERFACE
@@ -425,7 +421,7 @@ public:
 
 		destroyCameraController(pCameraController);
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(__ANDROID__)
 		gVirtualJoystick.Exit();
 #endif
 
@@ -461,16 +457,14 @@ public:
 		//
 		if (!addSwapChain())
 			return false;
-		if (!addDepthBuffer())
-			return false;
 
 		// LOAD USER INTERFACE
 		//
 		if (!gAppUI.Load(pSwapChain->ppSwapchainRenderTargets))
 			return false;
 
-#ifdef TARGET_IOS
-		if (!gVirtualJoystick.Load(pSwapChain->ppSwapchainRenderTargets[0], pDepthBuffer->mDesc.mFormat))
+#if defined(TARGET_IOS) || defined(__ANDROID__)
+		if (!gVirtualJoystick.Load(pSwapChain->ppSwapchainRenderTargets[0]))
 			return false;
 #endif
 
@@ -483,12 +477,11 @@ public:
 
 		gAppUI.Unload();
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(__ANDROID__)
 		gVirtualJoystick.Unload();
 #endif
 
 		removeSwapChain(pRenderer, pSwapChain);
-		removeRenderTarget(pRenderer, pDepthBuffer);
 	}
 
 	void Update(float deltaTime)
@@ -530,7 +523,11 @@ public:
 	{
 		static HiresTimer gTimer;
 		const vec4        backgroundColor = unpackColorU32(gUIData.mStandalone.mColorForSlider);
-		const ClearValue  clearVal = { backgroundColor.getX(), backgroundColor.getY(), backgroundColor.getZ(), backgroundColor.getW() };
+		ClearValue  clearVal;
+		clearVal.r = backgroundColor.getX();
+		clearVal.g = backgroundColor.getY();
+		clearVal.b = backgroundColor.getZ();
+		clearVal.a = backgroundColor.getW();
 
 		acquireNextImage(pRenderer, pSwapChain, pImageAcquiredSemaphore, NULL, &gFrameIndex);
 
@@ -553,17 +550,14 @@ public:
 		TextureBarrier barriers[] =    // wait for resource transition
 		{
 			{ pRenderTarget->pTexture, RESOURCE_STATE_RENDER_TARGET },
-			{ pDepthBuffer->pTexture, RESOURCE_STATE_DEPTH_WRITE },
 		};
-		cmdResourceBarrier(cmd, 0, NULL, 2, barriers, false);
+		cmdResourceBarrier(cmd, 0, NULL, 1, barriers, false);
 
 		// bind and clear the render target
 		LoadActionsDesc loadActions = {};    // render target clean command
 		loadActions.mLoadActionsColor[0] = LOAD_ACTION_CLEAR;
 		loadActions.mClearColorValues[0] = clearVal;
-		loadActions.mLoadActionDepth = LOAD_ACTION_CLEAR;
-		loadActions.mClearDepth = { 1.0f, 0 };
-		cmdBindRenderTargets(cmd, 1, &pRenderTarget, pDepthBuffer, &loadActions, NULL, NULL, -1, -1);
+		cmdBindRenderTargets(cmd, 1, &pRenderTarget, NULL, &loadActions, NULL, NULL, -1, -1);
 		cmdSetViewport(cmd, 0.0f, 0.0f, (float)pRenderTarget->mDesc.mWidth, (float)pRenderTarget->mDesc.mHeight, 0.0f, 1.0f);
 		cmdSetScissor(cmd, 0, 0, pRenderTarget->mDesc.mWidth, pRenderTarget->mDesc.mHeight);
 
@@ -575,7 +569,7 @@ public:
 		//
 		cmdBeginDebugMarker(cmd, 0, 1, 0, "Draw UI");
 		gTimer.GetUSec(true);
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(__ANDROID__)
 		gVirtualJoystick.Draw(cmd, { 1.0f, 1.0f, 1.0f, 1.0f });
 #endif
 
@@ -601,7 +595,7 @@ public:
 	bool addSwapChain()
 	{
 		SwapChainDesc swapChainDesc = {};
-		swapChainDesc.pWindow = pWindow;
+		swapChainDesc.mWindowHandle = pWindow->handle;
 		swapChainDesc.mPresentQueueCount = 1;
 		swapChainDesc.ppPresentQueues = &pGraphicsQueue;
 		swapChainDesc.mWidth = mSettings.mWidth;
@@ -613,22 +607,6 @@ public:
 		::addSwapChain(pRenderer, &swapChainDesc, &pSwapChain);
 
 		return pSwapChain != NULL;
-	}
-
-	bool addDepthBuffer()
-	{
-		RenderTargetDesc depthRT = {};
-		depthRT.mArraySize = 1;
-		depthRT.mClearValue = { 1.0f, 0 };
-		depthRT.mDepth = 1;
-		depthRT.mFormat = ImageFormat::D32F;
-		depthRT.mHeight = mSettings.mHeight;
-		depthRT.mSampleCount = SAMPLE_COUNT_1;
-		depthRT.mSampleQuality = 0;
-		depthRT.mWidth = mSettings.mWidth;
-		addRenderTarget(pRenderer, &depthRT, &pDepthBuffer);
-
-		return pDepthBuffer != NULL;
 	}
 
 	void RecenterCameraView(float maxDistance, vec3 lookAt = vec3(0))

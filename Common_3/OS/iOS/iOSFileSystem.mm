@@ -28,9 +28,9 @@
 #include "../../ThirdParty/OpenSource/EASTL/string_hash_map.h"
 
 #include "../Interfaces/IFileSystem.h"
-#include "../Interfaces/ILogManager.h"
+#include "../Interfaces/ILog.h"
 #include "../Interfaces/IOperatingSystem.h"
-#include "../Interfaces/IMemoryManager.h"
+#include "../Interfaces/IMemory.h"
 
 #include <sys/stat.h>
 #include <unistd.h>
@@ -45,6 +45,7 @@ const char* pszRoots[FSR_Count] = {
 	"Fonts/",                   // FSR_Builtin_Fonts
 	"GPUCfg/",                  // FSR_GpuConfig
 	"Animation/",               // FSR_Animation
+	"Audio/",                   // FSR_Audio
 	"",                         // FSR_OtherFiles
 };
 

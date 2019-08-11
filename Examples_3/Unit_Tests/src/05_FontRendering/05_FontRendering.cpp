@@ -35,9 +35,9 @@
 #include "../../../../Common_3/ThirdParty/OpenSource/EASTL/string.h"
 
 // Interfaces
-#include "../../../../Common_3/OS/Interfaces/ILogManager.h"
+#include "../../../../Common_3/OS/Interfaces/ILog.h"
 #include "../../../../Common_3/OS/Interfaces/IFileSystem.h"
-#include "../../../../Common_3/OS/Interfaces/ITimeManager.h"
+#include "../../../../Common_3/OS/Interfaces/ITime.h"
 #include "../../../../Middleware_3/UI/AppUI.h"
 #include "../../../../Common_3/OS/Interfaces/IApp.h"
 #include "../../../../Common_3/OS/Interfaces/IProfiler.h"
@@ -52,7 +52,7 @@
 #include "../../../../Common_3/OS/Input/InputMappings.h"
 
 // Memory
-#include "../../../../Common_3/OS/Interfaces/IMemoryManager.h"    // NOTE: should be the last include in a .cpp!
+#include "../../../../Common_3/OS/Interfaces/IMemory.h"    // NOTE: should be the last include in a .cpp!
 
 // Define App directories
 const char* pszBases[FSR_Count] = {
@@ -63,6 +63,7 @@ const char* pszBases[FSR_Count] = {
 	"../../../UnitTestResources/",          // FSR_Builtin_Fonts
 	"../../../src/05_FontRendering/",       // FSR_GpuConfig
 	"",                                     // FSR_Animation
+	"",                                     // FSR_Audio
 	"",                                     // FSR_OtherFiles
 	"../../../../../Middleware_3/Text/",    // FSR_MIDDLEWARE_TEXT
 	"../../../../../Middleware_3/UI/",      // FSR_MIDDLEWARE_UI
@@ -286,7 +287,7 @@ class FontRendering: public IApp
 
 		initResourceLoaderInterface(pRenderer);
 
-		initProfiler(pRenderer, gImageCount);
+		initProfiler(pRenderer);
 		profileRegisterInput();
 
 		addGpuProfiler(pRenderer, pGraphicsQueue, &pGpuProfiler, "GpuProfiler");
@@ -323,7 +324,6 @@ class FontRendering: public IApp
 
 		gPreviousTheme = gSceneData.theme;
 
-		requestMouseCapture(false);
 		return true;
 	}
 
@@ -331,7 +331,7 @@ class FontRendering: public IApp
 	{
 		waitQueueIdle(pGraphicsQueue);
 
-		exitProfiler(pRenderer);
+		exitProfiler();
 
 		gAppUI.Exit();
 
@@ -353,7 +353,7 @@ class FontRendering: public IApp
 	bool Load()
 	{
 		SwapChainDesc swapChainDesc = {};
-		swapChainDesc.pWindow = pWindow;
+		swapChainDesc.mWindowHandle = pWindow->handle;
 		swapChainDesc.mPresentQueueCount = 1;
 		swapChainDesc.ppPresentQueues = &pGraphicsQueue;
 		swapChainDesc.mWidth = mSettings.mWidth;
@@ -371,12 +371,16 @@ class FontRendering: public IApp
 		if (!gAppUI.Load(pSwapChain->ppSwapchainRenderTargets))
 			return false;
 
+		loadProfiler(pSwapChain->ppSwapchainRenderTargets[0]);
+
 		return true;
 	}
 
 	void Unload()
 	{
 		waitQueueIdle(pGraphicsQueue);
+		unloadProfiler();
+		gAppUI.Unload();
 		removeSwapChain(pRenderer, pSwapChain);
 	}
 
@@ -452,10 +456,18 @@ class FontRendering: public IApp
 		// simply record the screen cleaning command
 		LoadActionsDesc loadActions = {};
 		loadActions.mLoadActionsColor[0] = LOAD_ACTION_CLEAR;
-		loadActions.mClearColorValues[0] = { 1.0f, 1.0f, 1.0f, 1.0f };
+		loadActions.mClearColorValues[0].r = 1.0f;
+		loadActions.mClearColorValues[0].g = 1.0f;
+		loadActions.mClearColorValues[0].b = 1.0f;
+		loadActions.mClearColorValues[0].a = 1.0f;
 		const float darkBackgroundColor = 0.05f;
 		if (gSceneData.theme)
-			loadActions.mClearColorValues[0] = { darkBackgroundColor, darkBackgroundColor, darkBackgroundColor, 1.0f };
+		{
+			loadActions.mClearColorValues[0].r = darkBackgroundColor;
+			loadActions.mClearColorValues[0].g = darkBackgroundColor;
+			loadActions.mClearColorValues[0].b = darkBackgroundColor;
+			loadActions.mClearColorValues[0].a = 1.0f;
+		}
 
 		Cmd* cmd = ppCmds[gFrameIndex];
 		beginCmd(cmd);
@@ -496,7 +508,7 @@ class FontRendering: public IApp
 		if (gbShowSceneControlsUIWindow)
 			gAppUI.Gui(pUIWindow);
 
-		cmdDrawProfiler(cmd, mSettings.mWidth, mSettings.mHeight);
+		cmdDrawProfiler(cmd);
 		gAppUI.Draw(cmd);
 
 		cmdBindRenderTargets(cmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
@@ -605,21 +617,26 @@ class FontRendering: public IApp
 		const int         numSubColumns = 3;    // we display 3 font properties: spacing, blur and color
 		const int         numSubRows = 4;       // we display 4 values for each of the font properties
 		const int         numElements = numSubRows * numSubColumns;
-		FontPropertyValue fontPropertyValues[numElements] = {
-			0.0f, 1.0f, 2.0f, 4.0f,
+		FontPropertyValue fontPropertyValues[numElements];
+		fontPropertyValues[0].i = 0;
+		fontPropertyValues[1].i = 1;
+		fontPropertyValues[2].i = 2;
+		fontPropertyValues[3].i = 4;
 
-			0.0f, 1.0f, 2.0f, 4.0f,
+		fontPropertyValues[4].i = 0;
+		fontPropertyValues[5].i = 1;
+		fontPropertyValues[6].i = 2;
+		fontPropertyValues[7].i = 4;
 
-			// note:
+		// note:
 			// cannot initialize the union's int variable like this
 			// need to explicitly assign the int variable outisde the
 			// initializer list. initilize to 0.0f for now.
 			//
-			0.0f,    // ((int)0xff0000dd),
-			0.0f,    // ((int)0xff00dd00),
-			0.0f,    // ((int)0xffdd5050),
-			0.0f,    // ((int)0xff888888)
-		};
+			// 0.0f,    // ((int)0xff0000dd),
+			// 0.0f,    // ((int)0xff00dd00),
+			// 0.0f,    // ((int)0xffdd5050),
+			// 0.0f,    // ((int)0xff888888)
 		fontPropertyValues[8].i = 0xff0000dd;
 		fontPropertyValues[9].i = 0xff00dd00;
 		fontPropertyValues[10].i = 0xffdd5050;

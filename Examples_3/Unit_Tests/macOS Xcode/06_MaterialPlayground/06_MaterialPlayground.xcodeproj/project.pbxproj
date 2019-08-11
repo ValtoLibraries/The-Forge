@@ -65,8 +65,6 @@
 		65F9787E21E71EEB008EC741 /* loadGroundTextures.lua in Resources */ = {isa = PBXBuildFile; fileRef = 65F9787721E71EEB008EC741 /* loadGroundTextures.lua */; };
 		65F9787F21E71EEB008EC741 /* loadTextures.lua in Resources */ = {isa = PBXBuildFile; fileRef = 65F9787821E71EEB008EC741 /* loadTextures.lua */; };
 		65F9788021E71EEB008EC741 /* loadTextures.lua in Resources */ = {isa = PBXBuildFile; fileRef = 65F9787821E71EEB008EC741 /* loadTextures.lua */; };
-		81B986B02269FEB90078E5F4 /* AppHelpers.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 81B986AC2269FEB90078E5F4 /* AppHelpers.cpp */; };
-		81B986B12269FF1C0078E5F4 /* AppHelpers.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 81B986AC2269FEB90078E5F4 /* AppHelpers.cpp */; };
 		971BCEDD217012E2007F2B2F /* BRDFIntegration.comp.metal in Copy Shaders */ = {isa = PBXBuildFile; fileRef = B2637CB520C9A2DB00D76037 /* BRDFIntegration.comp.metal */; };
 		971BCEDE217012E2007F2B2F /* computeIrradianceMap.comp.metal in Copy Shaders */ = {isa = PBXBuildFile; fileRef = B2637CB420C9A2DB00D76037 /* computeIrradianceMap.comp.metal */; };
 		971BCEDF217012E2007F2B2F /* computeSpecularMap.comp.metal in Copy Shaders */ = {isa = PBXBuildFile; fileRef = B2637CB820C9A2DB00D76037 /* computeSpecularMap.comp.metal */; };
@@ -75,8 +73,8 @@
 		971BCEE2217012E2007F2B2F /* renderSceneBRDF.vert.metal in Copy Shaders */ = {isa = PBXBuildFile; fileRef = B2637CBA20C9A2DC00D76037 /* renderSceneBRDF.vert.metal */; };
 		971BCEE3217012E2007F2B2F /* skybox.frag.metal in Copy Shaders */ = {isa = PBXBuildFile; fileRef = B2637CBB20C9A2DC00D76037 /* skybox.frag.metal */; };
 		971BCEE4217012E2007F2B2F /* skybox.vert.metal in Copy Shaders */ = {isa = PBXBuildFile; fileRef = B2637CB620C9A2DB00D76037 /* skybox.vert.metal */; };
-		971BCEEA217012FB007F2B2F /* circlepad.png in Copy Textures */ = {isa = PBXBuildFile; fileRef = 281FA9E820333E5700CD5D9C /* circlepad.png */; };
-		971BCEEB217012FB007F2B2F /* LA_Helipad.hdr in Copy Textures */ = {isa = PBXBuildFile; fileRef = 2874FDB8202CA418007239DC /* LA_Helipad.hdr */; };
+		971BCEEA217012FB007F2B2F /* circlepad.ktx in Copy Textures */ = {isa = PBXBuildFile; fileRef = 281FA9E820333E5700CD5D9C /* circlepad.ktx */; };
+		971BCEEB217012FB007F2B2F /* LA_Helipad.ktx in Copy Textures */ = {isa = PBXBuildFile; fileRef = 2874FDB8202CA418007239DC /* LA_Helipad.ktx */; };
 		971BCEED2170133F007F2B2F /* TitilliumText in Copy Fonts */ = {isa = PBXBuildFile; fileRef = 28A5AD6A201F7300000E571F /* TitilliumText */; };
 		971BCEEF2170135B007F2B2F /* cube.obj in Copy Meshes */ = {isa = PBXBuildFile; fileRef = B2A9284620C7606200F06BFD /* cube.obj */; };
 		971BCEF02170135B007F2B2F /* matBall.obj in Copy Meshes */ = {isa = PBXBuildFile; fileRef = B2A9284720C7606200F06BFD /* matBall.obj */; };
@@ -336,8 +334,8 @@
 			dstPath = Textures;
 			dstSubfolderSpec = 7;
 			files = (
-				971BCEEA217012FB007F2B2F /* circlepad.png in Copy Textures */,
-				971BCEEB217012FB007F2B2F /* LA_Helipad.hdr in Copy Textures */,
+				971BCEEA217012FB007F2B2F /* circlepad.ktx in Copy Textures */,
+				971BCEEB217012FB007F2B2F /* LA_Helipad.ktx in Copy Textures */,
 			);
 			name = "Copy Textures";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -417,8 +415,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		281FA9E820333E5700CD5D9C /* circlepad.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = circlepad.png; path = ../../../UnitTestResources/Textures/circlepad.png; sourceTree = "<group>"; };
-		2874FDB8202CA418007239DC /* LA_Helipad.hdr */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = LA_Helipad.hdr; path = ../../../UnitTestResources/Textures/LA_Helipad.hdr; sourceTree = "<group>"; };
+		281FA9E820333E5700CD5D9C /* circlepad.ktx */ = {isa = PBXFileReference; lastKnownFileType = image.ktx; name = circlepad.ktx; path = ../../../UnitTestResources/Textures/circlepad.ktx; sourceTree = "<group>"; };
+		2874FDB8202CA418007239DC /* LA_Helipad.ktx */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = LA_Helipad.ktx; path = ../../../UnitTestResources/Textures/LA_Helipad.ktx; sourceTree = "<group>"; };
 		28A5AD43201F7276000E571F /* 06_MaterialPlayground_iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = 06_MaterialPlayground_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		28A5AD54201F7276000E571F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		28A5AD57201F7276000E571F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -466,8 +464,6 @@
 		65F9787621E71EEB008EC741 /* updateCamera.lua */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = updateCamera.lua; path = ../../src/06_MaterialPlayground/updateCamera.lua; sourceTree = "<group>"; };
 		65F9787721E71EEB008EC741 /* loadGroundTextures.lua */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = loadGroundTextures.lua; path = ../../src/06_MaterialPlayground/loadGroundTextures.lua; sourceTree = "<group>"; };
 		65F9787821E71EEB008EC741 /* loadTextures.lua */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = loadTextures.lua; path = ../../src/06_MaterialPlayground/loadTextures.lua; sourceTree = "<group>"; };
-		81B986AC2269FEB90078E5F4 /* AppHelpers.cpp */ = {isa = PBXFileReference; explicitFileType = sourcecode.cpp.objcpp; fileEncoding = 4; name = AppHelpers.cpp; path = ../../../../Common/AppHelpers.cpp; sourceTree = "<group>"; };
-		81B986AF2269FEB90078E5F4 /* AppHelpers.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = AppHelpers.h; path = ../../../../Common/AppHelpers.h; sourceTree = "<group>"; };
 		977AF06121FA7A5300BA2AA2 /* renderSceneShadows.frag.metal */ = {isa = PBXFileReference; explicitFileType = text; fileEncoding = 4; name = renderSceneShadows.frag.metal; path = ../../../src/06_MaterialPlayground/Shaders/Metal/renderSceneShadows.frag.metal; sourceTree = "<group>"; };
 		977AF06421FA7A5300BA2AA2 /* renderSceneShadows.vert.metal */ = {isa = PBXFileReference; explicitFileType = text; fileEncoding = 4; name = renderSceneShadows.vert.metal; path = ../../../src/06_MaterialPlayground/Shaders/Metal/renderSceneShadows.vert.metal; sourceTree = "<group>"; };
 		97B2DD1F218BA44600DDDE62 /* PBR */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PBR; path = ../../../../Art/PBR; sourceTree = "<group>"; };
@@ -542,8 +538,8 @@
 		2874FDB7202CA3FE007239DC /* Textures */ = {
 			isa = PBXGroup;
 			children = (
-				281FA9E820333E5700CD5D9C /* circlepad.png */,
-				2874FDB8202CA418007239DC /* LA_Helipad.hdr */,
+				281FA9E820333E5700CD5D9C /* circlepad.ktx */,
+				2874FDB8202CA418007239DC /* LA_Helipad.ktx */,
 			);
 			name = Textures;
 			path = 06_MaterialPlayground_iOS;
@@ -765,8 +761,6 @@
 		EA463C941EF81E8F005AC8C7 /* 06_MaterialPlayground */ = {
 			isa = PBXGroup;
 			children = (
-				81B986AC2269FEB90078E5F4 /* AppHelpers.cpp */,
-				81B986AF2269FEB90078E5F4 /* AppHelpers.h */,
 				5C172F7D214149FD0074EE71 /* AppDelegate.h */,
 				5C172F7C214149FD0074EE71 /* AppDelegate.m */,
 				B2637CC420C9A2E800D76037 /* 06_MaterialPlayground.cpp */,
@@ -1050,7 +1044,6 @@
 				B2637CC620C9A2E800D76037 /* 06_MaterialPlayground.cpp in Sources */,
 				5C17303C21414E500074EE71 /* AppDelegate.m in Sources */,
 				654D976921E9216700113964 /* TressFXAsset.cpp in Sources */,
-				81B986B12269FF1C0078E5F4 /* AppHelpers.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1063,7 +1056,6 @@
 				5C172F7E214149FD0074EE71 /* AppDelegate.m in Sources */,
 				654D976721E9215F00113964 /* TFXImporter.cpp in Sources */,
 				B2637CC520C9A2E800D76037 /* 06_MaterialPlayground.cpp in Sources */,
-				81B986B02269FEB90078E5F4 /* AppHelpers.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

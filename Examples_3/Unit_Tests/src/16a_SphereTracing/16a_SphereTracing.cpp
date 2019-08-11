@@ -30,9 +30,9 @@
 
 #include "../../../../Common_3/OS/Interfaces/ICameraController.h"
 #include "../../../../Common_3/OS/Interfaces/IApp.h"
-#include "../../../../Common_3/OS/Interfaces/ILogManager.h"
+#include "../../../../Common_3/OS/Interfaces/ILog.h"
 #include "../../../../Common_3/OS/Interfaces/IFileSystem.h"
-#include "../../../../Common_3/OS/Interfaces/ITimeManager.h"
+#include "../../../../Common_3/OS/Interfaces/ITime.h"
 #include "../../../../Common_3/OS/Interfaces/IProfiler.h"
 #include "../../../../Common_3/OS/Math/MathTypes.h"
 
@@ -40,7 +40,7 @@
 #include "../../../../Common_3/OS/Input/InputSystem.h"
 #include "../../../../Common_3/OS/Input/InputMappings.h"
 
-#include "../../../../Common_3/OS/Interfaces/IMemoryManager.h"    // Must be last include in cpp file
+#include "../../../../Common_3/OS/Interfaces/IMemory.h"    // Must be last include in cpp file
 
 struct UniformBlock
 {
@@ -87,8 +87,6 @@ GpuProfiler* pGpuProfiler = NULL;
 /// UI
 UIApp gAppUI;
 
-FileSystem gFileSystem;
-
 const char* pszBases[FSR_Count] = {
 	"../../../src/16a_SphereTracing/",       // FSR_BinShaders
 	"../../../src/16a_SphereTracing/",       // FSR_SrcShaders
@@ -97,6 +95,7 @@ const char* pszBases[FSR_Count] = {
 	"../../../UnitTestResources/",          // FSR_Builtin_Fonts
 	"../../../src/16a_SphereTracing/",       // FSR_GpuConfig
 	"",                                     // FSR_Animation
+	"",                                     // FSR_Audio
 	"",                                     // FSR_OtherFiles
 	"../../../../../Middleware_3/Text/",    // FSR_MIDDLEWARE_TEXT
 	"../../../../../Middleware_3/UI/",      // FSR_MIDDLEWARE_UI
@@ -138,13 +137,13 @@ class SphereTracing: public IApp
 
 		initResourceLoaderInterface(pRenderer);
 
-		initProfiler(pRenderer, gImageCount);
+		initProfiler(pRenderer);
 		profileRegisterInput();
 
 		addGpuProfiler(pRenderer, pGraphicsQueue, &pGpuProfiler, "GpuProfiler");
 
 #if defined(__ANDROID__) || defined(TARGET_IOS)
-		if (!gVirtualJoystick.Init(pRenderer, "circlepad.png", FSR_Textures))
+		if (!gVirtualJoystick.Init(pRenderer, "circlepad", FSR_Textures))
 		{
 			LOGF(LogLevel::eERROR, "Could not initialize Virtual Joystick.");
 			return false;
@@ -207,7 +206,6 @@ class SphereTracing: public IApp
 		gVirtualJoystick.InitLRSticks();
 		pCameraController->setVirtualJoystick(&gVirtualJoystick);
 #endif
-		requestMouseCapture(true);
 
 		pCameraController->setMotionParameters(cmp);
 
@@ -219,7 +217,7 @@ class SphereTracing: public IApp
 	{
 		waitQueueIdle(pGraphicsQueue);
 
-		exitProfiler(pRenderer);
+		exitProfiler();
 
 		destroyCameraController(pCameraController);
 
@@ -265,9 +263,10 @@ class SphereTracing: public IApp
 			return false;
 
 #if defined(TARGET_IOS) || defined(__ANDROID__)
-		if (!gVirtualJoystick.Load(pSwapChain->ppSwapchainRenderTargets[0], ImageFormat::NONE))
+		if (!gVirtualJoystick.Load(pSwapChain->ppSwapchainRenderTargets[0]))
 			return false;
 #endif
+		loadProfiler(pSwapChain->ppSwapchainRenderTargets[0]);
 
 		PipelineDesc desc = {};
 		desc.mType = PIPELINE_TYPE_GRAPHICS;
@@ -295,6 +294,7 @@ class SphereTracing: public IApp
 
 		gAppUI.Unload();
 
+		unloadProfiler();
 #if defined(TARGET_IOS) || defined(__ANDROID__)
 		gVirtualJoystick.Unload();
 #endif
@@ -414,7 +414,7 @@ class SphereTracing: public IApp
 		gAppUI.DrawDebugGpuProfile(cmd, float2(8, 65), pGpuProfiler, NULL);
 #endif
 
-		cmdDrawProfiler(cmd, mSettings.mWidth, mSettings.mHeight);
+		cmdDrawProfiler(cmd);
 
     gAppUI.Gui(pGuiWindow);
 		gAppUI.Draw(cmd);
@@ -436,7 +436,7 @@ class SphereTracing: public IApp
 	bool addSwapChain()
 	{
 		SwapChainDesc swapChainDesc = {};
-		swapChainDesc.pWindow = pWindow;
+		swapChainDesc.mWindowHandle = pWindow->handle;
 		swapChainDesc.mPresentQueueCount = 1;
 		swapChainDesc.ppPresentQueues = &pGraphicsQueue;
 		swapChainDesc.mWidth = mSettings.mWidth;

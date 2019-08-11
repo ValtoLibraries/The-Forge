@@ -35,9 +35,9 @@
 //Interfaces
 #include "../../../../Common_3/OS/Interfaces/ICameraController.h"
 #include "../../../../Common_3/OS/Interfaces/IApp.h"
-#include "../../../../Common_3/OS/Interfaces/ILogManager.h"
+#include "../../../../Common_3/OS/Interfaces/ILog.h"
 #include "../../../../Common_3/OS/Interfaces/IFileSystem.h"
-#include "../../../../Common_3/OS/Interfaces/ITimeManager.h"
+#include "../../../../Common_3/OS/Interfaces/ITime.h"
 #include "../../../../Common_3/OS/Interfaces/IProfiler.h"
 #include "../../../../Common_3/Renderer/IRenderer.h"
 #include "../../../../Common_3/Renderer/ResourceLoader.h"
@@ -51,7 +51,7 @@
 #include "../../../../Common_3/OS/Input/InputSystem.h"
 #include "../../../../Common_3/OS/Input/InputMappings.h"
 
-#include "../../../../Common_3/OS/Interfaces/IMemoryManager.h"
+#include "../../../../Common_3/OS/Interfaces/IMemory.h"
 
 /// Demo structures
 struct PlanetInfoStruct
@@ -97,13 +97,13 @@ Renderer* pRenderer = NULL;
 Queue*        pGraphicsQueue[gViewCount] = { NULL };
 CmdPool*      pCmdPool[gViewCount] = { NULL };
 Cmd**         ppCmds[gViewCount] = { NULL };
-Fence*        pRenderCompleteFences[gViewCount][gImageCount] = { NULL };
-Semaphore*    pRenderCompleteSemaphores[gViewCount][gImageCount] = { NULL };
+Fence*        pRenderCompleteFences[gViewCount][gImageCount] = { { NULL } };
+Semaphore*    pRenderCompleteSemaphores[gViewCount][gImageCount] = {{ NULL }};
 Buffer*       pSphereVertexBuffer[gViewCount] = { NULL };
 Buffer*       pSkyBoxVertexBuffer[gViewCount] = { NULL };
 Texture*      pSkyBoxTextures[gViewCount][6];
 GpuProfiler*  pGpuProfilers[gViewCount] = { NULL };
-RenderTarget* pRenderTargets[gViewCount][gImageCount] = { NULL };
+RenderTarget* pRenderTargets[gViewCount][gImageCount] = {{ NULL }};
 RenderTarget* pDepthBuffers[gViewCount] = { NULL };
 
 Semaphore* pImageAcquiredSemaphore = NULL;
@@ -137,10 +137,8 @@ ICameraController* pCameraController = NULL;
 UIApp         gAppUI;
 GuiComponent* pGui;
 
-FileSystem gFileSystem;
-
-const char* pSkyBoxImageFileNames[] = { "Skybox_right1.png",  "Skybox_left2.png",  "Skybox_top3.png",
-										"Skybox_bottom4.png", "Skybox_front5.png", "Skybox_back6.png" };
+const char* pSkyBoxImageFileNames[] = { "Skybox_right1",  "Skybox_left2",  "Skybox_top3",
+										"Skybox_bottom4", "Skybox_front5", "Skybox_back6" };
 
 const char* pszBases[FSR_Count] = {
 	"../../../src/11_MultiGPU/",                        // FSR_BinShaders
@@ -150,6 +148,7 @@ const char* pszBases[FSR_Count] = {
 	"../../../UnitTestResources/",                      // FSR_Builtin_Fonts
 	"../../../src/11_MultiGPU/",                        // FSR_GpuConfig
 	"",                                                 // FSR_Animation
+	"",                                                 // FSR_Audio
 	"",                                                 // FSR_OtherFiles
 	"../../../../../Middleware_3/Text/",                // FSR_MIDDLEWARE_TEXT
 	"../../../../../Middleware_3/UI/",                  // FSR_MIDDLEWARE_UI
@@ -157,8 +156,8 @@ const char* pszBases[FSR_Count] = {
 };
 
 TextDrawDesc     gFrameTimeDraw = TextDrawDesc(0, 0xff00ffff, 18);
-ClearValue       gClearColor = { 0.0f, 0.0f, 0.0f, 0.0f };
-ClearValue       gClearDepth = { 1.0f, 0 };
+ClearValue       gClearColor; // initialization in Init
+ClearValue       gClearDepth;
 Panini           gPanini = {};
 PaniniParameters gPaniniParams = {};
 bool             gMultiGPU = true;
@@ -170,6 +169,14 @@ class MultiGPU: public IApp
 	public:
 	bool Init()
 	{
+		gClearColor.r = 0.0f;
+		gClearColor.g = 0.0f;
+		gClearColor.b = 0.0f;
+		gClearColor.a = 0.0f;
+
+		gClearDepth.depth = 1.0f;
+		gClearDepth.stencil = 0;
+
 		// window and renderer setup
 		RendererDesc settings = { 0 };
 		settings.mGpuMode = gMultiGPU ? GPU_MODE_LINKED : GPU_MODE_SINGLE;
@@ -198,7 +205,7 @@ class MultiGPU: public IApp
 				addQueue(pRenderer, &queueDesc, &pGraphicsQueue[i]);
 		}
 
-		initProfiler(pRenderer, gImageCount);
+		initProfiler(pRenderer);
 		profileRegisterInput();
 		char gpu_profile_name[16] = { 0 };
 
@@ -315,7 +322,6 @@ class MultiGPU: public IApp
 #else
 		textureDesc.mRoot = FSRoot::FSR_Absolute;    // Resources on iOS are bundled with the application.
 #endif
-		textureDesc.mUseMipmaps = true;
 
 		for (uint32_t view = 0; view < gViewCount; ++view)
 		{
@@ -491,7 +497,6 @@ class MultiGPU: public IApp
 		vec3                   lookAt{ 0 };
 
 		pCameraController = createFpsCameraController(camPos, lookAt);
-		requestMouseCapture(true);
 
 		pCameraController->setMotionParameters(cmp);
 		InputSystem::RegisterInputEvent(cameraInputEvent);
@@ -509,7 +514,7 @@ class MultiGPU: public IApp
 
 		destroyCameraController(pCameraController);
 
-		exitProfiler(pRenderer);
+		exitProfiler();
 
 		if (!gMultiGPURestart)
 		{
@@ -592,6 +597,8 @@ class MultiGPU: public IApp
 		if (!gPanini.Load(pSwapChain->ppSwapchainRenderTargets))
 			return false;
 
+		loadProfiler(pSwapChain->ppSwapchainRenderTargets[0]);
+
 		//layout and pipeline for sphere draw
 		VertexLayout vertexLayout = {};
 		vertexLayout.mAttribCount = 2;
@@ -645,6 +652,7 @@ class MultiGPU: public IApp
 		for (uint32_t i = 0; i < gViewCount; ++i)
 			waitQueueIdle(pGraphicsQueue[i]);
 
+		unloadProfiler();
 		gPanini.Unload();
 		gAppUI.Unload();
 
@@ -924,7 +932,7 @@ class MultiGPU: public IApp
 					gAppUI.DrawDebugGpuProfile(cmd, float2(8, 300), pGpuProfilers[1], NULL);
 				}
 
-				cmdDrawProfiler(cmd, mSettings.mWidth, mSettings.mHeight);
+				cmdDrawProfiler(cmd);
 
 				gAppUI.Draw(cmd);
 
@@ -974,7 +982,7 @@ class MultiGPU: public IApp
 	bool addSwapChain()
 	{
 		SwapChainDesc swapChainDesc = {};
-		swapChainDesc.pWindow = pWindow;
+		swapChainDesc.mWindowHandle = pWindow->handle;
 		swapChainDesc.mPresentQueueCount = 1;
 		swapChainDesc.ppPresentQueues = &pGraphicsQueue[0];
 		swapChainDesc.mWidth = mSettings.mWidth;

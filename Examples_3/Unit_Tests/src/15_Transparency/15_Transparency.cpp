@@ -47,9 +47,9 @@
 //Interfaces
 #include "../../../../Common_3/OS/Interfaces/ICameraController.h"
 #include "../../../../Common_3/OS/Interfaces/IApp.h"
-#include "../../../../Common_3/OS/Interfaces/ILogManager.h"
+#include "../../../../Common_3/OS/Interfaces/ILog.h"
 #include "../../../../Common_3/OS/Interfaces/IFileSystem.h"
-#include "../../../../Common_3/OS/Interfaces/ITimeManager.h"
+#include "../../../../Common_3/OS/Interfaces/ITime.h"
 #include "../../../../Common_3/OS/Interfaces/IProfiler.h"
 #include "../../../../Middleware_3/UI/AppUI.h"
 #include "../../../../Common_3/Renderer/IRenderer.h"
@@ -63,7 +63,7 @@
 #include "../../../../Common_3/OS/Input/InputSystem.h"
 #include "../../../../Common_3/OS/Input/InputMappings.h"
 
-#include "../../../../Common_3/OS/Interfaces/IMemoryManager.h"
+#include "../../../../Common_3/OS/Interfaces/IMemory.h"
 
 namespace eastl
 {
@@ -489,8 +489,6 @@ GuiComponent* pGuiWindow = NULL;
 TextDrawDesc  gFrameTimeDraw = TextDrawDesc(0, 0xff00ffff, 18);
 HiresTimer    gCpuTimer;
 
-FileSystem gFileSystem;
-
 Renderer* pRenderer = NULL;
 
 Queue*   pGraphicsQueue = NULL;
@@ -504,11 +502,6 @@ Semaphore* pRenderCompleteSemaphores[gImageCount] = { NULL };
 
 uint32_t gTransparencyType = TRANSPARENCY_TYPE_PHENOMENOLOGICAL;
 
-const char* pSkyboxImageFileNames[] = {
-	"skybox/hw_sahara/sahara_rt.tga", "skybox/hw_sahara/sahara_lf.tga", "skybox/hw_sahara/sahara_up.tga",
-	"skybox/hw_sahara/sahara_dn.tga", "skybox/hw_sahara/sahara_ft.tga", "skybox/hw_sahara/sahara_bk.tga",
-};
-
 const char* pszBases[FSR_Count] = {
 	"../../../src/15_Transparency/",        // FSR_BinShaders
 	"../../../src/15_Transparency/",        // FSR_SrcShaders
@@ -517,6 +510,7 @@ const char* pszBases[FSR_Count] = {
 	"../../../UnitTestResources/",          // FSR_Builtin_Fonts
 	"../../../src/15_Transparency/",        // FSR_GpuConfig
 	"",                                     // FSR_Animation
+	"",                                     // FSR_Audio
 	"",                                     // FSR_OtherFiles
 	"../../../../../Middleware_3/Text/",    // FSR_MIDDLEWARE_TEXT
 	"../../../../../Middleware_3/UI/",      // FSR_MIDDLEWARE_UI
@@ -692,7 +686,7 @@ class Transparency: public IApp
 		initResourceLoaderInterface(pRenderer);
 
 #ifdef TARGET_IOS
-		if (!gVirtualJoystick.Init(pRenderer, "circlepad.png", FSR_Absolute))
+		if (!gVirtualJoystick.Init(pRenderer, "circlepad", FSR_Absolute))
 			return false;
 #endif
 
@@ -709,7 +703,7 @@ class Transparency: public IApp
 		/************************************************************************/
 		// Add GPU profiler
 		/************************************************************************/
-		initProfiler(pRenderer, gImageCount);
+		initProfiler(pRenderer);
 		profileRegisterInput();
 		addGpuProfiler(pRenderer, pGraphicsQueue, &pGpuProfiler, "GpuProfiler");
 
@@ -739,7 +733,6 @@ class Transparency: public IApp
 		gVirtualJoystick.InitLRSticks();
 		pCameraController->setVirtualJoystick(&gVirtualJoystick);
 #endif
-		requestMouseCapture(true);
 
 		pCameraController->setMotionParameters(cmp);
 
@@ -754,7 +747,7 @@ class Transparency: public IApp
 		destroyCameraController(pCameraController);
 		destroyCameraController(pLightView);
 
-		exitProfiler(pRenderer);
+		exitProfiler();
 
 		gAppUI.Exit();
 
@@ -798,9 +791,10 @@ class Transparency: public IApp
 		if (!gAppUI.Load(pSwapChain->ppSwapchainRenderTargets))
 			return false;
 #ifdef TARGET_IOS
-		if (!gVirtualJoystick.Load(pSwapChain->ppSwapchainRenderTargets[0], ImageFormat::Enum::NONE))
+		if (!gVirtualJoystick.Load(pSwapChain->ppSwapchainRenderTargets[0]))
 			return false;
 #endif
+		loadProfiler(pSwapChain->ppSwapchainRenderTargets[0]);
 
 		CreatePipelines();
 
@@ -811,6 +805,7 @@ class Transparency: public IApp
 	{
 		waitQueueIdle(pGraphicsQueue);
 
+		unloadProfiler();
 #ifdef TARGET_IOS
 		gVirtualJoystick.Unload();
 #endif
@@ -2053,7 +2048,7 @@ class Transparency: public IApp
 		gVirtualJoystick.Draw(pCmd, pCameraController, { 1.0f, 1.0f, 1.0f, 1.0f });
 #endif
 
-		cmdDrawProfiler(pCmd, mSettings.mWidth, mSettings.mHeight);
+		cmdDrawProfiler(pCmd);
 
 		gAppUI.Gui(pGuiWindow);
 		gAppUI.Draw(pCmd);
@@ -2998,20 +2993,19 @@ class Transparency: public IApp
 	void LoadTextures()
 	{
 		const char* textureNames[TEXTURE_COUNT] = {
-			"skybox/hw_sahara/sahara_rt.tga",
-			"skybox/hw_sahara/sahara_lf.tga",
-			"skybox/hw_sahara/sahara_up.tga",
-			"skybox/hw_sahara/sahara_dn.tga",
-			"skybox/hw_sahara/sahara_ft.tga",
-			"skybox/hw_sahara/sahara_bk.tga",
-			"grid.jpg",
+			"skybox/hw_sahara/sahara_rt",
+			"skybox/hw_sahara/sahara_lf",
+			"skybox/hw_sahara/sahara_up",
+			"skybox/hw_sahara/sahara_dn",
+			"skybox/hw_sahara/sahara_ft",
+			"skybox/hw_sahara/sahara_bk",
+			"grid",
 		};
 
 		for (int i = 0; i < TEXTURE_COUNT; ++i)
 		{
 			TextureLoadDesc textureDesc = {};
 			textureDesc.mRoot = FSR_Textures;
-			textureDesc.mUseMipmaps = true;
 			textureDesc.pFilename = textureNames[i];
 			textureDesc.ppTexture = &pTextures[i];
 			addResource(&textureDesc, true);
@@ -3170,7 +3164,7 @@ class Transparency: public IApp
 			const uint32_t width = mSettings.mWidth;
 			const uint32_t height = mSettings.mHeight;
 			SwapChainDesc  swapChainDesc = {};
-			swapChainDesc.pWindow = pWindow;
+			swapChainDesc.mWindowHandle = pWindow->handle;
 			swapChainDesc.mPresentQueueCount = 1;
 			swapChainDesc.ppPresentQueues = &pGraphicsQueue;
 			swapChainDesc.mWidth = width;

@@ -34,9 +34,9 @@
 // Interfaces
 #include "../../../../Common_3/OS/Interfaces/ICameraController.h"
 #include "../../../../Common_3/OS/Interfaces/IApp.h"
-#include "../../../../Common_3/OS/Interfaces/ILogManager.h"
+#include "../../../../Common_3/OS/Interfaces/ILog.h"
 #include "../../../../Common_3/OS/Interfaces/IFileSystem.h"
-#include "../../../../Common_3/OS/Interfaces/ITimeManager.h"
+#include "../../../../Common_3/OS/Interfaces/ITime.h"
 #include "../../../../Common_3/OS/Interfaces/IProfiler.h"
 
 // Rendering
@@ -63,7 +63,7 @@
 #include "../../../../Common_3/OS/Math/MathTypes.h"
 
 // Memory
-#include "../../../../Common_3/OS/Interfaces/IMemoryManager.h"
+#include "../../../../Common_3/OS/Interfaces/IMemory.h"
 
 const char* pszBases[FSR_Count] = {
 	"../../../src/18_Playback/",            // FSR_BinShaders
@@ -72,7 +72,8 @@ const char* pszBases[FSR_Count] = {
 	"../../../UnitTestResources/",          // FSR_Meshes
 	"../../../UnitTestResources/",          // FSR_Builtin_Fonts
 	"../../../src/18_Playback/",            // FSR_GpuConfig
-	"../../../UnitTestResources/",          // FSR_Animtion
+	"../../../UnitTestResources/",          // FSR_Animation
+	"",                                     // FSR_Audio
 	"",                                     // FSR_OtherFiles
 	"../../../../../Middleware_3/Text/",    // FSR_MIDDLEWARE_TEXT
 	"../../../../../Middleware_3/UI/",      // FSR_MIDDLEWARE_UI
@@ -98,7 +99,7 @@ Fence*        pRenderCompleteFences[gImageCount] = { NULL };
 Semaphore*    pImageAcquiredSemaphore = NULL;
 Semaphore*    pRenderCompleteSemaphores[gImageCount] = { NULL };
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(__ANDROID__)
 VirtualJoystickUI gVirtualJoystick;
 #endif
 DepthState* pDepth = NULL;
@@ -133,8 +134,6 @@ Buffer* pPlaneUniformBuffer[gImageCount] = { NULL };
 //--------------------------------------------------------------------------------------------
 
 ICameraController* pCameraController = NULL;
-FileSystem         gFileSystem;
-
 UIApp         gAppUI;
 GuiComponent* pStandaloneControlsGUIWindow = NULL;
 
@@ -166,7 +165,7 @@ SkeletonBatcher gSkeletonBatcher;
 // Filenames
 const char* gStickFigureName = "stickFigure/skeleton.ozz";
 const char* gStandClipName = "stickFigure/animations/stand.ozz";
-const char* pPlaneImageFileName = "Skybox_right1.png";
+const char* pPlaneImageFileName = "Skybox_right1";
 
 const int   gSphereResolution = 30;                   // Increase for higher resolution joint spheres
 const float gBoneWidthRatio = 0.2f;                   // Determines how far along the bone to put the max width [0,1]
@@ -243,12 +242,12 @@ class Playback: public IApp
 		//
 		initResourceLoaderInterface(pRenderer);
 
-#ifdef TARGET_IOS
-		if (!gVirtualJoystick.Init(pRenderer, "circlepad.png", FSR_Absolute))
+#if defined(TARGET_IOS) || defined(__ANDROID__)
+		if (!gVirtualJoystick.Init(pRenderer, "circlepad", FSR_Textures))
 			return false;
 #endif
 
-		initProfiler(pRenderer, gImageCount);
+		initProfiler(pRenderer);
 		profileRegisterInput();
 
 		addGpuProfiler(pRenderer, pGraphicsQueue, &pGpuProfiler, "GpuProfiler");
@@ -425,7 +424,6 @@ class Playback: public IApp
 		pCameraController->setVirtualJoystick(&gVirtualJoystick);
 #endif
 
-		requestMouseCapture(true);
 		InputSystem::RegisterInputEvent(cameraInputEvent);
 
 		// INITIALIZE THE USER INTERFACE
@@ -548,7 +546,7 @@ class Playback: public IApp
 		// wait for rendering to finish before freeing resources
 		waitQueueIdle(pGraphicsQueue);
 
-		exitProfiler(pRenderer);
+		exitProfiler();
 
 		// Animation data
 		gSkeletonBatcher.Destroy();
@@ -559,7 +557,7 @@ class Playback: public IApp
 
 		destroyCameraController(pCameraController);
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(__ANDROID__)
 		gVirtualJoystick.Exit();
 #endif
 
@@ -615,10 +613,12 @@ class Playback: public IApp
 		if (!gAppUI.Load(pSwapChain->ppSwapchainRenderTargets))
 			return false;
 
-#ifdef TARGET_IOS
-		if (!gVirtualJoystick.Load(pSwapChain->ppSwapchainRenderTargets[0], pDepthBuffer->mDesc.mFormat))
+#if defined(TARGET_IOS) || defined(__ANDROID__)
+		if (!gVirtualJoystick.Load(pSwapChain->ppSwapchainRenderTargets[0]))
 			return false;
 #endif
+
+		loadProfiler(pSwapChain->ppSwapchainRenderTargets[0]);
 
 		//layout and pipeline for skeleton draw
 		VertexLayout vertexLayout = {};
@@ -680,9 +680,10 @@ class Playback: public IApp
 	{
 		waitQueueIdle(pGraphicsQueue);
 
+		unloadProfiler();
 		gAppUI.Unload();
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(__ANDROID__)
 		gVirtualJoystick.Unload();
 #endif
 
@@ -815,9 +816,13 @@ class Playback: public IApp
 		// bind and clear the render target
 		LoadActionsDesc loadActions = {};    // render target clean command
 		loadActions.mLoadActionsColor[0] = LOAD_ACTION_CLEAR;
-		loadActions.mClearColorValues[0] = { 0.39f, 0.41f, 0.37f, 1.0f };
+		loadActions.mClearColorValues[0].r = 0.39f;
+		loadActions.mClearColorValues[0].g = 0.41f;
+		loadActions.mClearColorValues[0].b = 0.37f;
+		loadActions.mClearColorValues[0].a = 1.0f;
 		loadActions.mLoadActionDepth = LOAD_ACTION_CLEAR;
-		loadActions.mClearDepth = { 1.0f, 0 };
+		loadActions.mClearDepth.depth = 1.0f;
+		loadActions.mClearDepth.stencil = 0;
 		cmdBindRenderTargets(cmd, 1, &pRenderTarget, pDepthBuffer, &loadActions, NULL, NULL, -1, -1);
 		cmdSetViewport(cmd, 0.0f, 0.0f, (float)pRenderTarget->mDesc.mWidth, (float)pRenderTarget->mDesc.mHeight, 0.0f, 1.0f);
 		cmdSetScissor(cmd, 0, 0, pRenderTarget->mDesc.mWidth, pRenderTarget->mDesc.mHeight);
@@ -844,8 +849,11 @@ class Playback: public IApp
 
 		//// draw the UI
 		cmdBeginDebugMarker(cmd, 0, 1, 0, "Draw UI");
+		loadActions = {};
+		loadActions.mLoadActionsColor[0] = LOAD_ACTION_LOAD;
+		cmdBindRenderTargets(cmd, 1, &pRenderTarget, NULL, &loadActions, NULL, NULL, -1, -1);
 		gTimer.GetUSec(true);
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(__ANDROID__)
 		gVirtualJoystick.Draw(cmd, { 1.0f, 1.0f, 1.0f, 1.0f });
 #endif
 
@@ -860,7 +868,7 @@ class Playback: public IApp
 			cmd, float2(8, 40), eastl::string().sprintf("GPU %f ms", (float)pGpuProfiler->mCumulativeTime * 1000.0f).c_str(),
 			&gFrameTimeDraw);
 
-		cmdDrawProfiler(cmd, mSettings.mWidth, mSettings.mHeight);
+		cmdDrawProfiler(cmd);
 		gAppUI.Draw(cmd);
 
 		cmdBindRenderTargets(cmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
@@ -883,7 +891,7 @@ class Playback: public IApp
 	bool addSwapChain()
 	{
 		SwapChainDesc swapChainDesc = {};
-		swapChainDesc.pWindow = pWindow;
+		swapChainDesc.mWindowHandle = pWindow->handle;
 		swapChainDesc.mPresentQueueCount = 1;
 		swapChainDesc.ppPresentQueues = &pGraphicsQueue;
 		swapChainDesc.mWidth = mSettings.mWidth;
@@ -902,7 +910,8 @@ class Playback: public IApp
 		// Add depth buffer
 		RenderTargetDesc depthRT = {};
 		depthRT.mArraySize = 1;
-		depthRT.mClearValue = { 1.0f, 0 };
+		depthRT.mClearValue.depth = 1.0f;
+		depthRT.mClearValue.stencil = 0;
 		depthRT.mDepth = 1;
 		depthRT.mFormat = ImageFormat::D32F;
 		depthRT.mHeight = mSettings.mHeight;

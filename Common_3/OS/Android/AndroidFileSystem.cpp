@@ -24,11 +24,11 @@
 
 #ifdef __ANDROID__
 #include "../Interfaces/IFileSystem.h"
-#include "../Interfaces/ILogManager.h"
+#include "../Interfaces/ILog.h"
 #include "../Interfaces/IOperatingSystem.h"
-#include "../Interfaces/IMemoryManager.h"
 #include <unistd.h>
 #include <android/asset_manager.h>
+#include "../Interfaces/IMemory.h"
 #define MAX_PATH PATH_MAX
 
 #define RESOURCE_DIR "Shaders"
@@ -41,6 +41,7 @@ const char* pszRoots[FSR_Count] = {
 	"Fonts/",                   // FSR_Builtin_Fonts
 	"GPUCfg/",                  // FSR_GpuConfig
 	"Animation/",               // FSR_Animation
+	"Audio/",                   // FSR_Audio
 	"",                         // FSR_OtherFiles
 };
 
@@ -60,7 +61,8 @@ FileHandle open_file(const char* filename, const char* flags)
 	AAsset* file = AAssetManager_open(_mgr,
 		filename, AASSET_MODE_BUFFER);
 
-	if(_mgr == NULL) return NULL;
+	if(file == NULL)
+		return NULL;
 
 	return reinterpret_cast<void*>(file);
 }
@@ -70,6 +72,34 @@ bool close_file(FileHandle handle)
 	AAsset_close(reinterpret_cast<AAsset*>(handle));
 	return true;
 }
+
+bool anDirExists(const char* path)
+{
+	AAsset* file = AAssetManager_open(_mgr, path, AASSET_MODE_BUFFER);
+	if(file == NULL) {
+		AAssetDir* assetDir = AAssetManager_openDir(_mgr, path );
+		bool exist = AAssetDir_getNextFileName(assetDir) != NULL;
+		AAssetDir_close( assetDir );
+		return exist;
+	}
+	AAsset_close(file);
+	return true;
+}
+
+void get_files_with_extension(const char* dir, const char* ext, eastl::vector<eastl::string>& filesOut)
+{
+	AAssetDir* assetDir = AAssetManager_openDir(_mgr, dir);
+	const char* fileName = (const char*)NULL;
+	while ((fileName = AAssetDir_getNextFileName(assetDir)) != NULL) {
+		const char* p = strstr(fileName, ext);
+		if(p)
+		{
+			filesOut.push_back(dir + eastl::string(fileName));
+		}
+	}
+	AAssetDir_close(assetDir);
+}
+
 
 void flush_file(FileHandle handle)
 {
@@ -81,7 +111,7 @@ size_t read_file(void *buffer, size_t byteCount, FileHandle handle)
 {
 	AAsset* assetHandle = reinterpret_cast<AAsset*>(handle);
 	size_t  readSize = AAsset_read(assetHandle, buffer, byteCount);
-	ASSERT(readSize == byteCount);
+	//ASSERT(readSize == byteCount);
 	return readSize;
 }
 

@@ -30,9 +30,9 @@
 //Interfaces
 #include "../../../../Common_3/OS/Interfaces/ICameraController.h"
 #include "../../../../Common_3/OS/Interfaces/IApp.h"
-#include "../../../../Common_3/OS/Interfaces/ILogManager.h"
+#include "../../../../Common_3/OS/Interfaces/ILog.h"
 #include "../../../../Common_3/OS/Interfaces/IFileSystem.h"
-#include "../../../../Common_3/OS/Interfaces/ITimeManager.h"
+#include "../../../../Common_3/OS/Interfaces/ITime.h"
 #include "../../../../Common_3/OS/Interfaces/IProfiler.h"
 #include "../../../../Middleware_3/UI/AppUI.h"
 #include "../../../../Common_3/Renderer/IRenderer.h"
@@ -43,7 +43,7 @@
 //Math
 #include "../../../../Common_3/OS/Math/MathTypes.h"
 
-#include "../../../../Common_3/OS/Interfaces/IMemoryManager.h"
+#include "../../../../Common_3/OS/Interfaces/IMemory.h"
 
 /// Demo structures
 struct PlanetInfoStruct
@@ -125,10 +125,9 @@ ICameraController* pCameraController = NULL;
 /// UI
 UIApp gAppUI;
 GpuProfiler*       pGpuProfiler = NULL;
-FileSystem gFileSystem;
 
-const char* pSkyBoxImageFileNames[] = { "Skybox_right1.png",  "Skybox_left2.png",  "Skybox_top3.png",
-										"Skybox_bottom4.png", "Skybox_front5.png", "Skybox_back6.png" };
+const char* pSkyBoxImageFileNames[] = { "Skybox_right1",  "Skybox_left2",  "Skybox_top3",
+										"Skybox_bottom4", "Skybox_front5", "Skybox_back6" };
 
 const char* pszBases[FSR_Count] = {
 	"../../../src/01_Transformations/",     // FSR_BinShaders
@@ -138,6 +137,7 @@ const char* pszBases[FSR_Count] = {
 	"../../../UnitTestResources/",          // FSR_Builtin_Fonts
 	"../../../src/01_Transformations/",     // FSR_GpuConfig
 	"",                                     // FSR_Animation
+	"",                                     // FSR_Audio
 	"",                                     // FSR_OtherFiles
 	"../../../../../Middleware_3/Text/",    // FSR_MIDDLEWARE_TEXT
 	"../../../../../Middleware_3/UI/",      // FSR_MIDDLEWARE_UI
@@ -149,7 +149,7 @@ GuiComponent* pGui = NULL;
 
 class Transformations: public IApp
 {
-	public:
+public:
 	bool Init()
 	{
 		// window and renderer setup
@@ -176,7 +176,7 @@ class Transformations: public IApp
 		initResourceLoaderInterface(pRenderer);
 
     // Initialize profile
-    initProfiler(pRenderer, gImageCount);
+    initProfiler(pRenderer);
     profileRegisterInput();
 
     addGpuProfiler(pRenderer, pGraphicsQueue, &pGpuProfiler, "GpuProfiler");
@@ -186,14 +186,13 @@ class Transformations: public IApp
 		{
 			TextureLoadDesc textureDesc = {};
 			textureDesc.mRoot = FSR_Textures;
-			textureDesc.mUseMipmaps = true;
 			textureDesc.pFilename = pSkyBoxImageFileNames[i];
 			textureDesc.ppTexture = &pSkyBoxTextures[i];
 			addResource(&textureDesc, true);
 		}
 
 #if defined(__ANDROID__) || defined(TARGET_IOS)
-		if (!gVirtualJoystick.Init(pRenderer, "circlepad.png", FSR_Textures))
+		if (!gVirtualJoystick.Init(pRenderer, "circlepad", FSR_Textures))
 		{
 			LOGF(LogLevel::eERROR, "Could not initialize Virtual Joystick.");
 			return false;
@@ -435,7 +434,6 @@ class Transformations: public IApp
 		vec3                   lookAt{ 0 };
 
 		pCameraController = createFpsCameraController(camPos, lookAt);
-		requestMouseCapture(true);
 
 		pCameraController->setMotionParameters(cmp);
 #if defined(TARGET_IOS) || defined(__ANDROID__)
@@ -458,8 +456,8 @@ class Transformations: public IApp
 
 		gAppUI.Exit();
 
-    // Exit profile
-    exitProfiler(pRenderer);
+		// Exit profile
+		exitProfiler();
 
 		for (uint32_t i = 0; i < gImageCount; ++i)
 		{
@@ -511,9 +509,11 @@ class Transformations: public IApp
 			return false;
 
 #if defined(TARGET_IOS) || defined(__ANDROID__)
-		if (!gVirtualJoystick.Load(pSwapChain->ppSwapchainRenderTargets[0], pDepthBuffer->mDesc.mFormat))
+		if (!gVirtualJoystick.Load(pSwapChain->ppSwapchainRenderTargets[0]))
 			return false;
 #endif
+
+		loadProfiler(pSwapChain->ppSwapchainRenderTargets[0]);
 
 		//layout and pipeline for sphere draw
 		VertexLayout vertexLayout = {};
@@ -567,6 +567,7 @@ class Transformations: public IApp
 	{
 		waitQueueIdle(pGraphicsQueue);
 
+		unloadProfiler();
 		gAppUI.Unload();
 
 #if defined(TARGET_IOS) || defined(__ANDROID__)
@@ -591,12 +592,13 @@ class Transformations: public IApp
 		}
 
 		pCameraController->update(deltaTime);
+
 		/************************************************************************/
 		// Scene Update
 		/************************************************************************/
 		static float currentTime = 0.0f;
 		currentTime += deltaTime * 1000.0f;
-
+	
 		// update camera with time
 		mat4 viewMat = pCameraController->getViewMatrix();
 
@@ -736,6 +738,10 @@ class Transformations: public IApp
 		cmdDrawInstanced(cmd, gNumberOfSpherePoints / 6, 0, gNumPlanets, 0);
     cmdEndGpuTimestampQuery(cmd, pGpuProfiler);
 
+
+	loadActions = {};
+	loadActions.mLoadActionsColor[0] = LOAD_ACTION_LOAD;
+	cmdBindRenderTargets(cmd, 1, &pRenderTarget, NULL, &loadActions, NULL, NULL, -1, -1);
     cmdBeginGpuTimestampQuery(cmd, pGpuProfiler, "Draw UI", true);
 		static HiresTimer gTimer;
 		gTimer.GetUSec(true);
@@ -755,7 +761,7 @@ class Transformations: public IApp
 
     gAppUI.Gui(pGui);
 
-    cmdDrawProfiler(cmd, static_cast<uint32_t>(mSettings.mWidth), static_cast<uint32_t>(mSettings.mHeight));
+    cmdDrawProfiler(cmd);
 
 		gAppUI.Draw(cmd);
 		cmdBindRenderTargets(cmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
@@ -777,7 +783,7 @@ class Transformations: public IApp
 	bool addSwapChain()
 	{
 		SwapChainDesc swapChainDesc = {};
-		swapChainDesc.pWindow = pWindow;
+		swapChainDesc.mWindowHandle = pWindow->handle;
 		swapChainDesc.mPresentQueueCount = 1;
 		swapChainDesc.ppPresentQueues = &pGraphicsQueue;
 		swapChainDesc.mWidth = mSettings.mWidth;
@@ -808,7 +814,7 @@ class Transformations: public IApp
 
 		return pDepthBuffer != NULL;
 	}
-
+	
 	void RecenterCameraView(float maxDistance, vec3 lookAt = vec3(0))
 	{
 		vec3 p = pCameraController->getViewPosition();

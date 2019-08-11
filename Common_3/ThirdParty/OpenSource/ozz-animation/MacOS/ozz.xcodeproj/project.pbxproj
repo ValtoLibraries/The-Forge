@@ -676,8 +676,8 @@
 					"-DNDEBUG",
 					"-Wall",
 					"-Wno-ignored-attributes",
-					"-Werror",
 					"'-std=gnu++11'",
+					"-Wno-c++14-extensions",
 				);
 				OTHER_LIBTOOLFLAGS = " ";
 				OTHER_REZFLAGS = "";
@@ -727,8 +727,8 @@
 				OTHER_CPLUSPLUSFLAGS = (
 					"-Wall",
 					"-Wno-ignored-attributes",
-					"-Werror",
 					"'-std=gnu++11'",
+					"-Wno-c++14-extensions",
 				);
 				OTHER_LIBTOOLFLAGS = " ";
 				OTHER_REZFLAGS = "";
@@ -768,6 +768,7 @@
 					"-Wno-ignored-attributes",
 					"-Werror",
 					"'-std=gnu++11'",
+					"-Wno-c++14-extensions",
 				);
 				OTHER_LIBTOOLFLAGS = " ";
 				OTHER_REZFLAGS = "";
@@ -808,6 +809,7 @@
 					"-Wno-ignored-attributes",
 					"-Werror",
 					"'-std=gnu++11'",
+					"-Wno-c++14-extensions",
 				);
 				OTHER_LIBTOOLFLAGS = " ";
 				OTHER_REZFLAGS = "";
@@ -845,8 +847,8 @@
 				OTHER_CPLUSPLUSFLAGS = (
 					"-Wall",
 					"-Wno-ignored-attributes",
-					"-Werror",
 					"'-std=gnu++11'",
+					"-Wno-c++14-extensions",
 				);
 				OTHER_LIBTOOLFLAGS = " ";
 				OTHER_REZFLAGS = "";
@@ -885,8 +887,8 @@
 				OTHER_CPLUSPLUSFLAGS = (
 					"-Wall",
 					"-Wno-ignored-attributes",
-					"-Werror",
 					"'-std=gnu++11'",
+					"-Wno-c++14-extensions",
 				);
 				OTHER_LIBTOOLFLAGS = " ";
 				OTHER_REZFLAGS = "";
@@ -928,8 +930,8 @@
 					"-DNDEBUG",
 					"-Wall",
 					"-Wno-ignored-attributes",
-					"-Werror",
 					"'-std=gnu++11'",
+					"-Wno-c++14-extensions",
 				);
 				OTHER_LIBTOOLFLAGS = " ";
 				OTHER_REZFLAGS = "";
@@ -974,8 +976,8 @@
 				OTHER_CPLUSPLUSFLAGS = (
 					"-Wall",
 					"-Wno-ignored-attributes",
-					"-Werror",
 					"'-std=gnu++11'",
+					"-Wno-c++14-extensions",
 				);
 				OTHER_LIBTOOLFLAGS = " ";
 				OTHER_REZFLAGS = "";
@@ -1019,8 +1021,8 @@
 					"-DNDEBUG",
 					"-Wall",
 					"-Wno-ignored-attributes",
-					"-Werror",
 					"'-std=gnu++11'",
+					"-Wno-c++14-extensions",
 				);
 				OTHER_LIBTOOLFLAGS = " ";
 				OTHER_REZFLAGS = "";
@@ -1060,8 +1062,8 @@
 					"-DNDEBUG",
 					"-Wall",
 					"-Wno-ignored-attributes",
-					"-Werror",
 					"'-std=gnu++11'",
+					"-Wno-c++14-extensions",
 				);
 				OTHER_LIBTOOLFLAGS = " ";
 				OTHER_REZFLAGS = "";
@@ -1088,7 +1090,7 @@
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = "'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'";
+				GCC_PREPROCESSOR_DEFINITIONS = "";
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				HEADER_SEARCH_PATHS = (
 					"/Users/macosmetalmachine/Documents/Gitlab/The-Forge/Common_3/ThirdParty/OpenSource/ozz-animation/src/.",
@@ -1122,7 +1124,7 @@
 				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
 				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
 				GCC_OPTIMIZATION_LEVEL = 3;
-				GCC_PREPROCESSOR_DEFINITIONS = "'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'";
+				GCC_PREPROCESSOR_DEFINITIONS = "";
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				HEADER_SEARCH_PATHS = (
 					"/Users/macosmetalmachine/Documents/Gitlab/The-Forge/Common_3/ThirdParty/OpenSource/ozz-animation/src/.",

@@ -24,7 +24,7 @@
 
 #pragma once
 
-#include "../Interfaces/ILogManager.h"
+#include "../Interfaces/ILog.h"
 
 #if defined(ORBIS)
 // Indicates the result of a GNF load operation
@@ -162,23 +162,33 @@ enum Enum
 	GNF_BC3 = 74,
 	GNF_BC4 = 75,
 	GNF_BC5 = 76,
-	GNF_BC6 = 77,
-	GNF_BC7 = 78,
+	GNF_BC6HUF = 77,
+	GNF_BC6HSF = 78,
+	GNF_BC7 = 79,
 	// Reveser Form
-	BGRA8 = 79,
+	BGRA8 = 80,
 
 	// Extend for DXGI
-	X8D24PAX32 = 80,
-	S8 = 81,
-	D16S8 = 82,
-	D32S8 = 83,
-	
-	// PVR SRGB extensions
-	PVR_2BPP_SRGB = 84,
-	PVR_2BPPA_SRGB = 85,
-	PVR_4BPP_SRGB = 86,
-	PVR_4BPPA_SRGB = 87,
-	
+	X8D24PAX32 = 81,
+	S8 = 82,
+	D16S8 = 83,
+	D32S8 = 84,
+
+	ASTC_4x4 = 85,
+	ASTC_5x4 = 86,
+	ASTC_5x5 = 87,
+	ASTC_6x5 = 88,
+	ASTC_6x6 = 89,
+	ASTC_8x5 = 90,
+	ASTC_8x6 = 91,
+	ASTC_8x8 = 92,
+	ASTC_10x5 = 93,
+	ASTC_10x6 = 94,
+	ASTC_10x8 = 95,
+	ASTC_10x10 = 96,
+	ASTC_12x10 = 97,
+	ASTC_12x12 = 98,
+
 	// Count identifier - not actually a format.
 	COUNT,
 
@@ -191,13 +201,6 @@ enum Enum
 	IA16F = RG16F,
 	I32F = R32F,
 	IA32F = RG32F
-};
-
-enum BlockSize
-{
-	BLOCK_SIZE_1x1,
-	BLOCK_SIZE_4x4,
-	BLOCK_SIZE_4x8,
 };
 
 static inline bool IsPlainFormat(const Enum format)
@@ -253,15 +256,13 @@ static inline int32_t GetBytesPerChannel(const Enum format)
 	return bytesPC[(format - 1) >> 2];
 }
 
-static inline BlockSize GetBlockSize(const Enum format)
+static inline uint3 GetBlockSize(const Enum format)
 {
 	switch (format)
 	{
-	case PVR_2BPP_SRGB:     //  4x8
-	case PVR_2BPPA_SRGB:    //  4x8
-	case PVR_2BPP:          //  4x8
-	case PVR_2BPPA:         //  4x8
-		return BLOCK_SIZE_4x8;
+	case PVR_2BPP:          //  8x4
+	case PVR_2BPPA:         //  8x4
+		return { 8, 4, 1 };
 
 	case DXT1:         //  4x4
 	case ATI1N:        //  4x4
@@ -277,11 +278,39 @@ static inline BlockSize GetBlockSize(const Enum format)
 	case ATI2N:        //  4x4
 	case ATCA:         //  4x4
 	case ATCI:         //  4x4
-	case GNF_BC6:      //  4x4
+	case GNF_BC6HUF:   //  4x4
+	case GNF_BC6HSF:   //  4x4
 	case GNF_BC7:      //  4x4
-		return BLOCK_SIZE_4x4;
-
-	default: return BLOCK_SIZE_1x1;
+	case ASTC_4x4:
+		return { 4, 4, 1 };
+	case ASTC_5x4:
+		return { 5, 4, 1 };
+	case ASTC_5x5:
+		return { 5, 5, 1 };
+	case ASTC_6x5:
+		return { 6, 5, 1 };
+	case ASTC_6x6:
+		return { 6, 6, 1 };
+	case ASTC_8x5:
+		return { 8, 5, 1 };
+	case ASTC_8x6:
+		return { 8, 6, 1 };
+	case ASTC_8x8:
+		return { 8, 8, 1 };
+	case ASTC_10x5:
+		return { 10, 5, 1 };
+	case ASTC_10x6:
+		return { 10, 6, 1 };
+	case ASTC_10x8:
+		return { 10, 8, 1 };
+	case ASTC_10x10:
+		return { 10, 10, 1 };
+	case ASTC_12x10:
+		return { 12, 10, 1 };
+	case ASTC_12x12:
+		return { 12, 12, 1 };
+	default:
+		return { 1, 1, 1 };
 	}
 }
 
@@ -294,8 +323,8 @@ static inline bool IsCompressedFormat(const Enum format)
 {
 	return (
 		((format >= DXT1) && (format <= PVR_4BPPA)) ||
-		((format >= PVR_2BPP_SRGB) && (format <= PVR_4BPPA_SRGB)) ||
 		((format >= ETC1) && (format <= ATCI)) ||
+		((format >= ASTC_4x4) && (format <= ASTC_12x12)) ||
 		((format >= GNF_BC1) && (format <= GNF_BC7)));
 }
 
@@ -321,10 +350,6 @@ static inline int32_t GetBytesPerBlock(const Enum format)
 			case PVR_4BPPA:         //  4x4
 			case PVR_2BPP:          //  4x8
 			case PVR_2BPPA:         //  4x8
-			case PVR_4BPP_SRGB:     //  4x4
-			case PVR_4BPPA_SRGB:    //  4x4
-			case PVR_2BPP_SRGB:     //  4x8
-			case PVR_2BPPA_SRGB:    //  4x8
 				return 8;
 
 			case DXT3:       //  4x4
@@ -334,8 +359,23 @@ static inline int32_t GetBytesPerBlock(const Enum format)
 			case ATI2N:      //  4x4
 			case ATCA:       //  4x4
 			case ATCI:       //  4x4
-			case GNF_BC6:    //  4x4
+			case GNF_BC6HUF: //  4x4
+			case GNF_BC6HSF: //  4x4
 			case GNF_BC7:    //  4x4
+			case ASTC_4x4:   //  4x4
+			case ASTC_5x4:
+			case ASTC_5x5:
+			case ASTC_6x5:
+			case ASTC_6x6:
+			case ASTC_8x5:
+			case ASTC_8x6:
+			case ASTC_8x8:
+			case ASTC_10x5:
+			case ASTC_10x6:
+			case ASTC_10x8:
+			case ASTC_10x10:
+			case ASTC_12x10:
+			case ASTC_12x12:
 				return 16;
 
 			default: return 0;
@@ -435,7 +475,8 @@ static inline const ImageFormatString* getFormatStrings()
 													   { GNF_BC3, "GNF_BC3" },
 													   { GNF_BC4, "GNF_BC4" },
 													   { GNF_BC5, "GNF_BC5" },
-													   { GNF_BC6, "GNF_BC6" },
+													   { GNF_BC6HUF, "GNF_BC6HUF" },
+													   { GNF_BC6HSF, "GNF_BC6HSF" },
 													   { GNF_BC7, "GNF_BC7" },
 
 													   { BGRA8, "BGRA8" },
@@ -444,11 +485,20 @@ static inline const ImageFormatString* getFormatStrings()
 													   { D16S8, "D16S8" },
 													   { D32S8, "D32S8" },
 
-													   { PVR_2BPP_SRGB, "PVR_2BPP_SRGB" },
-													   { PVR_2BPPA_SRGB, "PVR_2BPPA_SRGB" },
-													   { PVR_4BPP_SRGB, "PVR_4BPP_SRGB" },
-													   { PVR_4BPPA_SRGB, "PVR_4BPPA_SRGB" },
-
+													   { ASTC_4x4, "ASTC_4x4" },
+													   { ASTC_5x4, "ASTC_5x4" },
+													   { ASTC_5x5, "ASTC_5x5" },
+													   { ASTC_6x5, "ASTC_6x5" },
+													   { ASTC_6x6, "ASTC_6x6" },
+													   { ASTC_8x5, "ASTC_8x5" },
+													   { ASTC_8x6, "ASTC_8x6" },
+													   { ASTC_8x8, "ASTC_8x8" },
+													   { ASTC_10x5, "ASTC_10x5" },
+													   { ASTC_10x6, "ASTC_10x6" },
+													   { ASTC_10x8, "ASTC_10x8" },
+													   { ASTC_10x10, "ASTC_10x10" },
+													   { ASTC_12x10, "ASTC_12x10" },
+													   { ASTC_12x12, "ASTC_12x12" },
 	};
 	return formatStrings;
 }
@@ -572,4 +622,90 @@ static inline uint32_t GetImageFormatChannelCount(Enum format)
 	}
 }
 
+static inline uint32_t GetMipMappedSize(uint32_t w, uint32_t h, uint32_t d,
+	uint32_t nMipMapLevels, ImageFormat::Enum srcFormat)
+{
+	// PVR formats get special case
+	if ((srcFormat >= ImageFormat::PVR_2BPP && srcFormat <= ImageFormat::PVR_4BPPA))
+	{
+		uint totalSize = 0;
+		uint sizeX = w;
+		uint sizeY = h;
+		uint sizeD = d;
+		int level = nMipMapLevels;
+
+		uint minWidth = 8;
+		uint minHeight = 8;
+		uint minDepth = 1;
+		int bpp = 4;
+
+		if (srcFormat == ImageFormat::PVR_2BPP || srcFormat == ImageFormat::PVR_2BPPA)
+		{
+			minWidth = 16;
+			minHeight = 8;
+			bpp = 2;
+		}
+
+		while (level > 0)
+		{
+			// If pixel format is compressed, the dimensions need to be padded.
+			uint paddedWidth = sizeX + ((-1 * sizeX) % minWidth);
+			uint paddedHeight = sizeY + ((-1 * sizeY) % minHeight);
+			uint paddedDepth = sizeD + ((-1 * sizeD) % minDepth);
+
+			int mipSize = paddedWidth * paddedHeight * paddedDepth * bpp / 8;
+
+			totalSize += mipSize;
+
+			unsigned int MinimumSize = 1;
+			sizeX = max(sizeX / 2, MinimumSize);
+			sizeY = max(sizeY / 2, MinimumSize);
+			sizeD = max(sizeD / 2, MinimumSize);
+			level--;
+		}
+
+		return totalSize;
+	}
+
+	int size = 0;
+	while (nMipMapLevels)
+	{
+		if (ImageFormat::IsCompressedFormat(srcFormat))
+		{
+			uint3 blockSize = ImageFormat::GetBlockSize(srcFormat);
+			uint32_t bx = blockSize.x;
+			uint32_t by = blockSize.y;
+			uint32_t bz = blockSize.z;
+			size += ((w + bx - 1) / bx) * ((h + by - 1) / by) * ((d + bz - 1) / bz);
+		}
+		else
+		{
+			size += w * h * d;
+		}
+		w >>= 1;
+		h >>= 1;
+		d >>= 1;
+		if (w + h + d == 0)
+			break;
+		if (w == 0)
+			w = 1;
+		if (h == 0)
+			h = 1;
+		if (d == 0)
+			d = 1;
+
+		nMipMapLevels--;
+	}
+
+	if (ImageFormat::IsCompressedFormat(srcFormat))
+	{
+		size *= ImageFormat::GetBytesPerBlock(srcFormat);
+	}
+	else
+	{
+		size *= ImageFormat::GetBytesPerPixel(srcFormat);
+	}
+
+	return size;
+}
 }    // namespace ImageFormat

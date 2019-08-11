@@ -32,9 +32,9 @@
 
 //Interfaces
 #include "../../../../Common_3/OS/Interfaces/ICameraController.h"
-#include "../../../../Common_3/OS/Interfaces/ILogManager.h"
+#include "../../../../Common_3/OS/Interfaces/ILog.h"
 #include "../../../../Common_3/OS/Interfaces/IFileSystem.h"
-#include "../../../../Common_3/OS/Interfaces/ITimeManager.h"
+#include "../../../../Common_3/OS/Interfaces/ITime.h"
 #include "../../../../Common_3/OS/Interfaces/IProfiler.h"
 #include "../../../../Common_3/Renderer/IRenderer.h"
 #include "../../../../Common_3/OS/Interfaces/IApp.h"
@@ -50,7 +50,7 @@
 #include "../../../../Common_3/OS/Input/InputSystem.h"
 #include "../../../../Common_3/OS/Input/InputMappings.h"
 
-#include "../../../../Common_3/OS/Interfaces/IMemoryManager.h"
+#include "../../../../Common_3/OS/Interfaces/IMemory.h"
 
 // Julia4D Parameters
 #define SIZE_X 412
@@ -88,7 +88,6 @@ struct UniformBlock
 	int mRenderSoftShadows;
 };
 
-FileSystem gFileSystem;
 Timer      gAccumTimer;
 HiresTimer gTimer;
 
@@ -100,6 +99,7 @@ const char* pszBases[FSR_Count] = {
 	"../../../UnitTestResources/",          // FSR_Builtin_Fonts
 	"../../../src/02_Compute/",             // FSR_GpuConfig
 	"",                                     // FSR_Animation
+	"",                                     // FSR_Audio
 	"",                                     // FSR_OtherFiles
 	"../../../../../Middleware_3/Text/",    // FSR_MIDDLEWARE_TEXT
 	"../../../../../Middleware_3/UI/",      // FSR_MIDDLEWARE_UI
@@ -192,12 +192,12 @@ class Compute: public IApp
 		initResourceLoaderInterface(pRenderer);
 
 		// Initialize profile
-		initProfiler(pRenderer, gImageCount);
+		initProfiler(pRenderer);
 		profileRegisterInput();
 
 		addGpuProfiler(pRenderer, pGraphicsQueue, &pGpuProfiler, "GpuProfiler");
 #if defined(MOBILE_PLATFORM)
-		if (!gVirtualJoystick.Init(pRenderer, "circlepad.png", FSR_Textures))
+		if (!gVirtualJoystick.Init(pRenderer, "circlepad", FSR_Textures))
 			return false;
 #endif
 
@@ -286,7 +286,6 @@ class Compute: public IApp
 		gVirtualJoystick.InitLRSticks();
 		pCameraController->setVirtualJoystick(&gVirtualJoystick);
 #endif
-		requestMouseCapture(true);
 
 		pCameraController->setMotionParameters(cmp);
 		InputSystem::RegisterInputEvent(cameraInputEvent);
@@ -307,7 +306,7 @@ class Compute: public IApp
 		gAppUI.Exit();
 
 		// Exit profile
-		exitProfiler(pRenderer);
+		exitProfiler();
 
 		for (uint32_t i = 0; i < gImageCount; ++i)
 		{
@@ -348,9 +347,11 @@ class Compute: public IApp
 			return false;
 
 #if defined(MOBILE_PLATFORM)
-		if (!gVirtualJoystick.Load(pSwapChain->ppSwapchainRenderTargets[0], 0))
+		if (!gVirtualJoystick.Load(pSwapChain->ppSwapchainRenderTargets[0]))
 			return false;
 #endif
+
+		loadProfiler(pSwapChain->ppSwapchainRenderTargets[0]);
 
 		VertexLayout vertexLayout = {};
 		vertexLayout.mAttribCount = 0;
@@ -375,6 +376,8 @@ class Compute: public IApp
 	void Unload()
 	{
 		waitQueueIdle(pGraphicsQueue);
+
+		unloadProfiler();
 
 #if defined(MOBILE_PLATFORM)
 		gVirtualJoystick.Unload();
@@ -535,7 +538,7 @@ class Compute: public IApp
 
     gAppUI.Gui(pGui);
 
-    cmdDrawProfiler(cmd, static_cast<uint32_t>(mSettings.mWidth), static_cast<uint32_t>(mSettings.mHeight));
+    cmdDrawProfiler(cmd);
 		gAppUI.Draw(cmd);
 
 		cmdBindRenderTargets(cmd, 0, NULL, NULL, NULL, NULL, NULL, -1, -1);
@@ -557,7 +560,7 @@ class Compute: public IApp
 	bool addSwapChain()
 	{
 		SwapChainDesc swapChainDesc = {};
-		swapChainDesc.pWindow = pWindow;
+		swapChainDesc.mWindowHandle = pWindow->handle;
 		swapChainDesc.ppPresentQueues = &pGraphicsQueue;
 		swapChainDesc.mPresentQueueCount = 1;
 		swapChainDesc.mWidth = mSettings.mWidth;
@@ -585,6 +588,7 @@ class Compute: public IApp
 		desc.mDescriptors = DESCRIPTOR_TYPE_TEXTURE | DESCRIPTOR_TYPE_RW_TEXTURE;
 		desc.mSampleCount = SAMPLE_COUNT_1;
 		desc.mHostVisible = false;
+		desc.mStartState = RESOURCE_STATE_UNORDERED_ACCESS;
 		textureDesc.pDesc = &desc;
 		textureDesc.ppTexture = &pTextureComputeOutput;
 		addResource(&textureDesc);

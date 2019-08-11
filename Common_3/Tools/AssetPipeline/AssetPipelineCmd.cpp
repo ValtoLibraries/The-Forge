@@ -1,6 +1,6 @@
 #include "AssetPipeline.h"
 #include "../../ThirdParty/OpenSource/EASTL/string.h"
-#include "../../OS/Interfaces/ILogManager.h"
+#include "../../OS/Interfaces/ILog.h"
 
 #include <cstdio>
 #include <sys/stat.h>
@@ -14,7 +14,8 @@ const char* pszBases[] = {
 	"",    // FSR_Meshes
 	"",    // FSR_Builtin_Fonts
 	"",    // FSR_GpuConfig
-	"",    // FSR_Animtion
+	"",    // FSR_Animation
+	"",    // FSR_Audio
 	"",    // FSR_OtherFiles
 };
 

@@ -42,9 +42,9 @@
 
 //Interfaces
 #include "../../../../Common_3/OS/Interfaces/ICameraController.h"
-#include "../../../../Common_3/OS/Interfaces/ILogManager.h"
+#include "../../../../Common_3/OS/Interfaces/ILog.h"
 #include "../../../../Common_3/OS/Interfaces/IFileSystem.h"
-#include "../../../../Common_3/OS/Interfaces/ITimeManager.h"
+#include "../../../../Common_3/OS/Interfaces/ITime.h"
 #include "../../../../Middleware_3/UI/AppUI.h"
 #include "../../../../Common_3/Renderer/IRenderer.h"
 #include "../../../../Common_3/Renderer/ResourceLoader.h"
@@ -71,12 +71,9 @@
 //LUA
 #include "../../../../Middleware_3/LUA/LuaManager.h"
 
-//mmgr
-#include "../../../../Common_3/OS/Interfaces/IMemoryManager.h"    // Must be the last include in a cpp file
-
 #include "../../../../Common_3/OS/Core/ThreadSystem.h"
 
-#include "../../../Common/AppHelpers.h"
+#include "../../../../Common_3/OS/Interfaces/IMemory.h"    // Must be the last include in a cpp file
 
 // define folders for resources
 const char* pszBases[FSR_Count] = {
@@ -86,11 +83,12 @@ const char* pszBases[FSR_Count] = {
 	"../../../UnitTestResources/",            // FSR_Meshes
 	"../../../UnitTestResources/",            // FSR_Builtin_Fonts
 	"../../../src/06_MaterialPlayground/",    // FSR_GpuConfig
-	"../../../UnitTestResources/",            // FSR_Animtion
+	"../../../UnitTestResources/",            // FSR_Animation
+	"",                                       // FSR_Audio
 	"../../../../../Art/",                    // FSR_OtherFiles
 	"../../../../../Middleware_3/Text/",      // FSR_MIDDLEWARE_TEXT
 	"../../../../../Middleware_3/UI/",        // FSR_MIDDLEWARE_UI
-#if defined(TARGET_IOS) || defined(_DURANGO)
+#if defined(TARGET_IOS) || defined(_DURANGO) || defined(__ANDROID__)
 	"",    // FSR_Middleware2 //used to load lua scripts
 #else
 	"../../../src/06_MaterialPlayground/",    // FSR_Middleware2 //used to load lua scripts
@@ -107,12 +105,7 @@ const char* pszBases[FSR_Count] = {
 // and the BRDF shader won't sample those textures
 #define SKIP_LOADING_TEXTURES 0
 
-#if defined(TARGET_IOS) || defined(ANDROID)
-#define TEXTURE_RESOLUTION "1K"
-#else
 #define TEXTURE_RESOLUTION "2K"
-#endif
-
 //--------------------------------------------------------------------------------------------
 // MATERIAL DEFINTIONS
 //--------------------------------------------------------------------------------------------
@@ -478,7 +471,7 @@ GuiComponent*      pGuiWindowMaterial = NULL;
 LuaManager         gLuaManager;
 ThreadSystem*      pIOThreads = NULL;
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(__ANDROID__)
 VirtualJoystickUI gVirtualJoystick;
 #endif
 
@@ -593,7 +586,7 @@ RenderTarget* pRenderTargetShadowMap = NULL;
 RenderTarget* pRenderTargetDepth = NULL;
 RenderTarget* pRenderTargetDepthPeeling = NULL;
 RenderTarget* pRenderTargetFillColors = NULL;
-RenderTarget* pRenderTargetHairShadows[HAIR_TYPE_COUNT][MAX_NUM_DIRECTIONAL_LIGHTS] = { NULL };
+RenderTarget* pRenderTargetHairShadows[HAIR_TYPE_COUNT][MAX_NUM_DIRECTIONAL_LIGHTS] = {{ NULL }};
 #ifndef METAL
 Texture* pTextureHairDepth = NULL;
 #else
@@ -885,10 +878,6 @@ class MaterialPlayground: public IApp
 		eastl::vector<eastl::vector<uint>> mModelIndicesList;
 		eastl::vector<eastl::string> mMaterialNamesStorage;
 		eastl::vector<eastl::string> mGroundNamesStorage;
-		eastl::vector<const char*> mMaterialTextureList;
-		eastl::vector<const char*> mGroundTextureList;
-		TextureLoadTaskData mMaterialTexturesData = {};
-		TextureLoadTaskData mGroundTexturesData = {};
 		float* pJointPoints;
 		float* pBonePoints;
 		TFXAsset tfxAsset[9];
@@ -936,61 +925,27 @@ class MaterialPlayground: public IApp
 		gLuaManager.Init();
 		initResourceLoaderInterface(pRenderer);
 
-#ifdef TARGET_IOS
-		if (!gVirtualJoystick.Init(pRenderer, "circlepad.png", FSR_Textures))
+#if defined(TARGET_IOS) || defined(__ANDROID__)
+		if (!gVirtualJoystick.Init(pRenderer, "circlepad", FSR_Textures))
 			return false;
 #endif
-		initProfiler(pRenderer, gImageCount);
+		initProfiler(pRenderer);
 		profileRegisterInput();
 		addGpuProfiler(pRenderer, pGraphicsQueue, &pGpuProfiler, "GpuProfiler");
 
-		pStagingData = conf_new<StagingData>();
+		pStagingData = conf_new(StagingData);
 		// CREATE RENDERING RESOURCES
 		//
-		// PBR Texture values (these values are mirrored on the shaders).
-		static const uint32_t gBRDFIntegrationSize = 512;
-		static const uint32_t gSkyboxSize = 1024;
-		static const uint32_t gSkyboxMips = 11;
-		static const uint32_t gIrradianceSize = 32;
-		static const uint32_t gSpecularSize = 128;
-		static const uint32_t gSpecularMips = (uint)log2(gSpecularSize) + 1;
 
-		const char * skyboxNames[] =
-		{
-			"LA_Helipad.hdr",
-			"LA_Helipad.exr",
-			"LA_Helipad.png",
-			"LA_Helipad_DXT1.DDS",
-			"LA_Helipad_BC7.DDS",
-			"LA_Helipad_BC6H_SF.DDS"
-		};
-
-		static const int skyboxIndex = 0;
-
-		ComputePBRMapsTaskData pPBRMapLoadData;
-		pPBRMapLoadData.pRenderer = pRenderer;
-		pPBRMapLoadData.pQueue = pGraphicsQueue;
-		pPBRMapLoadData.pCmd = ppCmds[0];
-		pPBRMapLoadData.pFence = NULL;
-		pPBRMapLoadData.pSemaphore = NULL;
-		pPBRMapLoadData.mSourceName = skyboxNames[skyboxIndex];
-		pPBRMapLoadData.mPresetLevel = pRenderer->mGpuSettings->mGpuVendorPreset.mPresetLevel;
-		pPBRMapLoadData.mSkyboxSize = gSkyboxSize;
-		pPBRMapLoadData.mSkyboxMips = gSkyboxMips;
-		pPBRMapLoadData.mSpecularSize = gSpecularSize;
-		pPBRMapLoadData.mSpecularMips = gSpecularMips;
-		pPBRMapLoadData.mBRDFIntegrationSize = gBRDFIntegrationSize;
-		pPBRMapLoadData.mIrradianceSize = gIrradianceSize;
-		computePBRMaps(&pPBRMapLoadData);
-		queueSubmit(pGraphicsQueue, 1, &ppCmds[0], NULL, 0, NULL, 0, NULL);
-
-		CreateShaders();
+		ComputePBRMaps();
+		
 		LoadModelsAndTextures();
 
 		CreateRasterizerStates();
 		CreateDepthStates();
 		CreateBlendStates();
 		CreateSamplers();
+		CreateShaders();
 		CreateRootSignatures();
 		CreateUniformBuffers();
 
@@ -1000,14 +955,6 @@ class MaterialPlayground: public IApp
 
 		waitThreadSystemIdle(pIOThreads);
 		waitBatchCompleted();
-		waitQueueIdle(pGraphicsQueue);
-
-		pTextureSkybox = pPBRMapLoadData.pSkybox;
-		pTextureBRDFIntegrationMap = pPBRMapLoadData.pBRDFIntegrationMap;
-		pTextureIrradianceMap = pPBRMapLoadData.pIrradianceMap;
-		pTextureSpecularMap = pPBRMapLoadData.pSpecularMap;
-
-		cleanupPBRMapsTaskData(&pPBRMapLoadData);
 
 		conf_delete(pStagingData);
 
@@ -1047,7 +994,6 @@ class MaterialPlayground: public IApp
 		gVirtualJoystick.InitLRSticks();
 		pCameraController->setVirtualJoystick(&gVirtualJoystick);
 #endif
-		requestMouseCapture(true);
 		pCameraController->setMotionParameters(camParameters);
 		InputSystem::RegisterInputEvent(cameraInputEvent);
 		InputSystem::RegisterInputEvent(pFnInputEvent);
@@ -1071,7 +1017,7 @@ class MaterialPlayground: public IApp
 			cameraLocalPtr->lookAt(vec3(0, 0, 0));
 			return 0;    // return amount of arguments
 		});
-		gLuaManager.SetFunction("GetIsCameraAnimated", [cameraLocalPtr](ILuaStateWrap* state) -> int {
+		gLuaManager.SetFunction("GetIsCameraAnimated", [](ILuaStateWrap* state) -> int {
 			state->PushResultInteger(gbAnimateCamera ? 1 : 0);
 			return 1;    // return amount of arguments
 		});
@@ -1097,7 +1043,7 @@ class MaterialPlayground: public IApp
 
 		waitQueueIdle(pGraphicsQueue);
 
-		exitProfiler(pRenderer);
+		exitProfiler();
 
 		destroyCameraController(pCameraController);
 		destroyCameraController(pLightView);
@@ -1125,7 +1071,7 @@ class MaterialPlayground: public IApp
 		DestroyDepthStates();
 		DestroyRasterizerStates();
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(__ANDROID__)
 		gVirtualJoystick.Exit();
 #endif
 		removeGpuProfiler(pRenderer, pGpuProfiler);
@@ -1151,13 +1097,15 @@ class MaterialPlayground: public IApp
 		CreateRenderTargets();
 		CreatePipelines();
 
-		if (!gAppUI.Load(pSwapChain->ppSwapchainRenderTargets))
+		RenderTarget* pRenderTargets[] = { pSwapChain->ppSwapchainRenderTargets[0], pRenderTargetDepth };
+		if (!gAppUI.Load(pRenderTargets, 2))
 			return false;
 
-#ifdef TARGET_IOS
-		if (!gVirtualJoystick.Load(pSwapChain->ppSwapchainRenderTargets[0], pRenderTargetDepth->mDesc.mFormat))
+#if defined(TARGET_IOS) || defined(__ANDROID__)
+		if (!gVirtualJoystick.Load(pSwapChain->ppSwapchainRenderTargets[0]))
 			return false;
 #endif
+		loadProfiler(pSwapChain->ppSwapchainRenderTargets[0]);
 
 		return true;
 	}
@@ -1166,9 +1114,10 @@ class MaterialPlayground: public IApp
 	{
 		waitQueueIdle(pGraphicsQueue);
 
+		unloadProfiler();
 		gAppUI.Unload();
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(__ANDROID__)
 		gVirtualJoystick.Unload();
 #endif
 
@@ -1526,8 +1475,9 @@ class MaterialPlayground: public IApp
 		LoadActionsDesc loadActions = {};
 		loadActions.mLoadActionsColor[0] = LOAD_ACTION_DONTCARE;
 		loadActions.mLoadActionDepth = LOAD_ACTION_CLEAR;
-		loadActions.mClearDepth = { 1.0f, 0 };
-		
+		loadActions.mClearDepth.depth = 1.0f;
+		loadActions.mClearDepth.stencil = 0;
+
 		cmdBindRenderTargets(cmd, 0, NULL, pRenderTargetShadowMap, &loadActions, NULL, NULL, -1, -1);
 		cmdSetViewport(cmd, 0.0f, 0.0f, (float)pRenderTargetShadowMap->mDesc.mWidth, (float)pRenderTargetShadowMap->mDesc.mHeight, 0.0f, 1.0f);
 		cmdSetScissor(cmd, 0, 0, pRenderTargetShadowMap->mDesc.mWidth, pRenderTargetShadowMap->mDesc.mHeight);
@@ -1647,17 +1597,15 @@ class MaterialPlayground: public IApp
 		cmdBindVertexBuffer(cmd, 1, &pMeshes[MESH_CUBE]->pVertexBuffer, NULL);
 		cmdBindIndexBuffer(cmd, pMeshes[MESH_CUBE]->pIndexBuffer, 0);
 
-		params[0].pName = "cbObject";
-		params[0].ppBuffers = &pUniformBufferGroundPlane;
-		cmdBindDescriptors(cmd, pDescriptorBinder, pRootSignatureBRDF, 1, params);
-
 		for (int j = 0; j < MATERIAL_TEXTURE_COUNT; ++j)
 		{
 			params[j].pName = pTextureName[j];
 			params[j].ppTextures = &pTextureMaterialMapsGround[j];
 		}
+		params[MATERIAL_TEXTURE_COUNT].pName = "cbObject";
+		params[MATERIAL_TEXTURE_COUNT].ppBuffers = &pUniformBufferGroundPlane;
 
-		cmdBindDescriptors(cmd, pDescriptorBinder, pRootSignatureBRDF, MATERIAL_TEXTURE_COUNT, params);
+		cmdBindDescriptors(cmd, pDescriptorBinder, pRootSignatureBRDF, MATERIAL_TEXTURE_COUNT + 1, params);
 		cmdDrawIndexed(cmd, pMeshes[MESH_CUBE]->mIndexCount, 0, 0);
 
 
@@ -1669,18 +1617,16 @@ class MaterialPlayground: public IApp
 
 			// DRAW THE LABEL PLATES
 			//
-			for (int j = 0; j < MATERIAL_TEXTURE_COUNT; ++j)
-			{
-				params[j].pName = pTextureName[j];
-				params[j].ppTextures = &pTextureMaterialMaps[j + 4];
-			}
-			cmdBindDescriptors(cmd, pDescriptorBinder, pRootSignatureBRDF, MATERIAL_TEXTURE_COUNT, params);
-
 			for (int j = 0; j < MATERIAL_INSTANCE_COUNT; ++j)
 			{
-				params[0].pName = "cbObject";
-				params[0].ppBuffers = &pUniformBufferNamePlates[j];
-				cmdBindDescriptors(cmd, pDescriptorBinder, pRootSignatureBRDF, 1, params);
+				for (int j = 0; j < MATERIAL_TEXTURE_COUNT; ++j)
+				{
+					params[j].pName = pTextureName[j];
+					params[j].ppTextures = &pTextureMaterialMaps[j + 4];
+				}
+				params[MATERIAL_TEXTURE_COUNT].pName = "cbObject";
+				params[MATERIAL_TEXTURE_COUNT].ppBuffers = &pUniformBufferNamePlates[j];
+				cmdBindDescriptors(cmd, pDescriptorBinder, pRootSignatureBRDF, MATERIAL_TEXTURE_COUNT + 1, params);
 				cmdDrawIndexed(cmd, pMeshes[MESH_CUBE]->mIndexCount, 0, 0);
 			}
 
@@ -1692,10 +1638,6 @@ class MaterialPlayground: public IApp
 #if 1    // toggle for rendering objects
 			for (int i = 0; i < MATERIAL_INSTANCE_COUNT; ++i)
 			{
-				params[0].pName = "cbObject";
-				params[0].ppBuffers = &pUniformBufferMatBall[gFrameIndex][i];
-				cmdBindDescriptors(cmd, pDescriptorBinder, pRootSignatureBRDF, 1, params);
-
 				//binding pbr material textures
 				for (int j = 0; j < MATERIAL_TEXTURE_COUNT; ++j)
 				{
@@ -1710,7 +1652,10 @@ class MaterialPlayground: public IApp
 					params[j].ppTextures = &pTextureMaterialMaps[textureIndex];
 				}
 
-				cmdBindDescriptors(cmd, pDescriptorBinder, pRootSignatureBRDF, MATERIAL_TEXTURE_COUNT, params);
+				params[MATERIAL_TEXTURE_COUNT].pName = "cbObject";
+				params[MATERIAL_TEXTURE_COUNT].ppBuffers = &pUniformBufferMatBall[gFrameIndex][i];
+
+				cmdBindDescriptors(cmd, pDescriptorBinder, pRootSignatureBRDF, MATERIAL_TEXTURE_COUNT + 1, params);
 				cmdDrawIndexed(cmd, pMeshes[MESH_MAT_BALL]->mIndexCount, 0, 0);
 			}
 #endif
@@ -2196,15 +2141,17 @@ class MaterialPlayground: public IApp
 				cmdBindIndexBuffer(cmd, pMeshes[MESH_CAPSULE]->pIndexBuffer, 0);
 
 				cmdBindPipeline(cmd, pPipelineShowCapsules);
+				hairParams[0].pName = "cbCamera";
+				hairParams[0].ppBuffers = &pUniformBufferCamera[gFrameIndex];
+				cmdBindDescriptors(cmd, pDescriptorBinder, pRootSignatureShowCapsules, 1, hairParams);
+
 				for (uint hairType = 0; hairType < HAIR_TYPE_COUNT; ++hairType)
 				{
 					for (size_t i = 0; i < gCapsules.size(); ++i)
 					{
 						hairParams[0].pName = "CapsuleRootConstant";
 						hairParams[0].pRootConstant = &gFinalCapsules[hairType][i];
-						hairParams[1].pName = "cbCamera";
-						hairParams[1].ppBuffers = &pUniformBufferCamera[gFrameIndex];
-						cmdBindDescriptors(cmd, pDescriptorBinder, pRootSignatureShowCapsules, 2, hairParams);
+						cmdBindDescriptors(cmd, pDescriptorBinder, pRootSignatureShowCapsules, 1, hairParams);
 						cmdDrawIndexed(cmd, pMeshes[MESH_CAPSULE]->mIndexCount, 0, 0);
 					}
 				}
@@ -2230,13 +2177,6 @@ class MaterialPlayground: public IApp
 		cmdBindRenderTargets(cmd, 1, &pRenderTarget, pRenderTargetDepth, &loadActions, NULL, NULL, -1, -1);
 		cmdSetViewport(cmd, 0.0f, 0.0f, (float)pRenderTarget->mDesc.mWidth, (float)pRenderTarget->mDesc.mHeight, 0.0f, 1.0f);
 		cmdSetScissor(cmd, 0, 0, pRenderTarget->mDesc.mWidth, pRenderTarget->mDesc.mHeight);
-
-		static HiresTimer gTimer;
-		gTimer.GetUSec(true);
-
-#ifdef TARGET_IOS
-		gVirtualJoystick.Draw(cmd, { 1.0f, 1.0f, 1.0f, 1.0f });
-#endif
 
 		// draw world-space text
 		cmdBeginGpuTimestampQuery(cmd, pGpuProfiler, "Text", true);
@@ -2265,6 +2205,17 @@ class MaterialPlayground: public IApp
 			}
 		}
 
+		loadActions = {};
+		loadActions.mLoadActionsColor[0] = LOAD_ACTION_LOAD;
+		cmdBindRenderTargets(cmd, 1, &pRenderTarget, NULL, &loadActions, NULL, NULL, -1, -1);
+
+		static HiresTimer gTimer;
+		gTimer.GetUSec(true);
+
+#ifdef TARGET_IOS
+		gVirtualJoystick.Draw(cmd, { 1.0f, 1.0f, 1.0f, 1.0f });
+#endif
+
 		// draw HUD text
 		gAppUI.DrawText(
 			cmd, float2(8, 15), eastl::string().sprintf("CPU %f ms", gTimer.GetUSecAverage() / 1000.0f).c_str(), &gFrameTimeDraw);
@@ -2289,7 +2240,7 @@ class MaterialPlayground: public IApp
 		else
 			gAppUI.Gui(pGuiWindowMaterial);
 
-		cmdDrawProfiler(cmd, mSettings.mWidth, mSettings.mHeight);
+		cmdDrawProfiler(cmd);
 
 		gAppUI.Draw(cmd);
 		cmdEndGpuTimestampQuery(cmd, pGpuProfiler);	// UI
@@ -2771,13 +2722,13 @@ class MaterialPlayground: public IApp
 
 		DescriptorBinderDesc descriptorBinderDesc[] = {
 			{ pRootSignatureSkybox },
-			{ pRootSignatureBRDF, 1, MATERIAL_TEXTURE_COUNT * MATERIAL_INSTANCE_COUNT },
+			{ pRootSignatureBRDF, 1, MATERIAL_INSTANCE_COUNT * 2 + 1 },
 			{ pRootSignatureShadowPass, 4 * MATERIAL_INSTANCE_COUNT },
 #ifndef DIRECT3D11
 			{ pRootSignatureHairClear, 0, hairDynamicDescriptorSets},
-			{ pRootSignatureHairDepthPeeling, 0, hairDynamicDescriptorSets + HAIR_TYPE_COUNT },
+			{ pRootSignatureHairDepthPeeling, 0, hairDynamicDescriptorSets },
 			{ pRootSignatureHairDepthResolve, 0, hairDynamicDescriptorSets },
-			{ pRootSignatureHairFillColors, 0, hairDynamicDescriptorSets + HAIR_TYPE_COUNT + 1},
+			{ pRootSignatureHairFillColors, HAIR_TYPE_COUNT, hairDynamicDescriptorSets },
 			{ pRootSignatureHairColorResolve, 0, hairDynamicDescriptorSets },
 			{ pRootSignatureHairIntegrate, 0, hairDynamicDescriptorSets },
 			{ pRootSignatureHairShockPropagation, 0, hairDynamicDescriptorSets },
@@ -2786,8 +2737,7 @@ class MaterialPlayground: public IApp
 			{ pRootSignatureHairUpdateFollowHairs, 0, hairDynamicDescriptorSets },
 			{ pRootSignatureHairPreWarm, 0, hairDynamicDescriptorSets },
 			{ pRootSignatureShowCapsules },
-			{ pRootSignatureSkeleton, 0, 20 },
-			{ pRootSignatureHairShadow, 0, hairDynamicDescriptorSets * MAX_NUM_DIRECTIONAL_LIGHTS + HAIR_TYPE_COUNT * MAX_NUM_DIRECTIONAL_LIGHTS }
+			{ pRootSignatureHairShadow, HAIR_TYPE_COUNT * MAX_NUM_DIRECTIONAL_LIGHTS, hairDynamicDescriptorSets * MAX_NUM_DIRECTIONAL_LIGHTS }
 #endif
 		};
 
@@ -2842,6 +2792,7 @@ class MaterialPlayground: public IApp
 		});
 
 		eastl::string loadModelsFilename = FileSystem::FixPath("loadModels.lua", FSR_Middleware2);
+		auto str = loadModelsFilename.c_str();
 		gLuaManager.AddAsyncScript(loadModelsFilename.c_str(), [&modelsAreLoaded](ScriptState state) { modelsAreLoaded = true; });
 
 		while (!modelsAreLoaded)
@@ -2855,26 +2806,20 @@ class MaterialPlayground: public IApp
 
 		bool texturesAreLoaded = false;
 		TextureLoadDesc textureDesc = {};
-		gLuaManager.SetFunction("GetTextureResolution", [this](ILuaStateWrap* state) -> int {
+		gLuaManager.SetFunction("GetTextureResolution", [](ILuaStateWrap* state) -> int {
 			state->PushResultString(TEXTURE_RESOLUTION);
 			return 1;
 		});
-		gLuaManager.SetFunction("GetSkipLoadingTexturesFlag", [this](ILuaStateWrap* state) -> int {
+		gLuaManager.SetFunction("GetSkipLoadingTexturesFlag", [](ILuaStateWrap* state) -> int {
 			state->PushResultInteger(SKIP_LOADING_TEXTURES);
 			return 1;
 		});
 		gLuaManager.SetFunction("LoadTextureMaps", [this](ILuaStateWrap* state) -> int {
 			eastl::vector<const char*> texturesNames;
 			state->GetStringArrayArg(1, texturesNames);
-			pStagingData->mMaterialTexturesData.mDesc.mUseMipmaps = state->GetIntegerArg(2) != 0;    //bool for Lua is integer
 			for (const char* name : texturesNames)
 			{
-				pStagingData->mMaterialNamesStorage.push_back(name);
-			}
-
-			for (eastl::string& name : pStagingData->mMaterialNamesStorage)
-			{
-				pStagingData->mMaterialTextureList.push_back(name.c_str());
+				this->pStagingData->mMaterialNamesStorage.push_back(name);
 			}
 
 			return 0;
@@ -2885,26 +2830,18 @@ class MaterialPlayground: public IApp
 		while (!texturesAreLoaded)
 			Thread::Sleep(0);
 
-		uintptr_t materialTextureCount = pStagingData->mMaterialTextureList.size();
+		uintptr_t materialTextureCount = pStagingData->mMaterialNamesStorage.size();
 		pTextureMaterialMaps.resize(materialTextureCount);
-		pStagingData->mMaterialTexturesData.mDesc.mRoot = FSR_OtherFiles;
-		pStagingData->mMaterialTexturesData.mTextures = pTextureMaterialMaps.data();
-		pStagingData->mMaterialTexturesData.mNames = pStagingData->mMaterialTextureList.data();
-		addThreadSystemRangeTask(pIOThreads, loadTexturesTask, &pStagingData->mMaterialTexturesData, materialTextureCount);
+		addThreadSystemRangeTask(pIOThreads, LoadMaterialTexturesTask, pStagingData, materialTextureCount);
 
 		bool groundTexturesAreLoaded = false;
 		//This is how we can replace function in runtime.
 		gLuaManager.SetFunction("LoadTextureMaps", [this](ILuaStateWrap* state) -> int {
 			eastl::vector<const char*> texturesNames;
 			state->GetStringArrayArg(1, texturesNames);
-			pStagingData->mGroundTexturesData.mDesc.mUseMipmaps = state->GetIntegerArg(2) != 0;
 			for (const char* name : texturesNames)
 			{
 				pStagingData->mGroundNamesStorage.push_back(name);
-			}
-			for (eastl::string& name : pStagingData->mGroundNamesStorage)
-			{
-				pStagingData->mGroundTextureList.push_back(name.c_str());
 			}
 
 			return 0;
@@ -2916,12 +2853,338 @@ class MaterialPlayground: public IApp
 		while (!groundTexturesAreLoaded)
 			Thread::Sleep(0);
 
-		uintptr_t groundTextureCount = pStagingData->mGroundTextureList.size();
+		uintptr_t groundTextureCount = pStagingData->mGroundNamesStorage.size();
 		pTextureMaterialMapsGround.resize(groundTextureCount);
-		pStagingData->mGroundTexturesData.mDesc.mRoot = FSR_OtherFiles;
-		pStagingData->mGroundTexturesData.mTextures = pTextureMaterialMapsGround.data();
-		pStagingData->mGroundTexturesData.mNames = pStagingData->mGroundTextureList.data();
-		addThreadSystemRangeTask(pIOThreads, &loadTexturesTask, &pStagingData->mGroundTexturesData, groundTextureCount);
+		addThreadSystemRangeTask(pIOThreads, &LoadGroundTexturesTask, pStagingData, groundTextureCount);
+	}
+
+	static void LoadMaterialTexturesTask(void* data, uintptr_t i)
+	{
+		StagingData*    pTaskData = (StagingData*)data;
+		TextureLoadDesc desc = {};
+		desc.mRoot = FSR_OtherFiles;
+		desc.pFilename = pTaskData->mMaterialNamesStorage[i].c_str();
+		desc.ppTexture = &pTextureMaterialMaps[i];
+		addResource(&desc, true);
+	}
+
+	static void LoadGroundTexturesTask(void* data, uintptr_t i)
+	{
+		StagingData*    pTaskData = (StagingData*)data;
+		TextureLoadDesc desc = {};
+		desc.mRoot = FSR_OtherFiles;
+		desc.pFilename = pTaskData->mGroundNamesStorage[i].c_str();
+		desc.ppTexture = &pTextureMaterialMapsGround[i];
+		addResource(&desc, true);
+	}
+
+	void ComputePBRMaps()
+	{
+		Texture*          pPanoSkybox = NULL;
+		Shader*           pPanoToCubeShader = NULL;
+		RootSignature*    pPanoToCubeRootSignature = NULL;
+		Pipeline*         pPanoToCubePipeline = NULL;
+		Shader*           pBRDFIntegrationShader = NULL;
+		RootSignature*    pBRDFIntegrationRootSignature = NULL;
+		Pipeline*         pBRDFIntegrationPipeline = NULL;
+		Shader*           pIrradianceShader = NULL;
+		RootSignature*    pIrradianceRootSignature = NULL;
+		Pipeline*         pIrradiancePipeline = NULL;
+		Shader*           pSpecularShader = NULL;
+		RootSignature*    pSpecularRootSignature = NULL;
+		Pipeline*         pSpecularPipeline = NULL;
+		Sampler*          pSkyboxSampler = NULL;
+		DescriptorBinder* pPBRDescriptorBinder = NULL;
+
+		static const int skyboxIndex = 0;
+		const char*      skyboxNames[] = {
+			"LA_Helipad.ktx",
+		};
+		// PBR Texture values (these values are mirrored on the shaders).
+		static const uint32_t gBRDFIntegrationSize = 512;
+		static const uint32_t gSkyboxSize = 1024;
+		static const uint32_t gSkyboxMips = 11;
+		static const uint32_t gIrradianceSize = 32;
+		static const uint32_t gSpecularSize = 128;
+		static const uint32_t gSpecularMips = (uint)log2(gSpecularSize) + 1;
+
+		SamplerDesc samplerDesc = {
+			FILTER_LINEAR, FILTER_LINEAR, MIPMAP_MODE_LINEAR, ADDRESS_MODE_REPEAT, ADDRESS_MODE_REPEAT, ADDRESS_MODE_REPEAT, 0, 16
+		};
+		addSampler(pRenderer, &samplerDesc, &pSkyboxSampler);
+
+		// Load the skybox panorama texture.
+		SyncToken       token;
+		TextureLoadDesc panoDesc = {};
+		panoDesc.mRoot = FSR_Textures;
+		panoDesc.pFilename = skyboxNames[skyboxIndex];
+		panoDesc.ppTexture = &pPanoSkybox;
+		addResource(&panoDesc, &token);
+
+		TextureDesc skyboxImgDesc = {};
+		skyboxImgDesc.mArraySize = 6;
+		skyboxImgDesc.mDepth = 1;
+		skyboxImgDesc.mFormat = ImageFormat::RGBA32F;
+		skyboxImgDesc.mHeight = gSkyboxSize;
+		skyboxImgDesc.mWidth = gSkyboxSize;
+		skyboxImgDesc.mMipLevels = gSkyboxMips;
+		skyboxImgDesc.mSampleCount = SAMPLE_COUNT_1;
+		skyboxImgDesc.mSrgb = false;
+		skyboxImgDesc.mStartState = RESOURCE_STATE_UNORDERED_ACCESS;
+		skyboxImgDesc.mDescriptors = DESCRIPTOR_TYPE_TEXTURE_CUBE | DESCRIPTOR_TYPE_RW_TEXTURE;
+		skyboxImgDesc.pDebugName = L"skyboxImgBuff";
+
+		TextureLoadDesc skyboxLoadDesc = {};
+		skyboxLoadDesc.pDesc = &skyboxImgDesc;
+		skyboxLoadDesc.ppTexture = &pTextureSkybox;
+		addResource(&skyboxLoadDesc);
+
+		TextureDesc irrImgDesc = {};
+		irrImgDesc.mArraySize = 6;
+		irrImgDesc.mDepth = 1;
+		irrImgDesc.mFormat = ImageFormat::RGBA32F;
+		irrImgDesc.mHeight = gIrradianceSize;
+		irrImgDesc.mWidth = gIrradianceSize;
+		irrImgDesc.mMipLevels = 1;
+		irrImgDesc.mSampleCount = SAMPLE_COUNT_1;
+		irrImgDesc.mSrgb = false;
+		irrImgDesc.mStartState = RESOURCE_STATE_UNORDERED_ACCESS;
+		irrImgDesc.mDescriptors = DESCRIPTOR_TYPE_TEXTURE_CUBE | DESCRIPTOR_TYPE_RW_TEXTURE;
+		irrImgDesc.pDebugName = L"irrImgBuff";
+
+		TextureLoadDesc irrLoadDesc = {};
+		irrLoadDesc.pDesc = &irrImgDesc;
+		irrLoadDesc.ppTexture = &pTextureIrradianceMap;
+		addResource(&irrLoadDesc);
+
+		TextureDesc specImgDesc = {};
+		specImgDesc.mArraySize = 6;
+		specImgDesc.mDepth = 1;
+		specImgDesc.mFormat = ImageFormat::RGBA32F;
+		specImgDesc.mHeight = gSpecularSize;
+		specImgDesc.mWidth = gSpecularSize;
+		specImgDesc.mMipLevels = gSpecularMips;
+		specImgDesc.mSampleCount = SAMPLE_COUNT_1;
+		specImgDesc.mSrgb = false;
+		specImgDesc.mStartState = RESOURCE_STATE_UNORDERED_ACCESS;
+		specImgDesc.mDescriptors = DESCRIPTOR_TYPE_TEXTURE_CUBE | DESCRIPTOR_TYPE_RW_TEXTURE;
+		specImgDesc.pDebugName = L"specImgBuff";
+
+		TextureLoadDesc specImgLoadDesc = {};
+		specImgLoadDesc.pDesc = &specImgDesc;
+		specImgLoadDesc.ppTexture = &pTextureSpecularMap;
+		addResource(&specImgLoadDesc);
+
+		// Create empty texture for BRDF integration map.
+		TextureLoadDesc brdfIntegrationLoadDesc = {};
+		TextureDesc     brdfIntegrationDesc = {};
+		brdfIntegrationDesc.mWidth = gBRDFIntegrationSize;
+		brdfIntegrationDesc.mHeight = gBRDFIntegrationSize;
+		brdfIntegrationDesc.mDepth = 1;
+		brdfIntegrationDesc.mArraySize = 1;
+		brdfIntegrationDesc.mMipLevels = 1;
+		brdfIntegrationDesc.mFormat = ImageFormat::RG32F;
+		brdfIntegrationDesc.mDescriptors = DESCRIPTOR_TYPE_TEXTURE | DESCRIPTOR_TYPE_RW_TEXTURE;
+		brdfIntegrationDesc.mSampleCount = SAMPLE_COUNT_1;
+		brdfIntegrationDesc.mHostVisible = false;
+		brdfIntegrationLoadDesc.pDesc = &brdfIntegrationDesc;
+		brdfIntegrationLoadDesc.ppTexture = &pTextureBRDFIntegrationMap;
+		addResource(&brdfIntegrationLoadDesc);
+
+		// Load pre-processing shaders.
+		ShaderLoadDesc panoToCubeShaderDesc = {};
+		panoToCubeShaderDesc.mStages[0] = { "panoToCube.comp", NULL, 0, FSR_SrcShaders };
+
+		GPUPresetLevel presetLevel = pRenderer->mGpuSettings->mGpuVendorPreset.mPresetLevel;
+		uint32_t       importanceSampleCounts[GPUPresetLevel::GPU_PRESET_COUNT] = { 0, 0, 64, 128, 256, 1024 };
+		uint32_t       importanceSampleCount = importanceSampleCounts[presetLevel];
+		ShaderMacro    importanceSampleMacro = { "IMPORTANCE_SAMPLE_COUNT", eastl::string().sprintf("%u", importanceSampleCount) };
+
+		ShaderLoadDesc brdfIntegrationShaderDesc = {};
+		brdfIntegrationShaderDesc.mStages[0] = { "BRDFIntegration.comp", &importanceSampleMacro, 1, FSR_SrcShaders };
+
+		ShaderLoadDesc irradianceShaderDesc = {};
+		irradianceShaderDesc.mStages[0] = { "computeIrradianceMap.comp", NULL, 0, FSR_SrcShaders };
+
+		ShaderLoadDesc specularShaderDesc = {};
+		specularShaderDesc.mStages[0] = { "computeSpecularMap.comp", &importanceSampleMacro, 1, FSR_SrcShaders };
+
+		addShader(pRenderer, &panoToCubeShaderDesc, &pPanoToCubeShader);
+		addShader(pRenderer, &brdfIntegrationShaderDesc, &pBRDFIntegrationShader);
+		addShader(pRenderer, &irradianceShaderDesc, &pIrradianceShader);
+		addShader(pRenderer, &specularShaderDesc, &pSpecularShader);
+
+		const char*       pStaticSamplerNames[] = { "skyboxSampler" };
+		RootSignatureDesc panoRootDesc = { &pPanoToCubeShader, 1 };
+		panoRootDesc.mStaticSamplerCount = 1;
+		panoRootDesc.ppStaticSamplerNames = pStaticSamplerNames;
+		panoRootDesc.ppStaticSamplers = &pSkyboxSampler;
+		RootSignatureDesc brdfRootDesc = { &pBRDFIntegrationShader, 1 };
+		brdfRootDesc.mStaticSamplerCount = 1;
+		brdfRootDesc.ppStaticSamplerNames = pStaticSamplerNames;
+		brdfRootDesc.ppStaticSamplers = &pSkyboxSampler;
+		RootSignatureDesc irradianceRootDesc = { &pIrradianceShader, 1 };
+		irradianceRootDesc.mStaticSamplerCount = 1;
+		irradianceRootDesc.ppStaticSamplerNames = pStaticSamplerNames;
+		irradianceRootDesc.ppStaticSamplers = &pSkyboxSampler;
+		RootSignatureDesc specularRootDesc = { &pSpecularShader, 1 };
+		specularRootDesc.mStaticSamplerCount = 1;
+		specularRootDesc.ppStaticSamplerNames = pStaticSamplerNames;
+		specularRootDesc.ppStaticSamplers = &pSkyboxSampler;
+		addRootSignature(pRenderer, &panoRootDesc, &pPanoToCubeRootSignature);
+		addRootSignature(pRenderer, &brdfRootDesc, &pBRDFIntegrationRootSignature);
+		addRootSignature(pRenderer, &irradianceRootDesc, &pIrradianceRootSignature);
+		addRootSignature(pRenderer, &specularRootDesc, &pSpecularRootSignature);
+
+		DescriptorBinderDesc descriptorBinderDesc[4] = {
+			{ pPanoToCubeRootSignature, gSkyboxMips + 1, gSkyboxMips + 1 },
+			{ pBRDFIntegrationRootSignature },
+			{ pIrradianceRootSignature },
+			{ pSpecularRootSignature, gSkyboxMips + 1, gSpecularMips + 1 }
+		};
+
+		addDescriptorBinder(pRenderer, 0, 4, descriptorBinderDesc, &pPBRDescriptorBinder);
+
+		PipelineDesc desc = {};
+		desc.mType = PIPELINE_TYPE_COMPUTE;
+		ComputePipelineDesc& pipelineSettings = desc.mComputeDesc;
+		pipelineSettings.pShaderProgram = pPanoToCubeShader;
+		pipelineSettings.pRootSignature = pPanoToCubeRootSignature;
+		addPipeline(pRenderer, &desc, &pPanoToCubePipeline);
+		pipelineSettings.pShaderProgram = pBRDFIntegrationShader;
+		pipelineSettings.pRootSignature = pBRDFIntegrationRootSignature;
+		addPipeline(pRenderer, &desc, &pBRDFIntegrationPipeline);
+		pipelineSettings.pShaderProgram = pIrradianceShader;
+		pipelineSettings.pRootSignature = pIrradianceRootSignature;
+		addPipeline(pRenderer, &desc, &pIrradiancePipeline);
+		pipelineSettings.pShaderProgram = pSpecularShader;
+		pipelineSettings.pRootSignature = pSpecularRootSignature;
+		addPipeline(pRenderer, &desc, &pSpecularPipeline);
+
+		// Compute the BRDF Integration map.
+		beginCmd(ppCmds[0]);
+
+		TextureBarrier uavBarriers[4] = {
+			{ pTextureSkybox, RESOURCE_STATE_UNORDERED_ACCESS },
+			{ pTextureIrradianceMap, RESOURCE_STATE_UNORDERED_ACCESS },
+			{ pTextureSpecularMap, RESOURCE_STATE_UNORDERED_ACCESS },
+			{ pTextureBRDFIntegrationMap, RESOURCE_STATE_UNORDERED_ACCESS },
+		};
+		cmdResourceBarrier(ppCmds[0], 0, NULL, 4, uavBarriers, false);
+
+		cmdBindPipeline(ppCmds[0], pBRDFIntegrationPipeline);
+		DescriptorData params[2] = {};
+		params[0].pName = "dstTexture";
+		params[0].ppTextures = &pTextureBRDFIntegrationMap;
+		cmdBindDescriptors(ppCmds[0], pPBRDescriptorBinder, pBRDFIntegrationRootSignature, 1, params);
+		const uint32_t* pThreadGroupSize = pBRDFIntegrationShader->mReflection.mStageReflections[0].mNumThreadsPerGroup;
+		cmdDispatch(
+			ppCmds[0], gBRDFIntegrationSize / pThreadGroupSize[0], gBRDFIntegrationSize / pThreadGroupSize[1],
+			pThreadGroupSize[2]);
+
+		TextureBarrier srvBarrier[1] = { { pTextureBRDFIntegrationMap, RESOURCE_STATE_SHADER_RESOURCE } };
+
+		cmdResourceBarrier(ppCmds[0], 0, NULL, 1, srvBarrier, true);
+
+		// Store the panorama texture inside a cubemap.
+		cmdBindPipeline(ppCmds[0], pPanoToCubePipeline);
+		params[0].pName = "srcTexture";
+		params[0].ppTextures = &pPanoSkybox;
+		cmdBindDescriptors(ppCmds[0], pPBRDescriptorBinder, pPanoToCubeRootSignature, 1, params);
+
+		struct
+		{
+			uint32_t mip;
+			uint32_t textureSize;
+		} rootConstantData = { 0, gSkyboxSize };
+
+		for (uint32_t i = 0; i < gSkyboxMips; ++i)
+		{
+			rootConstantData.mip = i;
+			params[0].pName = "RootConstant";
+			params[0].pRootConstant = &rootConstantData;
+			params[1].pName = "dstTexture";
+			params[1].ppTextures = &pTextureSkybox;
+			params[1].mUAVMipSlice = i;
+			cmdBindDescriptors(ppCmds[0], pPBRDescriptorBinder, pPanoToCubeRootSignature, 2, params);
+
+			pThreadGroupSize = pPanoToCubeShader->mReflection.mStageReflections[0].mNumThreadsPerGroup;
+			cmdDispatch(
+				ppCmds[0], max(1u, (uint32_t)(rootConstantData.textureSize >> i) / pThreadGroupSize[0]),
+				max(1u, (uint32_t)(rootConstantData.textureSize >> i) / pThreadGroupSize[1]), 6);
+		}
+
+		TextureBarrier srvBarriers[1] = { { pTextureSkybox, RESOURCE_STATE_SHADER_RESOURCE } };
+		cmdResourceBarrier(ppCmds[0], 0, NULL, 1, srvBarriers, false);
+		/************************************************************************/
+		// Compute sky irradiance
+		/************************************************************************/
+		params[0] = {};
+		params[1] = {};
+		cmdBindPipeline(ppCmds[0], pIrradiancePipeline);
+		params[0].pName = "srcTexture";
+		params[0].ppTextures = &pTextureSkybox;
+		params[1].pName = "dstTexture";
+		params[1].ppTextures = &pTextureIrradianceMap;
+		cmdBindDescriptors(ppCmds[0], pPBRDescriptorBinder, pIrradianceRootSignature, 2, params);
+		pThreadGroupSize = pIrradianceShader->mReflection.mStageReflections[0].mNumThreadsPerGroup;
+		cmdDispatch(ppCmds[0], gIrradianceSize / pThreadGroupSize[0], gIrradianceSize / pThreadGroupSize[1], 6);
+		/************************************************************************/
+		// Compute specular sky
+		/************************************************************************/
+		cmdBindPipeline(ppCmds[0], pSpecularPipeline);
+		params[0].pName = "srcTexture";
+		params[0].ppTextures = &pTextureSkybox;
+		cmdBindDescriptors(ppCmds[0], pPBRDescriptorBinder, pSpecularRootSignature, 1, params);
+
+		struct PrecomputeSkySpecularData
+		{
+			uint  mipSize;
+			float roughness;
+		};
+
+		for (uint32_t i = 0; i < gSpecularMips; i++)
+		{
+			PrecomputeSkySpecularData data = {};
+			data.roughness = (float)i / (float)(gSpecularMips - 1);
+			data.mipSize = gSpecularSize >> i;
+			params[0].pName = "RootConstant";
+			params[0].pRootConstant = &data;
+			params[1].pName = "dstTexture";
+			params[1].ppTextures = &pTextureSpecularMap;
+			params[1].mUAVMipSlice = i;
+			cmdBindDescriptors(ppCmds[0], pPBRDescriptorBinder, pSpecularRootSignature, 2, params);
+			pThreadGroupSize = pIrradianceShader->mReflection.mStageReflections[0].mNumThreadsPerGroup;
+			cmdDispatch(
+				ppCmds[0], eastl::max(1u, (gSpecularSize >> i) / pThreadGroupSize[0]),
+				eastl::max(1u, (gSpecularSize >> i) / pThreadGroupSize[1]), 6);
+		}
+		/************************************************************************/
+		/************************************************************************/
+		TextureBarrier srvBarriers2[2] = { { pTextureIrradianceMap, RESOURCE_STATE_SHADER_RESOURCE },
+										   { pTextureSpecularMap, RESOURCE_STATE_SHADER_RESOURCE } };
+		cmdResourceBarrier(ppCmds[0], 0, NULL, 2, srvBarriers2, false);
+
+		endCmd(ppCmds[0]);
+		waitTokenCompleted(token);
+		queueSubmit(pGraphicsQueue, 1, &ppCmds[0], NULL, 0, NULL, 0, NULL);
+		waitQueueIdle(pGraphicsQueue);
+
+		removePipeline(pRenderer, pSpecularPipeline);
+		removeRootSignature(pRenderer, pSpecularRootSignature);
+		removeShader(pRenderer, pSpecularShader);
+		removePipeline(pRenderer, pIrradiancePipeline);
+		removeRootSignature(pRenderer, pIrradianceRootSignature);
+		removeShader(pRenderer, pIrradianceShader);
+		removePipeline(pRenderer, pBRDFIntegrationPipeline);
+		removeRootSignature(pRenderer, pBRDFIntegrationRootSignature);
+		removeShader(pRenderer, pBRDFIntegrationShader);
+		removePipeline(pRenderer, pPanoToCubePipeline);
+		removeRootSignature(pRenderer, pPanoToCubeRootSignature);
+		removeShader(pRenderer, pPanoToCubeShader);
+		removeDescriptorBinder(pRenderer, pPBRDescriptorBinder);
+		removeResource(pPanoSkybox);
+		removeSampler(pRenderer, pSkyboxSampler);
 	}
 
 	void LoadModel(uintptr_t i)
@@ -4091,8 +4354,11 @@ class MaterialPlayground: public IApp
 		depthPeelingRenderTargetDesc.mMipLevels = 1;
 		depthPeelingRenderTargetDesc.mSampleCount = SAMPLE_COUNT_1;
 		depthPeelingRenderTargetDesc.mFormat = ImageFormat::R16F;
-		depthPeelingRenderTargetDesc.mClearValue = { 1.0f, 1.0f, 1.0f, 1.0f };
-		depthPeelingRenderTargetDesc.mSampleQuality = 0;
+        depthPeelingRenderTargetDesc.mClearValue.r = 1.0f;
+        depthPeelingRenderTargetDesc.mClearValue.g = 1.0f;
+        depthPeelingRenderTargetDesc.mClearValue.b = 1.0f;
+        depthPeelingRenderTargetDesc.mClearValue.a = 1.0f;
+        depthPeelingRenderTargetDesc.mSampleQuality = 0;
 		depthPeelingRenderTargetDesc.mDescriptors = DESCRIPTOR_TYPE_TEXTURE;
 		depthPeelingRenderTargetDesc.mFlags = TEXTURE_CREATION_FLAG_OWN_MEMORY_BIT;
 		depthPeelingRenderTargetDesc.pDebugName = L"Depth peeling RT";
@@ -4107,7 +4373,10 @@ class MaterialPlayground: public IApp
 		hairDepthsTextureDesc.mMipLevels = 1;
 		hairDepthsTextureDesc.mSampleCount = SAMPLE_COUNT_1;
 		hairDepthsTextureDesc.mFormat = ImageFormat::R32UI;
-		hairDepthsTextureDesc.mClearValue = { 1.0f, 1.0f, 1.0f, 1.0f };
+        hairDepthsTextureDesc.mClearValue.r = 1.0f;
+        hairDepthsTextureDesc.mClearValue.g = 1.0f;
+        hairDepthsTextureDesc.mClearValue.b = 1.0f;
+        hairDepthsTextureDesc.mClearValue.a = 1.0f;
 		hairDepthsTextureDesc.mDescriptors = DESCRIPTOR_TYPE_RW_TEXTURE | DESCRIPTOR_TYPE_TEXTURE;
 		hairDepthsTextureDesc.pDebugName = L"Hair depths texture";
 
@@ -4136,7 +4405,10 @@ class MaterialPlayground: public IApp
 		fillColorsRenderTargetDesc.mMipLevels = 1;
 		fillColorsRenderTargetDesc.mSampleCount = SAMPLE_COUNT_1;
 		fillColorsRenderTargetDesc.mFormat = ImageFormat::RGBA16F;
-		fillColorsRenderTargetDesc.mClearValue = { 0.0f, 0.0f, 0.0f, 0.0f };
+        fillColorsRenderTargetDesc.mClearValue.r = 0.0f;
+        fillColorsRenderTargetDesc.mClearValue.g = 0.0f;
+        fillColorsRenderTargetDesc.mClearValue.b = 0.0f;
+        fillColorsRenderTargetDesc.mClearValue.a = 0.0f;
 		fillColorsRenderTargetDesc.mSampleQuality = 0;
 		fillColorsRenderTargetDesc.mDescriptors = DESCRIPTOR_TYPE_TEXTURE;
 		fillColorsRenderTargetDesc.mFlags = TEXTURE_CREATION_FLAG_OWN_MEMORY_BIT;
@@ -4151,7 +4423,8 @@ class MaterialPlayground: public IApp
 		hairShadowRenderTargetDesc.mMipLevels = 1;
 		hairShadowRenderTargetDesc.mSampleCount = SAMPLE_COUNT_1;
 		hairShadowRenderTargetDesc.mFormat = ImageFormat::D16;
-		hairShadowRenderTargetDesc.mClearValue = { 1.0f, 0 };
+        hairShadowRenderTargetDesc.mClearValue.depth = 1.0f;
+        hairShadowRenderTargetDesc.mClearValue.stencil = 0;
 		hairShadowRenderTargetDesc.mSampleQuality = 0;
 		hairShadowRenderTargetDesc.mDescriptors = DESCRIPTOR_TYPE_TEXTURE;
 		hairShadowRenderTargetDesc.mFlags = TEXTURE_CREATION_FLAG_OWN_MEMORY_BIT;
@@ -4164,7 +4437,8 @@ class MaterialPlayground: public IApp
 
 		RenderTargetDesc depthRenderTargetDesc = {};
 		depthRenderTargetDesc.mArraySize = 1;
-		depthRenderTargetDesc.mClearValue = { 1.0f, 0 };
+        depthRenderTargetDesc.mClearValue.depth = 1.0f;
+        depthRenderTargetDesc.mClearValue.stencil = 0;
 		depthRenderTargetDesc.mDepth = 1;
 		depthRenderTargetDesc.mFormat = ImageFormat::D32F;
 		depthRenderTargetDesc.mHeight = mSettings.mHeight;
@@ -4177,7 +4451,8 @@ class MaterialPlayground: public IApp
 
 		RenderTargetDesc shadowPassRenderTargetDesc = {};
 		shadowPassRenderTargetDesc.mArraySize = 1;
-		shadowPassRenderTargetDesc.mClearValue = { 1.0f, 0 };
+        shadowPassRenderTargetDesc.mClearValue.depth = 1.0f;
+        shadowPassRenderTargetDesc.mClearValue.stencil = 0;
 		shadowPassRenderTargetDesc.mDepth = 1;
 		shadowPassRenderTargetDesc.mFormat = ImageFormat::D32F;
 		shadowPassRenderTargetDesc.mHeight = gShadowMapDimensions;
@@ -4189,7 +4464,7 @@ class MaterialPlayground: public IApp
 		addRenderTarget(pRenderer, &shadowPassRenderTargetDesc, &pRenderTargetShadowMap);
 
 		SwapChainDesc swapChainDesc = {};
-		swapChainDesc.pWindow = pWindow;
+		swapChainDesc.mWindowHandle = pWindow->handle;
 		swapChainDesc.mPresentQueueCount = 1;
 		swapChainDesc.ppPresentQueues = &pGraphicsQueue;
 		swapChainDesc.mWidth = mSettings.mWidth;
@@ -4197,7 +4472,10 @@ class MaterialPlayground: public IApp
 		swapChainDesc.mImageCount = gImageCount;
 		swapChainDesc.mSampleCount = SAMPLE_COUNT_1;
 		swapChainDesc.mColorFormat = getRecommendedSwapchainFormat(true);
-		swapChainDesc.mColorClearValue = { 0.0f, 0.0f, 0.0f, 0.0f };
+        swapChainDesc.mColorClearValue.r = 0.0f;
+        swapChainDesc.mColorClearValue.g = 0.0f;
+        swapChainDesc.mColorClearValue.b = 0.0f;
+        swapChainDesc.mColorClearValue.a = 0.0f;
 		swapChainDesc.mSrgb = false;
 		swapChainDesc.mEnableVsync = false;
 		::addSwapChain(pRenderer, &swapChainDesc, &pSwapChain);
@@ -4269,7 +4547,7 @@ void GuiController::UpdateDynamicUI()
 		GuiController::hairDynamicWidgets[gHairType].hairSimulation.ShowWidgets(pGuiWindowHairSimulation);
 	}
 
-#if !defined(TARGET_IOS) && !defined(_DURANGO)
+#if !defined(TARGET_IOS) && !defined(_DURANGO) && !defined(__ANDROID__)
 	if (pSwapChain->mDesc.mEnableVsync != gVSyncEnabled)
 	{
 		waitQueueIdle(pGraphicsQueue);
@@ -4314,14 +4592,14 @@ void GuiController::AddGui()
 
 	static const char*    renderModeNames[] = { "Shaded", "Albedo", "Normals", "Roughness", "Metallic", "AO", NULL };
 	static const uint32_t renderModeVals[] = {
-		RENDER_MODE_SHADED, RENDER_MODE_ALBEDO, RENDER_MODE_NORMALS, RENDER_MODE_ROUGHNESS, RENDER_MODE_METALLIC, RENDER_MODE_AO, NULL
+		RENDER_MODE_SHADED, RENDER_MODE_ALBEDO, RENDER_MODE_NORMALS, RENDER_MODE_ROUGHNESS, RENDER_MODE_METALLIC, RENDER_MODE_AO, (uint32_t)NULL
 	};
 	const uint32_t dropDownCount3 = (sizeof(renderModeNames) / sizeof(renderModeNames[0])) - 1;
 
   pGuiWindowMain->AddWidget(CheckboxWidget("Toggle Micro Profiler", &bToggleMicroProfiler));
 
 	// SCENE GUI
-#if !defined(TARGET_IOS) && !defined(_DURANGO)
+#if !defined(TARGET_IOS) && !defined(_DURANGO) && !defined(__ANDROID__)
 	pGuiWindowMain->AddWidget(CheckboxWidget("V-Sync", &gVSyncEnabled));
 #endif
 	pGuiWindowMain->AddWidget(DropdownWidget("Material Type", &gMaterialType, materialTypeNames, materialTypeValues, dropDownCount));

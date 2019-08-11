@@ -109,7 +109,7 @@ typedef struct AABoundingBox
 
 typedef struct MeshIn
 {
-#if defined(METAL)
+#if 0 //defined(METAL)
 	uint32_t startVertex;
 	uint32_t triangleCount;
 #else
@@ -157,7 +157,7 @@ typedef struct Scene
 
 typedef struct FilterBatchData
 {
-#if defined(METAL)
+#if 0 //defined(METAL)
 	uint32_t triangleCount;
 	uint32_t triangleOffset;
 	uint32_t meshIdx;
@@ -193,9 +193,9 @@ void   createAABB(const Scene* pScene, MeshIn* mesh);
 void   createClusters(bool twoSided, const Scene* pScene, MeshIn* mesh);
 void   destroyClusters(MeshIn* mesh);
 
-void loadModel(const eastl::string& FileName, Buffer*& pVertexBuffer, uint& vertexCount, Buffer*& IndexBuffer, uint& indexCount);
+bool   loadModel(const eastl::string& FileName, eastl::vector<Vertex>& vertices, eastl::vector<uint16_t>& indices);
 
-#if defined(METAL)
+#if 0 //defined(METAL)
 void addClusterToBatchChunk(
 	const ClusterCompact* cluster, const MeshIn* mesh, uint32_t meshIdx, bool isTwoSided, FilterBatchChunk* batchChunk);
 #else

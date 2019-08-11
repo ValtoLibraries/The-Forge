@@ -34,13 +34,13 @@
 #include "../../ThirdParty/OpenSource/EASTL/string.h"
 #include "../../ThirdParty/OpenSource/EASTL/unordered_map.h"
 #include "../../ThirdParty/OpenSource/EASTL/vector.h"
-#include "../../OS/Interfaces/ILogManager.h"
+#include "../../OS/Interfaces/ILog.h"
 #include "../IRenderer.h"
 #include "../../OS/Core/RingBuffer.h"
 #include "../../ThirdParty/OpenSource/EASTL/functional.h"
 #include "../../ThirdParty/OpenSource/winpixeventruntime/Include/WinPixEventRuntime/pix3.h"
 #include "../../OS/Core/GPUConfig.h"
-#include "../../OS/Image/Image.h"
+#include "../../OS/Image/ImageEnums.h"
 #include "Direct3D11Commands.h"
 
 #if !defined(_WIN32)
@@ -69,7 +69,7 @@ extern "C"
 }
 
 //#include "Direct3D11MemoryAllocator.h"
-#include "../../OS/Interfaces/IMemoryManager.h"
+#include "../../OS/Interfaces/IMemory.h"
 
 // clang-format off
 extern void d3d11_createShaderReflection(const uint8_t* shaderCode, uint32_t shaderSize, ShaderStage shaderStage, ShaderReflection* pOutReflection);
@@ -218,15 +218,16 @@ const DXGI_FORMAT gFormatTranslatorTypeless[] = {
 	DXGI_FORMAT_UNKNOWN, // GNF_BC3 = 74,
 	DXGI_FORMAT_UNKNOWN, // GNF_BC4 = 75,
 	DXGI_FORMAT_UNKNOWN, // GNF_BC5 = 76,
-	DXGI_FORMAT_BC6H_SF16, // GNF_BC6 = 77,
-	DXGI_FORMAT_BC7_UNORM, // GNF_BC7 = 78,
+	DXGI_FORMAT_BC6H_TYPELESS, // GNF_BC6HUF = 77,
+	DXGI_FORMAT_BC6H_TYPELESS, // GNF_BC6HSF = 78,
+	DXGI_FORMAT_BC7_UNORM, // GNF_BC7 = 79,
 	// Reveser Form
-	DXGI_FORMAT_B8G8R8A8_UNORM, // BGRA8 = 79,
+	DXGI_FORMAT_B8G8R8A8_UNORM, // BGRA8 = 80,
 	// Extend for DXGI
-	DXGI_FORMAT_UNKNOWN, // X8D24PAX32 = 80,
-	DXGI_FORMAT_UNKNOWN, // S8 = 81,
-	DXGI_FORMAT_UNKNOWN, // D16S8 = 82,
-	DXGI_FORMAT_UNKNOWN, // D32S8 = 83,
+	DXGI_FORMAT_UNKNOWN, // X8D24PAX32 = 81,
+	DXGI_FORMAT_UNKNOWN, // S8 = 82,
+	DXGI_FORMAT_UNKNOWN, // D16S8 = 83,
+	DXGI_FORMAT_UNKNOWN, // D32S8 = 84,
 };
 
 const DXGI_FORMAT gFormatTranslator[] = {
@@ -310,15 +311,16 @@ const DXGI_FORMAT gFormatTranslator[] = {
 	DXGI_FORMAT_UNKNOWN, // GNF_BC3 = 74,
 	DXGI_FORMAT_UNKNOWN, // GNF_BC4 = 75,
 	DXGI_FORMAT_UNKNOWN, // GNF_BC5 = 76,
-	DXGI_FORMAT_BC6H_SF16, // GNF_BC6 = 77,
-	DXGI_FORMAT_BC7_UNORM, // GNF_BC7 = 78,
+	DXGI_FORMAT_BC6H_UF16, // GNF_BC6 = 77,
+	DXGI_FORMAT_BC6H_SF16, // GNF_BC6 = 78,
+	DXGI_FORMAT_BC7_UNORM, // GNF_BC7 = 79,
 	// Reveser Form
-	DXGI_FORMAT_B8G8R8A8_UNORM, // BGRA8 = 79,
+	DXGI_FORMAT_B8G8R8A8_UNORM, // BGRA8 = 80,
 	// Extend for DXGI
-	DXGI_FORMAT_UNKNOWN, // X8D24PAX32 = 80,
-	DXGI_FORMAT_UNKNOWN, // S8 = 81,
-	DXGI_FORMAT_UNKNOWN, // D16S8 = 82,
-	DXGI_FORMAT_UNKNOWN, // D32S8 = 83,
+	DXGI_FORMAT_UNKNOWN, // X8D24PAX32 = 81,
+	DXGI_FORMAT_UNKNOWN, // S8 = 82,
+	DXGI_FORMAT_UNKNOWN, // D16S8 = 83,
+	DXGI_FORMAT_UNKNOWN, // D32S8 = 84,
 };
 // clang-format on
 
@@ -863,7 +865,7 @@ API_INTERFACE void FORGE_CALLCONV mapBuffer(Renderer* pRenderer, Buffer* pBuffer
 API_INTERFACE void FORGE_CALLCONV unmapBuffer(Renderer* pRenderer, Buffer* pBuffer);
 API_INTERFACE void FORGE_CALLCONV cmdUpdateBuffer(Cmd* pCmd, Buffer* pBuffer, uint64_t dstOffset, Buffer* pSrcBuffer, uint64_t srcOffset, uint64_t size);
 API_INTERFACE void FORGE_CALLCONV cmdUpdateSubresource(Cmd* pCmd, Texture* pTexture, Buffer* pSrcBuffer, SubresourceDataDesc* pSubresourceDesc);
-API_INTERFACE void FORGE_CALLCONV compileShader(Renderer* pRenderer, ShaderTarget target, ShaderStage stage, const char* fileName, uint32_t codeSize, const char* code, uint32_t macroCount, ShaderMacro* pMacros, void* (*allocator)(size_t a), uint32_t* pByteCodeSize, char** ppByteCode, const char* pEntryPoint);
+API_INTERFACE void FORGE_CALLCONV compileShader(Renderer* pRenderer, ShaderTarget target, ShaderStage stage, const char* fileName, uint32_t codeSize, const char* code, uint32_t macroCount, ShaderMacro* pMacros, void* (*allocator)(size_t a, const char *f, int l, const char *sf), uint32_t* pByteCodeSize, char** ppByteCode, const char* pEntryPoint);
 API_INTERFACE const RendererShaderDefinesDesc FORGE_CALLCONV get_renderer_shaderdefines(Renderer* pRenderer);
 
 // clang-format on
@@ -1331,7 +1333,7 @@ void addSwapChain(Renderer* pRenderer, const SwapChainDesc* pDesc, SwapChain** p
 		pSwapChain->mDesc.mSampleCount = SAMPLE_COUNT_1;
 	}
 
-	HWND hwnd = (HWND)pSwapChain->mDesc.pWindow->handle;
+	HWND hwnd = (HWND)pSwapChain->mDesc.mWindowHandle.window;
 
 	DXGI_SWAP_CHAIN_DESC desc = {};
 	desc.BufferDesc.Width = pSwapChain->mDesc.mWidth;
@@ -1342,7 +1344,7 @@ void addSwapChain(Renderer* pRenderer, const SwapChainDesc* pDesc, SwapChain** p
 	desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_SHADER_INPUT;
 	desc.BufferCount = 1;    // pSwapChain->mDesc.mImageCount;
 	desc.OutputWindow = hwnd;
-	desc.Windowed = (BOOL)(!pDesc->pWindow->fullScreen);
+	desc.Windowed = TRUE;
 	desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 	desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 	desc.Flags = 0;
@@ -1466,12 +1468,6 @@ void addCmd(CmdPool* pCmdPool, bool secondary, Cmd** ppCmd)
 	ASSERT(pCmd->pRenderer->pDxDevice);
 	ASSERT(pCmdPool->mCmdPoolDesc.mCmdPoolType < CmdPoolType::MAX_CMD_TYPE);
 
-	if (pCmdPool->mCmdPoolDesc.mCmdPoolType == CMD_POOL_DIRECT)
-	{
-		pCmd->pBoundColorFormats = (uint32_t*)conf_calloc(MAX_RENDER_TARGET_ATTACHMENTS, sizeof(uint32_t));
-		pCmd->pBoundSrgbValues = (bool*)conf_calloc(MAX_RENDER_TARGET_ATTACHMENTS, sizeof(bool));
-	}
-
 	//set new command
 	*ppCmd = pCmd;
 }
@@ -1481,12 +1477,6 @@ void removeCmd(CmdPool* pCmdPool, Cmd* pCmd)
 	//verify that given command and pool are valid
 	ASSERT(pCmdPool);
 	ASSERT(pCmd);
-
-	if (pCmd->pBoundColorFormats)
-		SAFE_FREE(pCmd->pBoundColorFormats);
-
-	if (pCmd->pBoundSrgbValues)
-		SAFE_FREE(pCmd->pBoundSrgbValues);
 
 	if (pCmd->pRootConstantBuffer)
 		removeBuffer(pCmd->pRenderer, pCmd->pRootConstantBuffer);
@@ -1725,7 +1715,7 @@ void removeSampler(Renderer* pRenderer, Sampler* pSampler)
 /************************************************************************/
 void compileShader(
 	Renderer* pRenderer, ShaderTarget shaderTarget, ShaderStage stage, const char* fileName, uint32_t codeSize, const char* code,
-	uint32_t macroCount, ShaderMacro* pMacros, void* (*allocator)(size_t a), uint32_t* pByteCodeSize, char** ppByteCode, const char* pEntryPoint)
+	uint32_t macroCount, ShaderMacro* pMacros, void* (*allocator)(size_t a, const char *f, int l, const char *sf), uint32_t* pByteCodeSize, char** ppByteCode, const char* pEntryPoint)
 {
 	if (shaderTarget > pRenderer->mSettings.mShaderTarget)
 	{
@@ -1798,7 +1788,7 @@ void compileShader(
 	}
 	ASSERT(SUCCEEDED(hres));
 
-	char* pByteCode = (char*)allocator(compiled_code->GetBufferSize());
+	char* pByteCode = (char*)allocator(compiled_code->GetBufferSize(), __FILE__, __LINE__, __FUNCTION__);
 	memcpy(pByteCode, compiled_code->GetBufferPointer(), compiled_code->GetBufferSize());
 
 	*pByteCodeSize = (uint32_t)compiled_code->GetBufferSize();
@@ -2246,10 +2236,9 @@ void addTexture(Renderer* pRenderer, const TextureDesc* pDesc, Texture** ppTextu
 	}
 
 	// Compute texture size
-	Image img;
-	img.RedefineDimensions(
-		pTexture->mDesc.mFormat, pTexture->mDesc.mWidth, pTexture->mDesc.mHeight, pTexture->mDesc.mDepth, pTexture->mDesc.mMipLevels);
-	pTexture->mTextureSize = pDesc->mArraySize * img.GetMipMappedSize(0, pTexture->mDesc.mMipLevels);
+	pTexture->mTextureSize = pTexture->mDesc.mArraySize * ImageFormat::GetMipMappedSize(
+		pTexture->mDesc.mWidth, pTexture->mDesc.mHeight, pTexture->mDesc.mDepth,
+		pTexture->mDesc.mMipLevels, pTexture->mDesc.mFormat);
 
 	D3D11_SHADER_RESOURCE_VIEW_DESC  srvDesc = {};
 	D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
@@ -2539,7 +2528,7 @@ void addRootSignature(Renderer* pRenderer, const RootSignatureDesc* pRootSignatu
 
 				for (ShaderResource& res : shaderResources)
 				{
-					if (res.name == pNode->first)
+					if (strcmp(res.name, pNode->first) == 0)
 					{
 						res.used_stages |= pRes->used_stages;
 						break;
@@ -2714,17 +2703,6 @@ void addPipeline(Renderer* pRenderer, const GraphicsPipelineDesc* pDesc, Pipelin
 		{
 			const VertexAttrib* attrib = &(pVertexLayout->mAttribs[attrib_index]);
 
-#ifdef FORGE_JHABLE_EDITS_V01
-			input_elements[input_elementCount].SemanticName = g_hackSemanticList[attrib->mSemanticType];
-			input_elements[input_elementCount].SemanticIndex = attrib->mSemanticIndex;
-
-			if (attrib->mSemanticNameLength > 0)
-			{
-				uint32_t name_length = min(MAX_SEMANTIC_NAME_LENGTH, attrib->mSemanticNameLength);
-				strncpy_s(semantic_names[attrib_index], attrib->mSemanticName, name_length);
-			}
-
-#else
 			ASSERT(SEMANTIC_UNDEFINED != attrib->mSemantic);
 
 			if (attrib->mSemanticNameLength > 0)
@@ -2776,7 +2754,6 @@ void addPipeline(Renderer* pRenderer, const GraphicsPipelineDesc* pDesc, Pipelin
 
 			input_elements[input_elementCount].SemanticName = semantic_names[attrib_index];
 			input_elements[input_elementCount].SemanticIndex = semantic_index;
-#endif
 			input_elements[input_elementCount].Format = util_to_dx_image_format(attrib->mFormat, false);
 			input_elements[input_elementCount].InputSlot = attrib->mBinding;
 			input_elements[input_elementCount].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
@@ -3133,9 +3110,6 @@ void cmdBindRenderTargets(
 	}
 	cmd.mBindRenderTargetsCmd.mLoadActions = pLoadActions ? *pLoadActions : LoadActionsDesc{};
 	cachedCmdsIter->second.push_back(cmd);
-
-	pCmd->mBoundWidth = pDepthStencil ? pDepthStencil->mDesc.mWidth : ppRenderTargets[0]->mDesc.mWidth;
-	pCmd->mBoundHeight = pDepthStencil ? pDepthStencil->mDesc.mHeight : ppRenderTargets[0]->mDesc.mHeight;
 }
 
 void cmdSetViewport(Cmd* pCmd, float x, float y, float width, float height, float minDepth, float maxDepth)
@@ -4109,6 +4083,14 @@ void removeQueryHeap(Renderer* pRenderer, QueryHeap* pQueryHeap)
 	}
 	SAFE_FREE(pQueryHeap->ppDxQueries);
 	SAFE_FREE(pQueryHeap);
+}
+
+void cmdResetQueryHeap(Cmd* pCmd, QueryHeap* pQueryHeap, uint32_t startQuery, uint32_t queryCount)
+{
+	UNREF_PARAM(pCmd);
+	UNREF_PARAM(pQueryHeap);
+	UNREF_PARAM(startQuery);
+	UNREF_PARAM(queryCount);
 }
 
 void cmdBeginQuery(Cmd* pCmd, QueryHeap* pQueryHeap, QueryDesc* pQuery)
